@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <TargetExt>.gha</TargetExt>
+    <Nullable>enable</Nullable>
+    <NoWarn>NU1701;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <AssemblyName>RhinoWFS</AssemblyName>
+    <RootNamespace>RhinoWFS</RootNamespace>
+    <Product>RhinoWFS</Product>
+    <Title>RhinoWFS</Title>
+    <Company>RhinoWFS</Company>
+    <Description>Grasshopper components for listing WFS layers and loading WFS data.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+    <PackageReference Include="System.Drawing.Common" Version="7.0.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WfsCore\WfsCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/BoundingBoxWfs.png" LogicalName="RhinoWFS.Resources.BoundingBoxWfs.png" />
+    <EmbeddedResource Include="Resources/BoundingBoxHelper.html" LogicalName="RhinoWFS.Resources.BoundingBoxHelper.html" />
+    <EmbeddedResource Include="Resources/LayerWfs.png" LogicalName="RhinoWFS.Resources.LayerWfs.png" />
+    <EmbeddedResource Include="Resources/LoadWfs.png" LogicalName="RhinoWFS.Resources.LoadWfs.png" />
+    <EmbeddedResource Include="Resources/categoryWfs.png" LogicalName="RhinoWFS.Resources.categoryWfs.png" />
+  </ItemGroup>
+</Project>

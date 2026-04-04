@@ -1,0 +1,150 @@
+<WFS_Capabilities xmlns:gml="http://www.opengis.net/gml" xmlns:ows="http://www.opengis.net/ows" updateSequence="0" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns="http://www.opengis.net/wfs" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ogc="http://www.opengis.net/ogc" xsi:schemaLocation="http://www.opengis.net/wfs http://schemas.opengis.net/wfs/1.1.0/wfs.xsd" version="1.1.0">
+ <ows:ServiceIdentification>
+  <ows:Title>Bebauungspläne - Geltungsbereiche</ows:Title>
+  <ows:Abstract><![CDATA[Aktuelle Geltungsbereiche der rechtsverbindlichen und im Verfahren befindlichen Bebauungspläne der Stadt Frankfurt am Main.]]></ows:Abstract>
+  <ows:ServiceType>WFS</ows:ServiceType>
+  <ows:ServiceTypeVersion>1.1.0</ows:ServiceTypeVersion>
+  <ows:Fees>no conditions apply</ows:Fees>
+  <ows:AccessConstraints>None</ows:AccessConstraints>
+ </ows:ServiceIdentification>
+ <ows:ServiceProvider>
+  <ows:ProviderName>Stadtplanungsamt Frankfurt am Main</ows:ProviderName>
+  <ows:ServiceContact>
+   <ows:IndividualName>61.23 IT-Koordination und Geoinformation</ows:IndividualName>
+   <ows:PositionName>publisher</ows:PositionName>
+   <ows:Role>PointOfContact</ows:Role>
+  </ows:ServiceContact>
+ </ows:ServiceProvider>
+ <ows:OperationsMetadata>
+  <ows:Operation name="GetCapabilities">
+   <ows:DCP>
+    <ows:HTTP>
+     <ows:Get xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+     <ows:Post xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+    </ows:HTTP>
+   </ows:DCP>
+   <ows:Parameter name="service">
+    <ows:Value>WFS</ows:Value>
+   </ows:Parameter>
+   <ows:Parameter name="AcceptVersions">
+    <ows:Value>1.1.0</ows:Value>
+    <ows:Value>1.0.0</ows:Value>
+   </ows:Parameter>
+   <ows:Parameter name="AcceptFormats">
+    <ows:Value>text/xml</ows:Value>
+   </ows:Parameter>
+  </ows:Operation>
+  <ows:Operation name="DescribeFeatureType">
+   <ows:DCP>
+    <ows:HTTP>
+     <ows:Get xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+     <ows:Post xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+    </ows:HTTP>
+   </ows:DCP>
+   <ows:Parameter name="outputFormat">
+    <ows:Value>XMLSCHEMA</ows:Value>
+    <ows:Value>text/xml; subtype=gml/2.1.2</ows:Value>
+    <ows:Value>text/xml; subtype=gml/3.1.1</ows:Value>
+   </ows:Parameter>
+  </ows:Operation>
+  <ows:Operation name="GetFeature">
+   <ows:DCP>
+    <ows:HTTP>
+     <ows:Get xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+     <ows:Post xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+    </ows:HTTP>
+   </ows:DCP>
+   <ows:Parameter name="outputFormat">
+    <ows:Value>text/xml; subtype=gml/2.1.2</ows:Value>
+    <ows:Value>text/xml; subtype=gml/3.1.1</ows:Value>
+    <ows:Value>application/vnd.geo+json</ows:Value>
+   </ows:Parameter>
+   <ows:Parameter name="resultType">
+    <ows:Value>results</ows:Value>
+    <ows:Value>hits</ows:Value>
+   </ows:Parameter>
+  </ows:Operation>
+  <ows:Operation name="Transaction">
+   <ows:DCP>
+    <ows:HTTP>
+     <ows:Get xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+     <ows:Post xlink:href="http://planas.frankfurt.de/wfs/bebauungsplaene_geltungsbereiche"/>
+    </ows:HTTP>
+   </ows:DCP>
+   <ows:Parameter name="inputFormat">
+    <ows:Value>text/xml; subtype=gml/2.1.2</ows:Value>
+    <ows:Value>text/xml; subtype=gml/3.1.1</ows:Value>
+    <ows:Value>application/vnd.geo+json</ows:Value>
+   </ows:Parameter>
+  </ows:Operation>
+ </ows:OperationsMetadata>
+ <FeatureTypeList>
+  <Operations>
+   <Operation>Query</Operation>
+  </Operations>
+  <FeatureType>
+   <Name>bplan_iv</Name>
+   <Title>Bebauungspläne im Verfahren</Title>
+   <Abstract>Aktuelle Geltungsbereiche der im Verfahren befindlichen Bebauungspläne der Stadt Frankfurt am Main.</Abstract>
+   <DefaultSRS>EPSG:25832</DefaultSRS>
+   <OtherSRS>EPSG:4326</OtherSRS>
+   <Operations>
+    <Operation>Query</Operation>
+   </Operations>
+   <ows:WGS84BoundingBox dimensions="2">
+    <ows:LowerCorner>8.487542 50.06891</ows:LowerCorner>
+    <ows:UpperCorner>8.785027 50.210291</ows:UpperCorner>
+   </ows:WGS84BoundingBox>
+  </FeatureType>
+  <FeatureType>
+   <Name>bplan_rv</Name>
+   <Title>Bebauungspläne rechtsverbindlich</Title>
+   <Abstract>Aktuelle Geltungsbereiche der rechtsverbindlichen Bebauungspläne der Stadt Frankfurt am Main.</Abstract>
+   <DefaultSRS>EPSG:25832</DefaultSRS>
+   <OtherSRS>EPSG:4326</OtherSRS>
+   <Operations>
+    <Operation>Query</Operation>
+   </Operations>
+   <ows:WGS84BoundingBox dimensions="2">
+    <ows:LowerCorner>8.484925 50.053034</ows:LowerCorner>
+    <ows:UpperCorner>8.780733 50.212276</ows:UpperCorner>
+   </ows:WGS84BoundingBox>
+  </FeatureType>
+ </FeatureTypeList>
+ <ogc:Filter_Capabilities>
+  <ogc:Spatial_Capabilities>
+   <ogc:GeometryOperands>
+    <ogc:GeometryOperand>gml:Point</ogc:GeometryOperand>
+    <ogc:GeometryOperand>gml:LineString</ogc:GeometryOperand>
+    <ogc:GeometryOperand>gml:Polygon</ogc:GeometryOperand>
+    <ogc:GeometryOperand>gml:Envelope</ogc:GeometryOperand>
+   </ogc:GeometryOperands>
+   <ogc:SpatialOperators>
+    <ogc:SpatialOperator name="Equals"/>
+    <ogc:SpatialOperator name="Disjoint"/>
+    <ogc:SpatialOperator name="Touches"/>
+    <ogc:SpatialOperator name="Within"/>
+    <ogc:SpatialOperator name="Overlaps"/>
+    <ogc:SpatialOperator name="Crosses"/>
+    <ogc:SpatialOperator name="Intersects"/>
+    <ogc:SpatialOperator name="Contains"/>
+    <ogc:SpatialOperator name="BBOX"/>
+   </ogc:SpatialOperators>
+  </ogc:Spatial_Capabilities>
+  <ogc:Scalar_Capabilities>
+   <ogc:LogicalOperators/>
+   <ogc:ComparisonOperators>
+    <ogc:ComparisonOperator>LessThan</ogc:ComparisonOperator>
+    <ogc:ComparisonOperator>GreaterThan</ogc:ComparisonOperator>
+    <ogc:ComparisonOperator>LessThanEqualTo</ogc:ComparisonOperator>
+    <ogc:ComparisonOperator>GreaterThanEqualTo</ogc:ComparisonOperator>
+    <ogc:ComparisonOperator>EqualTo</ogc:ComparisonOperator>
+    <ogc:ComparisonOperator>Like</ogc:ComparisonOperator>
+    <ogc:ComparisonOperator>Between</ogc:ComparisonOperator>
+   </ogc:ComparisonOperators>
+  </ogc:Scalar_Capabilities>
+  <ogc:Id_Capabilities>
+   <ogc:FID/>
+  </ogc:Id_Capabilities>
+ </ogc:Filter_Capabilities>
+</WFS_Capabilities>
