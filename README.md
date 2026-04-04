@@ -126,3 +126,11 @@ This keeps the core logic reusable and keeps the Rhino-specific code separate fr
 - The plugin tries to prefer the layer's default SRS when possible.
 - The bounding box helper currently supports the SRS values used in the current workflow, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, and `EPSG:3857`.
 - Some WFS services behave differently, so more compatibility improvements may still be added over time.
+
+## License
+
+RhinoWFS is released under the MIT License.
+
+## Feedback
+
+RhinoWFS is still in an early alpha stage. Feedback, bug reports, edge cases, and additional WFS test links are very welcome.
