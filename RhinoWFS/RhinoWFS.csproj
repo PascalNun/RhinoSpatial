@@ -13,8 +13,10 @@
     <RootNamespace>RhinoWFS</RootNamespace>
     <Product>RhinoWFS</Product>
     <Title>RhinoWFS</Title>
-    <Company>RhinoWFS</Company>
+    <Company>Pascal Nun</Company>
     <Description>Grasshopper components for listing WFS layers and loading WFS data.</Description>
+    <RepositoryUrl>https://github.com/PascalNun/RhinoWFS</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/PascalNun/RhinoWFS</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>

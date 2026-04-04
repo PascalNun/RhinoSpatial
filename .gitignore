@@ -3,3 +3,6 @@ obj/
 **/bin/
 **/obj/
 .DS_Store
+.tmp-yak/
+package/staging/
+package/yak/*.yak

@@ -14,9 +14,9 @@ namespace RhinoWFS
 
         public override Guid Id => new Guid("1b7de011-9623-49c8-b867-3a2116c9549f");
 
-        public override string AuthorName => "RhinoWFS";
+        public override string AuthorName => "Pascal Nun";
 
-        public override string AuthorContact => string.Empty;
+        public override string AuthorContact => "https://github.com/PascalNun/RhinoWFS";
 
         public override string AssemblyVersion => GetType().Assembly.GetName().Version?.ToString() ?? "0.1.0";
     }

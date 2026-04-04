@@ -1,0 +1,12 @@
+---
+name: RhinoWFS
+version: 0.1.0.0
+authors:
+  - Pascal Nun
+description: Grasshopper components for listing WFS layers and loading WFS data.
+url: https://github.com/PascalNun/RhinoWFS
+keywords:
+  - grasshopper
+  - rhino
+  - wfs
+  - gis
