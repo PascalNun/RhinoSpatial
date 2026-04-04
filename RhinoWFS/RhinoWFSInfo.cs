@@ -18,6 +18,6 @@ namespace RhinoWFS
 
         public override string AuthorContact => "https://github.com/PascalNun/RhinoWFS";
 
-        public override string AssemblyVersion => GetType().Assembly.GetName().Version?.ToString() ?? "0.1.0";
+        public override string AssemblyVersion => GetType().Assembly.GetName().Version?.ToString() ?? "0.1.1";
     }
 }

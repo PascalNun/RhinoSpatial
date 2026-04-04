@@ -1,6 +1,6 @@
 ---
 name: RhinoWFS
-version: 0.1.0.0
+version: 0.1.1.0
 authors:
   - Pascal Nun
 description: Grasshopper components for listing WFS layers and loading WFS data.

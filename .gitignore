@@ -6,3 +6,4 @@ obj/
 .tmp-yak/
 package/staging/
 package/yak/*.yak
+package/food4rhino/*.zip
