@@ -56,7 +56,7 @@ namespace RhinoWFS.Sandbox
             {
                 BaseUrl = "https://planas.frankfurt.de/wfs/bebauungsplaene_rv_flaechennutzung",
                 TypeName = "n_bplan_rv",
-                SrsName = "EPSG:25832",
+                SrsName = string.Empty,
                 MaxFeatures = 5
             };
 
@@ -73,6 +73,11 @@ namespace RhinoWFS.Sandbox
             if (args.Length > 2 && int.TryParse(args[2], out var maxFeatures))
             {
                 options.MaxFeatures = maxFeatures;
+            }
+
+            if (args.Length > 3)
+            {
+                options.SrsName = args[3];
             }
 
             return options;

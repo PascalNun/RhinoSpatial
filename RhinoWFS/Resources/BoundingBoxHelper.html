@@ -328,6 +328,33 @@
           </div>
 
           <div>
+            <label class="label" for="bbox27700">Bounding Box in EPSG:27700</label>
+            <textarea id="bbox27700" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy27700BboxButton" type="button">Copy EPSG:27700 BBox</button>
+              <button id="copy27700SrsButton" type="button" class="secondary">Copy EPSG:27700</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox4283">Bounding Box in EPSG:4283</label>
+            <textarea id="bbox4283" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy4283BboxButton" type="button">Copy EPSG:4283 BBox</button>
+              <button id="copy4283SrsButton" type="button" class="secondary">Copy EPSG:4283</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox7844">Bounding Box in EPSG:7844</label>
+            <textarea id="bbox7844" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy7844BboxButton" type="button">Copy EPSG:7844 BBox</button>
+              <button id="copy7844SrsButton" type="button" class="secondary">Copy EPSG:7844</button>
+            </div>
+          </div>
+
+          <div>
             <label class="label" for="bbox3857">Bounding Box in EPSG:3857</label>
             <textarea id="bbox3857" readonly placeholder="Draw a rectangle on the map."></textarea>
             <div class="button-row">
@@ -372,6 +399,9 @@
     proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs +type=crs");
     proj4.defs("EPSG:25832", "+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs");
     proj4.defs("EPSG:25833", "+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs");
+    proj4.defs("EPSG:27700", "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 +units=m +no_defs +type=crs");
+    proj4.defs("EPSG:4283", "+proj=longlat +ellps=GRS80 +no_defs +type=crs");
+    proj4.defs("EPSG:7844", "+proj=longlat +ellps=GRS80 +no_defs +type=crs");
 
     const map = L.map("map", {
       zoomControl: true
@@ -412,6 +442,9 @@
     const bbox4326 = document.getElementById("bbox4326");
     const bbox25832 = document.getElementById("bbox25832");
     const bbox25833 = document.getElementById("bbox25833");
+    const bbox27700 = document.getElementById("bbox27700");
+    const bbox4283 = document.getElementById("bbox4283");
+    const bbox7844 = document.getElementById("bbox7844");
     const bbox3857 = document.getElementById("bbox3857");
     const statusText = document.getElementById("status");
     const copy4326BboxButton = document.getElementById("copy4326BboxButton");
@@ -420,6 +453,12 @@
     const copy25832SrsButton = document.getElementById("copy25832SrsButton");
     const copy25833BboxButton = document.getElementById("copy25833BboxButton");
     const copy25833SrsButton = document.getElementById("copy25833SrsButton");
+    const copy27700BboxButton = document.getElementById("copy27700BboxButton");
+    const copy27700SrsButton = document.getElementById("copy27700SrsButton");
+    const copy4283BboxButton = document.getElementById("copy4283BboxButton");
+    const copy4283SrsButton = document.getElementById("copy4283SrsButton");
+    const copy7844BboxButton = document.getElementById("copy7844BboxButton");
+    const copy7844SrsButton = document.getElementById("copy7844SrsButton");
     const copy3857BboxButton = document.getElementById("copy3857BboxButton");
     const copy3857SrsButton = document.getElementById("copy3857SrsButton");
     const clearButton = document.getElementById("clearButton");
@@ -440,6 +479,18 @@
 
       if (srsText.includes("25833")) {
         return "EPSG:25833";
+      }
+
+      if (srsText.includes("27700")) {
+        return "EPSG:27700";
+      }
+
+      if (srsText.includes("4283")) {
+        return "EPSG:4283";
+      }
+
+      if (srsText.includes("7844")) {
+        return "EPSG:7844";
       }
 
       if (srsText.includes("3857")) {
@@ -530,11 +581,17 @@
 
       const projectedBounds25832 = buildProjectedBounds(bounds, "EPSG:25832");
       const projectedBounds25833 = buildProjectedBounds(bounds, "EPSG:25833");
+      const projectedBounds27700 = buildProjectedBounds(bounds, "EPSG:27700");
+      const projectedBounds4283 = buildProjectedBounds(bounds, "EPSG:4283");
+      const projectedBounds7844 = buildProjectedBounds(bounds, "EPSG:7844");
       const projectedBounds3857 = buildProjectedBounds(bounds, "EPSG:3857");
 
       bbox4326.value = `${minX4326},${minY4326},${maxX4326},${maxY4326}`;
       bbox25832.value = `${formatProjectedCoordinate(projectedBounds25832.minX)},${formatProjectedCoordinate(projectedBounds25832.minY)},${formatProjectedCoordinate(projectedBounds25832.maxX)},${formatProjectedCoordinate(projectedBounds25832.maxY)}`;
       bbox25833.value = `${formatProjectedCoordinate(projectedBounds25833.minX)},${formatProjectedCoordinate(projectedBounds25833.minY)},${formatProjectedCoordinate(projectedBounds25833.maxX)},${formatProjectedCoordinate(projectedBounds25833.maxY)}`;
+      bbox27700.value = `${formatProjectedCoordinate(projectedBounds27700.minX)},${formatProjectedCoordinate(projectedBounds27700.minY)},${formatProjectedCoordinate(projectedBounds27700.maxX)},${formatProjectedCoordinate(projectedBounds27700.maxY)}`;
+      bbox4283.value = `${formatCoordinate(projectedBounds4283.minX)},${formatCoordinate(projectedBounds4283.minY)},${formatCoordinate(projectedBounds4283.maxX)},${formatCoordinate(projectedBounds4283.maxY)}`;
+      bbox7844.value = `${formatCoordinate(projectedBounds7844.minX)},${formatCoordinate(projectedBounds7844.minY)},${formatCoordinate(projectedBounds7844.maxX)},${formatCoordinate(projectedBounds7844.maxY)}`;
       bbox3857.value = `${formatProjectedCoordinate(projectedBounds3857.minX)},${formatProjectedCoordinate(projectedBounds3857.minY)},${formatProjectedCoordinate(projectedBounds3857.maxX)},${formatProjectedCoordinate(projectedBounds3857.maxY)}`;
       setStatus("Bounding boxes updated. The WFS Bounding Box component should refresh automatically. You can also copy the values manually.");
       publishSelection();
@@ -560,6 +617,9 @@
       bbox4326.value = "";
       bbox25832.value = "";
       bbox25833.value = "";
+      bbox27700.value = "";
+      bbox4283.value = "";
+      bbox7844.value = "";
       bbox3857.value = "";
       setStatus("Rectangle removed.");
       publishSelection();
@@ -603,6 +663,30 @@
       copyText("EPSG:25833", "EPSG:25833 copied.");
     });
 
+    copy27700BboxButton.addEventListener("click", () => {
+      copyText(bbox27700.value, "EPSG:27700 bounding box copied.");
+    });
+
+    copy27700SrsButton.addEventListener("click", () => {
+      copyText("EPSG:27700", "EPSG:27700 copied.");
+    });
+
+    copy4283BboxButton.addEventListener("click", () => {
+      copyText(bbox4283.value, "EPSG:4283 bounding box copied.");
+    });
+
+    copy4283SrsButton.addEventListener("click", () => {
+      copyText("EPSG:4283", "EPSG:4283 copied.");
+    });
+
+    copy7844BboxButton.addEventListener("click", () => {
+      copyText(bbox7844.value, "EPSG:7844 bounding box copied.");
+    });
+
+    copy7844SrsButton.addEventListener("click", () => {
+      copyText("EPSG:7844", "EPSG:7844 copied.");
+    });
+
     copy3857BboxButton.addEventListener("click", () => {
       copyText(bbox3857.value, "EPSG:3857 bounding box copied.");
     });
@@ -616,6 +700,9 @@
       bbox4326.value = "";
       bbox25832.value = "";
       bbox25833.value = "";
+      bbox27700.value = "";
+      bbox4283.value = "";
+      bbox7844.value = "";
       bbox3857.value = "";
       setStatus("Rectangle cleared.");
       publishSelection();
@@ -626,6 +713,9 @@
         bbox4326: bbox4326.value,
         bbox25832: bbox25832.value,
         bbox25833: bbox25833.value,
+        bbox27700: bbox27700.value,
+        bbox4283: bbox4283.value,
+        bbox7844: bbox7844.value,
         bbox3857: bbox3857.value
       });
 

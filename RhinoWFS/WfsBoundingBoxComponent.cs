@@ -171,13 +171,19 @@ namespace RhinoWFS
             {
                 return new SolveResults
                 {
-                    Status = $"The Bounding Box helper currently supports EPSG:25832, EPSG:25833, EPSG:3857, and EPSG:4326, but the resolved SRS was '{srsResolution.ResolvedSrsName}'. Enter one of those SRS values manually if needed.",
+                    Status = $"The Bounding Box helper currently supports EPSG:25832, EPSG:25833, EPSG:27700, EPSG:3857, EPSG:4283, EPSG:7844, and EPSG:4326, but the resolved SRS was '{srsResolution.ResolvedSrsName}'. Enter one of those SRS values manually if needed.",
                     MessageLevel = GH_RuntimeMessageLevel.Error
                 };
             }
 
             var boundingBoxText = supportedSrs.Equals("EPSG:4326", StringComparison.OrdinalIgnoreCase)
                 ? selection.BoundingBox4326
+                : supportedSrs.Equals("EPSG:7844", StringComparison.OrdinalIgnoreCase)
+                    ? selection.BoundingBox7844
+                : supportedSrs.Equals("EPSG:4283", StringComparison.OrdinalIgnoreCase)
+                    ? selection.BoundingBox4283
+                : supportedSrs.Equals("EPSG:27700", StringComparison.OrdinalIgnoreCase)
+                    ? selection.BoundingBox27700
                 : supportedSrs.Equals("EPSG:3857", StringComparison.OrdinalIgnoreCase)
                     ? selection.BoundingBox3857
                 : supportedSrs.Equals("EPSG:25833", StringComparison.OrdinalIgnoreCase)
@@ -230,7 +236,7 @@ namespace RhinoWFS
             var layers = _wfsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult();
             var layerInfo = layers.FirstOrDefault(layer => string.Equals(layer.Name, layerName, StringComparison.OrdinalIgnoreCase));
 
-            if (layerInfo is null || string.IsNullOrWhiteSpace(layerInfo.DefaultSrs))
+            if (layerInfo is null)
             {
                 return (
                     "EPSG:25832",
@@ -238,7 +244,17 @@ namespace RhinoWFS
                     GH_RuntimeMessageLevel.Warning);
             }
 
-            return (layerInfo.DefaultSrs.Trim(), string.Empty, null);
+            var supportedLayerSrs = ResolveSupportedLayerSrs(layerInfo);
+
+            if (!string.IsNullOrWhiteSpace(supportedLayerSrs))
+            {
+                return (supportedLayerSrs, string.Empty, null);
+            }
+
+            return (
+                layerInfo.DefaultSrs?.Trim() ?? string.Empty,
+                string.Empty,
+                null);
         }
 
         private static string NormalizeSupportedMapSrs(string srsName)
@@ -258,6 +274,21 @@ namespace RhinoWFS
                 return "EPSG:25833";
             }
 
+            if (srsName.Contains("27700", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:27700";
+            }
+
+            if (srsName.Contains("4283", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:4283";
+            }
+
+            if (srsName.Contains("7844", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:7844";
+            }
+
             if (srsName.Contains("3857", StringComparison.OrdinalIgnoreCase))
             {
                 return "EPSG:3857";
@@ -266,6 +297,28 @@ namespace RhinoWFS
             if (srsName.Contains("4326", StringComparison.OrdinalIgnoreCase))
             {
                 return "EPSG:4326";
+            }
+
+            return string.Empty;
+        }
+
+        private static string ResolveSupportedLayerSrs(WfsLayerInfo layerInfo)
+        {
+            var normalizedDefault = NormalizeSupportedMapSrs(layerInfo.DefaultSrs ?? string.Empty);
+
+            if (!string.IsNullOrWhiteSpace(normalizedDefault))
+            {
+                return normalizedDefault;
+            }
+
+            foreach (var otherSrs in layerInfo.OtherSrs)
+            {
+                var normalizedOther = NormalizeSupportedMapSrs(otherSrs);
+
+                if (!string.IsNullOrWhiteSpace(normalizedOther))
+                {
+                    return normalizedOther;
+                }
             }
 
             return string.Empty;
@@ -331,7 +384,9 @@ namespace RhinoWFS
                 return (layerInfo?.Wgs84BoundingBox, normalizedRequestedSrs);
             }
 
-            return (layerInfo?.Wgs84BoundingBox, NormalizeSupportedMapSrs(layerInfo?.DefaultSrs ?? string.Empty));
+            return (
+                layerInfo?.Wgs84BoundingBox,
+                layerInfo is null ? string.Empty : ResolveSupportedLayerSrs(layerInfo));
         }
     }
 }

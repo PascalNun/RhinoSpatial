@@ -63,33 +63,56 @@ namespace WfsCore
         {
             if (geometryElement.ValueKind == JsonValueKind.Null)
             {
-                return new WfsGeometry(
-                    Type: "Null",
-                    OuterRings: new List<LinearRing>()
-                );
+                return new WfsGeometry
+                {
+                    Type = "Null"
+                };
             }
 
             if (!geometryElement.TryGetProperty("coordinates", out var coordinatesElement))
             {
-                return new WfsGeometry(
-                    Type: geometryElement.GetProperty("type").GetString() ?? "Unknown",
-                    OuterRings: new List<LinearRing>()
-                );
+                return new WfsGeometry
+                {
+                    Type = geometryElement.GetProperty("type").GetString() ?? "Unknown"
+                };
             }
 
-            var geometryType = geometryElement.GetProperty("type").GetString();
+            var geometryType = geometryElement.GetProperty("type").GetString() ?? "Unknown";
 
-            var outerRings = geometryType switch
+            return geometryType switch
             {
-                "Polygon" => new List<LinearRing> { ReadRingPoints(coordinatesElement[0]) },
-                "MultiPolygon" => ReadMultiPolygonOuterRings(coordinatesElement),
+                "Polygon" => new WfsGeometry
+                {
+                    Type = geometryType,
+                    OuterRings = new List<LinearRing> { ReadRingPoints(coordinatesElement[0]) }
+                },
+                "MultiPolygon" => new WfsGeometry
+                {
+                    Type = geometryType,
+                    OuterRings = ReadMultiPolygonOuterRings(coordinatesElement)
+                },
+                "LineString" => new WfsGeometry
+                {
+                    Type = geometryType,
+                    LineStrings = new List<LineString> { ReadLineStringPoints(coordinatesElement) }
+                },
+                "MultiLineString" => new WfsGeometry
+                {
+                    Type = geometryType,
+                    LineStrings = ReadMultiLineStrings(coordinatesElement)
+                },
+                "Point" => new WfsGeometry
+                {
+                    Type = geometryType,
+                    Points = new List<Coordinate2D> { ReadPoint(coordinatesElement) }
+                },
+                "MultiPoint" => new WfsGeometry
+                {
+                    Type = geometryType,
+                    Points = ReadMultiPointCoordinates(coordinatesElement)
+                },
                 _ => throw new NotSupportedException($"Geometry type '{geometryType}' is not supported yet.")
             };
-
-            return new WfsGeometry(
-                Type: geometryType ?? "Unknown",
-                OuterRings: outerRings
-            );
         }
 
         private static string? ReadJsonValueAsString(JsonElement valueElement)
@@ -140,6 +163,62 @@ namespace WfsCore
             }
 
             return new LinearRing(points);
+        }
+
+        private static LineString ReadLineStringPoints(JsonElement lineElement)
+        {
+            var points = new List<Coordinate2D>();
+
+            foreach (var pointElement in lineElement.EnumerateArray())
+            {
+                if (pointElement.GetArrayLength() < 2)
+                {
+                    continue;
+                }
+
+                points.Add(new Coordinate2D(pointElement[0].GetDouble(), pointElement[1].GetDouble()));
+            }
+
+            return new LineString(points);
+        }
+
+        private static List<LineString> ReadMultiLineStrings(JsonElement multiLineElement)
+        {
+            var lineStrings = new List<LineString>();
+
+            foreach (var lineElement in multiLineElement.EnumerateArray())
+            {
+                lineStrings.Add(ReadLineStringPoints(lineElement));
+            }
+
+            return lineStrings;
+        }
+
+        private static Coordinate2D ReadPoint(JsonElement pointElement)
+        {
+            if (pointElement.GetArrayLength() < 2)
+            {
+                return new Coordinate2D(0, 0);
+            }
+
+            return new Coordinate2D(pointElement[0].GetDouble(), pointElement[1].GetDouble());
+        }
+
+        private static List<Coordinate2D> ReadMultiPointCoordinates(JsonElement multiPointElement)
+        {
+            var points = new List<Coordinate2D>();
+
+            foreach (var pointElement in multiPointElement.EnumerateArray())
+            {
+                if (pointElement.GetArrayLength() < 2)
+                {
+                    continue;
+                }
+
+                points.Add(ReadPoint(pointElement));
+            }
+
+            return points;
         }
     }
 }

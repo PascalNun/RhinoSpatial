@@ -14,13 +14,16 @@ namespace RhinoWFS
 {
     internal static class BoundingBoxHelperHost
     {
-        internal sealed record BoundingBoxSelection(string BoundingBox4326, string BoundingBox25832, string BoundingBox25833, string BoundingBox3857)
+        internal sealed record BoundingBoxSelection(string BoundingBox4326, string BoundingBox25832, string BoundingBox25833, string BoundingBox27700, string BoundingBox3857, string BoundingBox4283, string BoundingBox7844)
         {
             public bool HasSelection =>
                 !string.IsNullOrWhiteSpace(BoundingBox4326) ||
                 !string.IsNullOrWhiteSpace(BoundingBox25832) ||
                 !string.IsNullOrWhiteSpace(BoundingBox25833) ||
-                !string.IsNullOrWhiteSpace(BoundingBox3857);
+                !string.IsNullOrWhiteSpace(BoundingBox27700) ||
+                !string.IsNullOrWhiteSpace(BoundingBox3857) ||
+                !string.IsNullOrWhiteSpace(BoundingBox4283) ||
+                !string.IsNullOrWhiteSpace(BoundingBox7844);
         }
 
         private const string HtmlResourceName = "RhinoWFS.Resources.BoundingBoxHelper.html";
@@ -30,7 +33,7 @@ namespace RhinoWFS
         private static Task? _serverTask;
         private static int _port;
         private static string? _htmlDocument;
-        private static BoundingBoxSelection _latestSelection = new(string.Empty, string.Empty, string.Empty, string.Empty);
+        private static BoundingBoxSelection _latestSelection = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
 
         public static event EventHandler? SelectionChanged;
 
@@ -214,12 +217,18 @@ namespace RhinoWFS
                 queryParameters.TryGetValue("bbox4326", out var boundingBox4326);
                 queryParameters.TryGetValue("bbox25832", out var boundingBox25832);
                 queryParameters.TryGetValue("bbox25833", out var boundingBox25833);
+                queryParameters.TryGetValue("bbox27700", out var boundingBox27700);
                 queryParameters.TryGetValue("bbox3857", out var boundingBox3857);
+                queryParameters.TryGetValue("bbox4283", out var boundingBox4283);
+                queryParameters.TryGetValue("bbox7844", out var boundingBox7844);
                 UpdateLatestSelection(
                     boundingBox4326 ?? string.Empty,
                     boundingBox25832 ?? string.Empty,
                     boundingBox25833 ?? string.Empty,
-                    boundingBox3857 ?? string.Empty);
+                    boundingBox27700 ?? string.Empty,
+                    boundingBox3857 ?? string.Empty,
+                    boundingBox4283 ?? string.Empty,
+                    boundingBox7844 ?? string.Empty);
 
                 var responseBody = Encoding.UTF8.GetBytes("{\"ok\":true}");
                 await WriteResponseAsync(stream, "200 OK", "application/json; charset=utf-8", responseBody, cancellationToken).ConfigureAwait(false);
@@ -257,12 +266,15 @@ namespace RhinoWFS
             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        private static void UpdateLatestSelection(string boundingBox4326, string boundingBox25832, string boundingBox25833, string boundingBox3857)
+        private static void UpdateLatestSelection(string boundingBox4326, string boundingBox25832, string boundingBox25833, string boundingBox27700, string boundingBox3857, string boundingBox4283, string boundingBox7844)
         {
             var normalized4326 = boundingBox4326.Trim();
             var normalized25832 = boundingBox25832.Trim();
             var normalized25833 = boundingBox25833.Trim();
+            var normalized27700 = boundingBox27700.Trim();
             var normalized3857 = boundingBox3857.Trim();
+            var normalized4283 = boundingBox4283.Trim();
+            var normalized7844 = boundingBox7844.Trim();
             var shouldRaiseEvent = false;
 
             lock (SyncRoot)
@@ -270,12 +282,15 @@ namespace RhinoWFS
                 if (string.Equals(_latestSelection.BoundingBox4326, normalized4326, StringComparison.Ordinal) &&
                     string.Equals(_latestSelection.BoundingBox25832, normalized25832, StringComparison.Ordinal) &&
                     string.Equals(_latestSelection.BoundingBox25833, normalized25833, StringComparison.Ordinal) &&
-                    string.Equals(_latestSelection.BoundingBox3857, normalized3857, StringComparison.Ordinal))
+                    string.Equals(_latestSelection.BoundingBox27700, normalized27700, StringComparison.Ordinal) &&
+                    string.Equals(_latestSelection.BoundingBox3857, normalized3857, StringComparison.Ordinal) &&
+                    string.Equals(_latestSelection.BoundingBox4283, normalized4283, StringComparison.Ordinal) &&
+                    string.Equals(_latestSelection.BoundingBox7844, normalized7844, StringComparison.Ordinal))
                 {
                     return;
                 }
 
-                _latestSelection = new BoundingBoxSelection(normalized4326, normalized25832, normalized25833, normalized3857);
+                _latestSelection = new BoundingBoxSelection(normalized4326, normalized25832, normalized25833, normalized27700, normalized3857, normalized4283, normalized7844);
                 shouldRaiseEvent = true;
             }
 

@@ -70,7 +70,10 @@ namespace WfsCore
                 ?.Value ?? string.Empty;
 
             var geometry = geometryRootElement is null
-                ? new WfsGeometry("Null", new List<LinearRing>())
+                ? new WfsGeometry
+                {
+                    Type = "Null"
+                }
                 : ReadGeometry(geometryRootElement);
 
             return new WfsFeature(
@@ -87,9 +90,61 @@ namespace WfsCore
 
             return geometryType switch
             {
-                "Polygon" => new WfsGeometry("Polygon", new List<LinearRing> { ReadPolygonOuterRing(geometryRootElement) }),
-                "MultiPolygon" => new WfsGeometry("MultiPolygon", ReadPolygonCollectionOuterRings(geometryRootElement)),
-                "MultiSurface" => new WfsGeometry("MultiPolygon", ReadPolygonCollectionOuterRings(geometryRootElement)),
+                "Polygon" => new WfsGeometry
+                {
+                    Type = "Polygon",
+                    OuterRings = new List<LinearRing> { ReadPolygonOuterRing(geometryRootElement) }
+                },
+                "Surface" => new WfsGeometry
+                {
+                    Type = "Polygon",
+                    OuterRings = new List<LinearRing> { ReadPolygonOuterRing(geometryRootElement) }
+                },
+                "PolygonPatch" => new WfsGeometry
+                {
+                    Type = "Polygon",
+                    OuterRings = new List<LinearRing> { ReadPolygonOuterRing(geometryRootElement) }
+                },
+                "MultiPolygon" => new WfsGeometry
+                {
+                    Type = "MultiPolygon",
+                    OuterRings = ReadPolygonCollectionOuterRings(geometryRootElement)
+                },
+                "MultiSurface" => new WfsGeometry
+                {
+                    Type = "MultiPolygon",
+                    OuterRings = ReadPolygonCollectionOuterRings(geometryRootElement)
+                },
+                "LineString" => new WfsGeometry
+                {
+                    Type = "LineString",
+                    LineStrings = new List<LineString> { ReadLineString(geometryRootElement) }
+                },
+                "MultiLineString" => new WfsGeometry
+                {
+                    Type = "MultiLineString",
+                    LineStrings = ReadLineStringCollection(geometryRootElement)
+                },
+                "Curve" => new WfsGeometry
+                {
+                    Type = "LineString",
+                    LineStrings = new List<LineString> { ReadLineString(geometryRootElement) }
+                },
+                "MultiCurve" => new WfsGeometry
+                {
+                    Type = "MultiLineString",
+                    LineStrings = ReadLineStringCollection(geometryRootElement)
+                },
+                "Point" => new WfsGeometry
+                {
+                    Type = "Point",
+                    Points = new List<Coordinate2D> { ReadPoint(geometryRootElement) }
+                },
+                "MultiPoint" => new WfsGeometry
+                {
+                    Type = "MultiPoint",
+                    Points = ReadPointCollection(geometryRootElement)
+                },
                 _ => throw new NotSupportedException($"Geometry type '{geometryType}' is not supported yet.")
             };
         }
@@ -101,6 +156,13 @@ namespace WfsCore
             foreach (var polygonElement in geometryRootElement.Descendants().Where(element => string.Equals(element.Name.LocalName, "Polygon", StringComparison.OrdinalIgnoreCase)))
             {
                 outerRings.Add(ReadPolygonOuterRing(polygonElement));
+            }
+
+            foreach (var surfaceElement in geometryRootElement.Descendants().Where(element =>
+                string.Equals(element.Name.LocalName, "Surface", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(element.Name.LocalName, "PolygonPatch", StringComparison.OrdinalIgnoreCase)))
+            {
+                outerRings.Add(ReadPolygonOuterRing(surfaceElement));
             }
 
             return outerRings;
@@ -133,6 +195,80 @@ namespace WfsCore
                 .ToList();
 
             return ReadLinearRingFromPosElements(posElements, srsName);
+        }
+
+        private static LineString ReadLineString(XElement lineElement)
+        {
+            var srsName = FindSrsName(lineElement);
+            var posListElement = lineElement
+                .Descendants()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "posList", StringComparison.OrdinalIgnoreCase));
+
+            if (posListElement is not null)
+            {
+                return ReadLineStringFromPosList(posListElement, srsName);
+            }
+
+            var posElements = lineElement
+                .Descendants()
+                .Where(element => string.Equals(element.Name.LocalName, "pos", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            return ReadLineStringFromPosElements(posElements, srsName);
+        }
+
+        private static List<LineString> ReadLineStringCollection(XElement geometryRootElement)
+        {
+            var lineStrings = new List<LineString>();
+
+            foreach (var lineElement in geometryRootElement
+                .Descendants()
+                .Where(element =>
+                    string.Equals(element.Name.LocalName, "LineString", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(element.Name.LocalName, "Curve", StringComparison.OrdinalIgnoreCase)))
+            {
+                lineStrings.Add(ReadLineString(lineElement));
+            }
+
+            return lineStrings;
+        }
+
+        private static Coordinate2D ReadPoint(XElement pointElement)
+        {
+            var srsName = FindSrsName(pointElement);
+            var posElement = pointElement
+                .Descendants()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "pos", StringComparison.OrdinalIgnoreCase));
+
+            if (posElement is not null && TryParseCoordinatePair(posElement.Value, out var firstValue, out var secondValue))
+            {
+                return CreateCoordinate(firstValue, secondValue, srsName);
+            }
+
+            var coordinatesElement = pointElement
+                .Descendants()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "coordinates", StringComparison.OrdinalIgnoreCase));
+
+            if (coordinatesElement is not null && TryParseCoordinatePair(coordinatesElement.Value.Replace(",", " "), out firstValue, out secondValue))
+            {
+                return CreateCoordinate(firstValue, secondValue, srsName);
+            }
+
+            return new Coordinate2D(0, 0);
+        }
+
+        private static List<Coordinate2D> ReadPointCollection(XElement geometryRootElement)
+        {
+            var points = new List<Coordinate2D>();
+
+            foreach (var pointElement in geometryRootElement
+                .Descendants()
+                .Where(element => string.Equals(element.Name.LocalName, "Point", StringComparison.OrdinalIgnoreCase)))
+            {
+                points.Add(ReadPoint(pointElement));
+            }
+
+            return points;
         }
 
         private static LinearRing ReadLinearRingFromPosList(XElement posListElement, string srsName)
@@ -181,6 +317,44 @@ namespace WfsCore
             return new LinearRing(points);
         }
 
+        private static LineString ReadLineStringFromPosList(XElement posListElement, string srsName)
+        {
+            var text = posListElement.Value;
+            var rawValues = text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var dimension = GetCoordinateDimension(posListElement);
+            var points = new List<Coordinate2D>();
+
+            for (int i = 0; i + 1 < rawValues.Length; i += dimension)
+            {
+                if (!double.TryParse(rawValues[i], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var firstValue) ||
+                    !double.TryParse(rawValues[i + 1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var secondValue))
+                {
+                    continue;
+                }
+
+                points.Add(CreateCoordinate(firstValue, secondValue, srsName));
+            }
+
+            return new LineString(points);
+        }
+
+        private static LineString ReadLineStringFromPosElements(List<XElement> posElements, string srsName)
+        {
+            var points = new List<Coordinate2D>();
+
+            foreach (var posElement in posElements)
+            {
+                if (!TryParseCoordinatePair(posElement.Value, out var firstValue, out var secondValue))
+                {
+                    continue;
+                }
+
+                points.Add(CreateCoordinate(firstValue, secondValue, srsName));
+            }
+
+            return new LineString(points);
+        }
+
         private static Coordinate2D CreateCoordinate(double firstValue, double secondValue, string srsName)
         {
             if (ShouldSwapAxisOrder(firstValue, secondValue, srsName))
@@ -214,6 +388,22 @@ namespace WfsCore
             return int.TryParse(srsDimensionValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dimension) && dimension >= 2
                 ? dimension
                 : 2;
+        }
+
+        private static bool TryParseCoordinatePair(string text, out double firstValue, out double secondValue)
+        {
+            firstValue = 0;
+            secondValue = 0;
+
+            var rawValues = text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (rawValues.Length < 2)
+            {
+                return false;
+            }
+
+            return double.TryParse(rawValues[0], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out firstValue) &&
+                   double.TryParse(rawValues[1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out secondValue);
         }
 
         private static string FindSrsName(XElement element)
@@ -280,8 +470,16 @@ namespace WfsCore
         private static bool IsSupportedGeometryElement(string localName)
         {
             return string.Equals(localName, "Polygon", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "Surface", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "PolygonPatch", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(localName, "MultiPolygon", StringComparison.OrdinalIgnoreCase) ||
-                   string.Equals(localName, "MultiSurface", StringComparison.OrdinalIgnoreCase);
+                   string.Equals(localName, "MultiSurface", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "LineString", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "MultiLineString", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "Curve", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "MultiCurve", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "Point", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(localName, "MultiPoint", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

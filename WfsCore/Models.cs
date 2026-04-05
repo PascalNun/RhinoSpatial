@@ -13,10 +13,18 @@ namespace WfsCore
 
     public record LinearRing(List<Coordinate2D> Points);
 
-    public record WfsGeometry(
-        string Type,
-        List<LinearRing> OuterRings
-    );
+    public record LineString(List<Coordinate2D> Points);
+
+    public record WfsGeometry
+    {
+        public string Type { get; init; } = string.Empty;
+
+        public List<LinearRing> OuterRings { get; init; } = new();
+
+        public List<LineString> LineStrings { get; init; } = new();
+
+        public List<Coordinate2D> Points { get; init; } = new();
+    }
 
     public record WfsLayerInfo(
         string Name,

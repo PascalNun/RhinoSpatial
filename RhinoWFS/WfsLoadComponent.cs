@@ -16,9 +16,11 @@ namespace RhinoWFS
 
         public class SolveResults
         {
-            public GH_Structure<GH_Curve> GeometryTree { get; init; } = new();
+            public GH_Structure<IGH_GeometricGoo> GeometryTree { get; init; } = new();
 
             public int FeatureCount { get; init; }
+
+            public int GeometryItemCount { get; init; }
 
             public string Status { get; init; } = string.Empty;
 
@@ -64,7 +66,7 @@ namespace RhinoWFS
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
-            pManager.AddCurveParameter("Geometry", "Geometry", "Closed boundary curves grouped by feature.", GH_ParamAccess.tree);
+            pManager.AddGeometryParameter("Geometry", "Geometry", "Geometry grouped by layer and feature. RhinoWFS currently outputs curves for polygon and line features, and points for point features.", GH_ParamAccess.tree);
         }
 
         protected override void SolveInstance(IGH_DataAccess dataAccess)
@@ -206,7 +208,7 @@ namespace RhinoWFS
                 : RhinoWFSOutputBuilder.CalculateLocalizingOffset(features);
 
             var geometryTree = RhinoWFSOutputBuilder.BuildGeometryTree(features, requestData.RequestedLayerNames, appliedOffset.X, appliedOffset.Y);
-            var curveCount = geometryTree.DataCount;
+            var geometryItemCount = geometryTree.DataCount;
             var resolvedSrsText = string.IsNullOrWhiteSpace(resolvedSrsName) ? "service default" : resolvedSrsName;
             var maxFeaturesText = requestData.MaxFeatures > 0 ? requestData.MaxFeatures.ToString() : "all available";
             var srsSourceText = usedAutoDetectedSrs ? "auto-detected" : "requested";
@@ -215,9 +217,10 @@ namespace RhinoWFS
             {
                 GeometryTree = geometryTree,
                 FeatureCount = features.Count,
+                GeometryItemCount = geometryItemCount,
                 Status = requestData.UseAbsoluteCoordinates
-                    ? $"Loaded {features.Count} feature(s) and {curveCount} curve(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}' using absolute coordinates."
-                    : $"Loaded {features.Count} feature(s) and {curveCount} curve(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}', then localized the geometry near the Rhino origin."
+                    ? $"Loaded {features.Count} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}' using absolute coordinates."
+                    : $"Loaded {features.Count} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}', then localized the geometry near the Rhino origin."
             };
         }
 
@@ -231,8 +234,9 @@ namespace RhinoWFS
             {
                 return new SolveResults
                 {
-                    GeometryTree = new GH_Structure<GH_Curve>(),
+                    GeometryTree = new GH_Structure<IGH_GeometricGoo>(),
                     FeatureCount = 0,
+                    GeometryItemCount = 0,
                     Status = ex.Message,
                     MessageLevel = GH_RuntimeMessageLevel.Error
                 };

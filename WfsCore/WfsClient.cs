@@ -38,30 +38,22 @@ namespace WfsCore
 
         public async Task<List<WfsFeature>> LoadFeaturesAsync(WfsRequestOptions options)
         {
-            var requestUrl = BuildGetFeatureRequestUrl(options);
-            var response = await GetStringAsync(requestUrl);
+            Exception? lastReadException = null;
 
-            if (TryReadFeatures(response, options.TypeName, out var features))
+            foreach (var candidateOptions in CreateRequestSequence(options))
             {
-                return features;
+                var requestUrl = BuildGetFeatureRequestUrl(candidateOptions);
+                var response = await GetStringAsync(requestUrl);
+
+                if (TryReadFeatures(response, options.TypeName, out var features))
+                {
+                    return features;
+                }
+
+                lastReadException = CreateUnsupportedFeatureResponseException(response);
             }
 
-            var fallbackOptions = CreateGmlFallbackRequestOptions(options);
-
-            if (fallbackOptions is null)
-            {
-                throw CreateUnsupportedFeatureResponseException(response);
-            }
-
-            var fallbackRequestUrl = BuildGetFeatureRequestUrl(fallbackOptions);
-            var fallbackResponse = await GetStringAsync(fallbackRequestUrl);
-
-            if (TryReadFeatures(fallbackResponse, options.TypeName, out features))
-            {
-                return features;
-            }
-
-            throw CreateUnsupportedFeatureResponseException(fallbackResponse);
+            throw lastReadException ?? new InvalidOperationException("The WFS service returned a feature response that RhinoWFS could not read.");
         }
 
         public async Task<List<WfsLayerInfo>> LoadLayersAsync(string baseUrl)
@@ -102,7 +94,7 @@ namespace WfsCore
             builder.Append("&VERSION=");
             builder.Append(Uri.EscapeDataString(options.Version));
             builder.Append("&REQUEST=GetFeature");
-            builder.Append("&TYPENAME=");
+            builder.Append(options.Version.StartsWith("2.", StringComparison.Ordinal) ? "&TYPENAMES=" : "&TYPENAME=");
             builder.Append(Uri.EscapeDataString(options.TypeName));
 
             if (!string.IsNullOrWhiteSpace(options.SrsName))
@@ -114,6 +106,8 @@ namespace WfsCore
             if (options.MaxFeatures > 0)
             {
                 builder.Append("&MAXFEATURES=");
+                builder.Append(options.MaxFeatures);
+                builder.Append("&COUNT=");
                 builder.Append(options.MaxFeatures);
             }
 
@@ -184,21 +178,54 @@ namespace WfsCore
             return WfsCapabilitiesReader.ReadLayers(response);
         }
 
-        private static WfsRequestOptions? CreateGmlFallbackRequestOptions(WfsRequestOptions options)
+        private static List<WfsRequestOptions> CreateRequestSequence(WfsRequestOptions options)
         {
+            var sequence = new List<WfsRequestOptions> { CloneOptions(options) };
+
             if (!ShouldRetryWithGml(options.OutputFormat))
             {
-                return null;
+                return sequence;
             }
 
+            AppendIfMissing(sequence, options, "2.0.0", "application/gml+xml; version=3.2");
+            AppendIfMissing(sequence, options, "1.1.0", "text/xml; subtype=gml/3.1.1");
+
+            return sequence;
+        }
+
+        private static void AppendIfMissing(List<WfsRequestOptions> sequence, WfsRequestOptions source, string version, string outputFormat)
+        {
+            foreach (var existingOptions in sequence)
+            {
+                if (string.Equals(existingOptions.Version, version, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(existingOptions.OutputFormat, outputFormat, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+            }
+
+            sequence.Add(new WfsRequestOptions
+            {
+                BaseUrl = source.BaseUrl,
+                TypeName = source.TypeName,
+                MaxFeatures = source.MaxFeatures,
+                Version = version,
+                SrsName = source.SrsName,
+                OutputFormat = outputFormat,
+                BoundingBox = source.BoundingBox
+            });
+        }
+
+        private static WfsRequestOptions CloneOptions(WfsRequestOptions options)
+        {
             return new WfsRequestOptions
             {
                 BaseUrl = options.BaseUrl,
                 TypeName = options.TypeName,
                 MaxFeatures = options.MaxFeatures,
-                Version = "2.0.0",
+                Version = options.Version,
                 SrsName = options.SrsName,
-                OutputFormat = "application/gml+xml; version=3.2",
+                OutputFormat = options.OutputFormat,
                 BoundingBox = options.BoundingBox
             };
         }
