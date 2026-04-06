@@ -40,7 +40,7 @@ namespace RhinoWFS
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
-            pManager.AddTextParameter("Layer", "Layer", "Combined layer entries in the format name | title. Use List Item to choose one, or connect the full list directly to Load WFS.", GH_ParamAccess.list);
+            pManager.AddTextParameter("Layer", "Layer", "Combined layer entries in the format name | title. Use List Item to choose one, or merge explicit selections if you want to load several layers.", GH_ParamAccess.list);
         }
 
         protected override void SolveInstance(IGH_DataAccess dataAccess)

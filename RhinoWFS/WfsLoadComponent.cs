@@ -40,6 +40,8 @@ namespace RhinoWFS
             public BoundingBox2D? BoundingBox { get; init; }
 
             public bool UseAbsoluteCoordinates { get; init; }
+
+            public bool IsUnboundedRequest => BoundingBox is null;
         }
 
         public WfsLoadComponent()
@@ -54,7 +56,7 @@ namespace RhinoWFS
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
             pManager.AddTextParameter("WFS URL", "WFS URL", "Base URL of the WFS service. If left empty, RhinoWFS will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. You can plug in the 'Layer' output from List WFS Layers directly.", GH_ParamAccess.list);
+            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers.", GH_ParamAccess.list);
             pManager.AddIntegerParameter("Max Features", "Max Features", "Maximum number of features to request. Use 0 to request all available features.", GH_ParamAccess.item, 0);
             pManager.AddTextParameter("Bounding Box", "Bounding Box", "Optional bounding box in the format minX,minY,maxX,maxY using the same SRS.", GH_ParamAccess.item);
             pManager.AddTextParameter("SRS", "SRS", "Optional coordinate system for the request and returned geometry. Leave empty to auto-detect the layer default SRS from GetCapabilities.", GH_ParamAccess.item, string.Empty);
@@ -164,9 +166,24 @@ namespace RhinoWFS
                 return false;
             }
 
+            if (requestedLayerNames.Count > 1 &&
+                WfsUpstreamContextResolver.IsConnectedDirectlyToWfsLayersOutput(Params.Input[1]))
+            {
+                AddRuntimeMessage(
+                    GH_RuntimeMessageLevel.Error,
+                    $"The Layer input is connected directly to the full WFS Layers output ({requestedLayerNames.Count} layers). Choose one layer with List Item, or merge only the specific layers you really want to load.");
+                return false;
+            }
+
             if (!WfsComponentInputParser.TryParseBoundingBox(boundingBoxText, out var boundingBox, out var boundingBoxError))
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, boundingBoxError);
+                return false;
+            }
+
+            if (boundingBox is null && maxFeatures == 0)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Bounding Box is required when Max Features is set to 0. Connect WFS Bounding Box or enter a smaller Max Features value.");
                 return false;
             }
 
@@ -218,9 +235,8 @@ namespace RhinoWFS
                 GeometryTree = geometryTree,
                 FeatureCount = features.Count,
                 GeometryItemCount = geometryItemCount,
-                Status = requestData.UseAbsoluteCoordinates
-                    ? $"Loaded {features.Count} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}' using absolute coordinates."
-                    : $"Loaded {features.Count} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}', then localized the geometry near the Rhino origin."
+                Status = BuildStatusMessage(requestData, features.Count, geometryItemCount, maxFeaturesText, resolvedSrsText, srsSourceText),
+                MessageLevel = ResolveMessageLevel(requestData, features.Count)
             };
         }
 
@@ -285,6 +301,45 @@ namespace RhinoWFS
             }
 
             return (resolvedDefaultSrs, !string.IsNullOrWhiteSpace(resolvedDefaultSrs));
+        }
+
+        private static string BuildStatusMessage(RequestData requestData, int featureCount, int geometryItemCount, string maxFeaturesText, string resolvedSrsText, string srsSourceText)
+        {
+            var coordinateText = requestData.UseAbsoluteCoordinates
+                ? "using absolute coordinates."
+                : "then localized the geometry near the Rhino origin.";
+
+            if (featureCount == 0)
+            {
+                if (requestData.BoundingBox is not null)
+                {
+                    return $"No features were found for the selected layer selection and Bounding Box using {srsSourceText} SRS '{resolvedSrsText}'.";
+                }
+
+                return $"No features were returned for the selected layer selection using {srsSourceText} SRS '{resolvedSrsText}'.";
+            }
+
+            if (requestData.IsUnboundedRequest)
+            {
+                return $"Loaded {featureCount} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with no Bounding Box and {maxFeaturesText} features using {srsSourceText} SRS '{resolvedSrsText}', {coordinateText}";
+            }
+
+            return $"Loaded {featureCount} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}', {coordinateText}";
+        }
+
+        private static GH_RuntimeMessageLevel? ResolveMessageLevel(RequestData requestData, int featureCount)
+        {
+            if (featureCount == 0)
+            {
+                return GH_RuntimeMessageLevel.Warning;
+            }
+
+            if (requestData.IsUnboundedRequest)
+            {
+                return GH_RuntimeMessageLevel.Warning;
+            }
+
+            return null;
         }
     }
 }

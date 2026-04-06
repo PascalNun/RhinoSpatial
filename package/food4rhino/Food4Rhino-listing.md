@@ -34,8 +34,9 @@ Current focus:
 - layer discovery through `GetCapabilities`
 - optional bounding box filtering
 - automatic SRS handling
-- polygon and multipolygon support
-- Grasshopper curve output
+- GeoJSON first, with GML fallback when needed
+- polygon, line, and point support where the provider response can be interpreted correctly
+- Grasshopper geometry output for curves and points
 
 ## Early Stage Note
 
@@ -44,6 +45,12 @@ RhinoWFS is currently still in an early alpha stage.
 It has only been tested with a relatively small number of real WFS services and datasets so far. Behavior may still vary depending on the WFS provider, geometry type, coordinate system, service version, or response format.
 
 Feedback, edge cases, and additional WFS test links are very welcome.
+
+## Download
+
+Current release package:
+
+- `RhinoWFS-0.1.1-alpha.zip`
 
 ## Repository
 

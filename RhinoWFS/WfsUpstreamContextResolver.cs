@@ -6,6 +6,26 @@ namespace RhinoWFS
 {
     internal static class WfsUpstreamContextResolver
     {
+        public static bool IsConnectedDirectlyToWfsLayersOutput(IGH_Param? layerInputParameter)
+        {
+            if (layerInputParameter is null)
+            {
+                return false;
+            }
+
+            foreach (var sourceParameter in layerInputParameter.Sources)
+            {
+                var topLevelObject = sourceParameter.Attributes?.GetTopLevel?.DocObject;
+
+                if (topLevelObject is WfsListLayersComponent)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public static bool TryResolveBaseUrlFromLayerInput(IGH_Param? layerInputParameter, out string baseUrl)
         {
             baseUrl = string.Empty;

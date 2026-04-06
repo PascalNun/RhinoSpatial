@@ -8,7 +8,7 @@ FRAMEWORK="net7.0"
 PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoWFS/bin/$CONFIGURATION/$FRAMEWORK"
 STAGING_DIR="$ROOT_DIR/package/staging/food4rhino"
 VERSION="0.1.1-alpha"
-ZIP_NAME="RhinoWFS-${VERSION}-mac.zip"
+ZIP_NAME="RhinoWFS-${VERSION}.zip"
 
 dotnet build "$ROOT_DIR/RhinoWFS.sln" -c "$CONFIGURATION"
 

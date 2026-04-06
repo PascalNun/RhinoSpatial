@@ -40,7 +40,7 @@ The plugin currently uses three Grasshopper components:
 Typical workflow:
 
 1. Connect a WFS URL to `WFS Layers`
-2. Choose a layer with `List Item` if needed
+2. Choose a layer with `List Item`, or merge only the few layers you actually want to load
 3. Connect the WFS URL and layer to `WFS Bounding Box`
 4. Use the map helper if you want to limit the area
 5. Connect the chosen layer into `Load WFS`
@@ -68,12 +68,15 @@ Current focus:
 - layer discovery through `GetCapabilities`
 - optional bounding box filtering
 - automatic SRS handling
-- `Polygon` and `MultiPolygon` GeoJSON geometry
-- Grasshopper curve output
+- GeoJSON first, with GML fallback when needed
+- `Polygon`, `MultiPolygon`, `LineString`, `MultiLineString`, `Point`, and `MultiPoint` where the provider response can be interpreted correctly
+- Grasshopper geometry output for curves and points
 
 Current output:
 
-- closed boundary curves
+- curves for polygon and line features
+- points for point features
+- multi-layer output grouped by `{layerIndex; featureIndex}`
 
 
 ## How It Works
@@ -85,8 +88,8 @@ At a high level:
 3. It builds a `GetFeature` request
 4. It tries to download GeoJSON first and falls back to GML when needed
 5. It parses the returned features
-6. It extracts polygon boundary rings
-7. It converts those rings into Rhino/Grasshopper curves
+6. It extracts polygon rings, line strings, or points
+7. It converts those into Rhino/Grasshopper geometry
 
 If multiple layers are loaded, the geometry output is grouped in a tree by:
 
@@ -124,7 +127,9 @@ This keeps the core logic reusable and keeps the Rhino-specific code separate fr
 ## Notes
 
 - The plugin tries to prefer the layer's default SRS when possible.
-- The bounding box helper currently supports the SRS values used in the current workflow, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, and `EPSG:3857`.
+- The bounding box helper currently supports the common SRS values that have come up in testing so far, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, `EPSG:3857`, `EPSG:27700`, `EPSG:4283`, and `EPSG:7844`.
+- `Load WFS` blocks unlimited requests without a bounding box, and it warns when a request is still unbounded.
+- `Load WFS` also blocks the accidental case where the full `WFS Layers` output is connected directly into the `Layer` input with many layers selected.
 - Some WFS services behave differently, so more compatibility improvements may still be added over time.
 
 ## License

@@ -1,6 +1,6 @@
 # RhinoWFS Installation
 
-This package is currently an early alpha release of RhinoWFS for Rhino 8 on macOS.
+This package is currently an early alpha release of RhinoWFS for Rhino 8.
 
 ## Included Files
 
