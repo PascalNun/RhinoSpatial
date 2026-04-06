@@ -4,6 +4,14 @@ RhinoWFS is a Grasshopper plugin for Rhino 8 that loads WFS data directly into G
 
 Many municipalities and public agencies publish planning and GIS data as WFS services. This plugin is meant to make that data easier to access inside Grasshopper without needing a separate GIS workflow first.
 
+## Download
+
+You can download the current RhinoWFS release from the GitHub Releases page:
+
+https://github.com/PascalNun/RhinoWFS/releases
+
+On the release page, open the latest release and download the attached `.zip` file.
+
 ## Early Stage
 
 RhinoWFS is currently still in an early alpha stage.
