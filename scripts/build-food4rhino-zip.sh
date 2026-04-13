@@ -5,12 +5,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURATION="${1:-Release}"
 FRAMEWORK="net7.0"
-PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoWFS/bin/$CONFIGURATION/$FRAMEWORK"
+PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoSpatial/bin/$CONFIGURATION/$FRAMEWORK"
 STAGING_DIR="$ROOT_DIR/package/staging/food4rhino"
 VERSION="0.1.1-alpha"
-ZIP_NAME="RhinoWFS-${VERSION}.zip"
+ZIP_NAME="RhinoSpatial-${VERSION}.zip"
 
-dotnet build "$ROOT_DIR/RhinoWFS.sln" -c "$CONFIGURATION"
+dotnet build "$ROOT_DIR/RhinoSpatial.sln" -c "$CONFIGURATION"
+
+find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f -name 'RhinoWFS*' -delete
 
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"

@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RhinoSpatial Spatial Context Helper</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  >
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  >
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css"
+    crossorigin=""
+  >
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f3ee;
+      --panel: rgba(255, 252, 245, 0.92);
+      --border: #d0c6b5;
+      --ink: #1f2b2a;
+      --accent: #0c7a63;
+      --accent-dark: #095846;
+      --muted: #6e756f;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Barlow", "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(12, 122, 99, 0.14), transparent 34%),
+        linear-gradient(180deg, #f8f6f0 0%, var(--bg) 100%);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(320px, 380px) 1fr;
+      min-height: 100vh;
+    }
+
+    .panel {
+      padding: 24px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+    }
+
+    h1 {
+      margin: 0 0 12px;
+      font-size: 1.7rem;
+      line-height: 1.1;
+    }
+
+    p,
+    li {
+      line-height: 1.5;
+    }
+
+    .hint {
+      margin: 0 0 18px;
+      color: var(--muted);
+    }
+
+    .card {
+      margin-top: 16px;
+      padding: 16px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(31, 43, 42, 0.08);
+    }
+
+    .advanced-card summary {
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ink);
+      list-style: none;
+    }
+
+    .advanced-card summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .advanced-card[open] summary {
+      margin-bottom: 14px;
+    }
+
+    .advanced-copy-note {
+      margin: 10px 0 14px;
+      color: var(--muted);
+    }
+
+    .selected-srs-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(12, 122, 99, 0.08);
+      color: var(--accent-dark);
+      font-weight: 600;
+    }
+
+    .label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.86rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    input,
+    textarea,
+    button {
+      font: inherit;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 84px;
+      resize: vertical;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .output-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: white;
+      transition: background 0.18s ease;
+    }
+
+    button:hover {
+      background: var(--accent-dark);
+    }
+
+    button.secondary {
+      background: #dce8e4;
+      color: var(--ink);
+    }
+
+    .map-stage {
+      position: relative;
+      min-height: 100vh;
+    }
+
+    #map {
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    .map-hint {
+      position: absolute;
+      top: 18px;
+      left: 72px;
+      z-index: 900;
+      max-width: 300px;
+      padding: 12px 14px;
+      border: 1px solid rgba(12, 122, 99, 0.3);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.92);
+      box-shadow: 0 12px 28px rgba(31, 43, 42, 0.12);
+      font-size: 0.95rem;
+      line-height: 1.45;
+    }
+
+    .map-hint strong {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--accent-dark);
+    }
+
+    .leaflet-draw-toolbar a,
+    .leaflet-touch .leaflet-draw-toolbar a {
+      width: 38px !important;
+      height: 38px !important;
+      border-radius: 10px !important;
+      border: 2px solid rgba(12, 122, 99, 0.45) !important;
+      background-color: rgba(255, 255, 255, 0.96) !important;
+      box-shadow: 0 10px 22px rgba(31, 43, 42, 0.14);
+    }
+
+    .leaflet-draw-toolbar a:hover,
+    .leaflet-draw-toolbar a:focus {
+      border-color: var(--accent) !important;
+      background-color: #ffffff !important;
+    }
+
+    .leaflet-draw-toolbar .leaflet-draw-draw-rectangle {
+      border-color: var(--accent) !important;
+      box-shadow: 0 0 0 3px rgba(12, 122, 99, 0.14), 0 10px 22px rgba(31, 43, 42, 0.14);
+    }
+
+    .status {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    code {
+      padding: 0.1rem 0.3rem;
+      border-radius: 6px;
+      background: rgba(12, 122, 99, 0.08);
+      font-family: "SFMono-Regular", Menlo, monospace;
+      font-size: 0.92em;
+    }
+
+    @media (max-width: 900px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      #map {
+        min-height: 60vh;
+      }
+
+      .map-hint {
+        left: 18px;
+        right: 18px;
+        max-width: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="panel">
+      <h1>RhinoSpatial Spatial Context Helper</h1>
+      <p class="hint">
+        Draw one rectangle on the map. The <code>Spatial Context</code> component in
+        Grasshopper should update automatically. You do not need to work with the
+        raw bounding box numbers for normal use.
+      </p>
+
+      <div class="card">
+        <span class="label">How To Use It</span>
+        <p>
+          1. Click the rectangle tool.
+        </p>
+        <p>
+          2. Drag the area you want.
+        </p>
+        <p>
+          3. Go back to Grasshopper. <code>Spatial Context</code> should update by itself.
+        </p>
+        <p>
+          If <code>Reference Service</code> and <code>Reference Layer Name</code> are connected, this map will try to zoom to the selected layer automatically.
+        </p>
+        <div id="selectedSrsNote" class="selected-srs-note">
+          RhinoSpatial has not passed a preferred SRS yet.
+        </div>
+      </div>
+
+      <details class="card advanced-card">
+        <summary>Manual Copy Values</summary>
+        <p class="advanced-copy-note">
+          This section is only for manual copy or debugging. RhinoSpatial normally handles the values automatically.
+        </p>
+        <div class="output-grid">
+          <div>
+            <label class="label" for="bbox4326">Bounding Box in EPSG:4326</label>
+            <textarea id="bbox4326" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy4326BboxButton" type="button">Copy EPSG:4326 BBox</button>
+              <button id="copy4326SrsButton" type="button" class="secondary">Copy EPSG:4326</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox25832">Bounding Box in EPSG:25832</label>
+            <textarea id="bbox25832" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy25832BboxButton" type="button">Copy EPSG:25832 BBox</button>
+              <button id="copy25832SrsButton" type="button" class="secondary">Copy EPSG:25832</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox25833">Bounding Box in EPSG:25833</label>
+            <textarea id="bbox25833" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy25833BboxButton" type="button">Copy EPSG:25833 BBox</button>
+              <button id="copy25833SrsButton" type="button" class="secondary">Copy EPSG:25833</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox27700">Bounding Box in EPSG:27700</label>
+            <textarea id="bbox27700" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy27700BboxButton" type="button">Copy EPSG:27700 BBox</button>
+              <button id="copy27700SrsButton" type="button" class="secondary">Copy EPSG:27700</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox4283">Bounding Box in EPSG:4283</label>
+            <textarea id="bbox4283" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy4283BboxButton" type="button">Copy EPSG:4283 BBox</button>
+              <button id="copy4283SrsButton" type="button" class="secondary">Copy EPSG:4283</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox7844">Bounding Box in EPSG:7844</label>
+            <textarea id="bbox7844" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy7844BboxButton" type="button">Copy EPSG:7844 BBox</button>
+              <button id="copy7844SrsButton" type="button" class="secondary">Copy EPSG:7844</button>
+            </div>
+          </div>
+
+          <div>
+            <label class="label" for="bbox3857">Bounding Box in EPSG:3857</label>
+            <textarea id="bbox3857" readonly placeholder="Draw a rectangle on the map."></textarea>
+            <div class="button-row">
+              <button id="copy3857BboxButton" type="button">Copy EPSG:3857 BBox</button>
+              <button id="copy3857SrsButton" type="button" class="secondary">Copy EPSG:3857</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="button-row">
+          <button id="clearButton" type="button" class="secondary">Clear Rectangle</button>
+        </div>
+
+        <div id="status" class="status">No rectangle selected yet.</div>
+      </details>
+    </section>
+
+    <div class="map-stage">
+      <div class="map-hint">
+        <strong>Use the rectangle tool</strong>
+        Click the highlighted rectangle button in the top left, then drag on the map to select your area.
+      </div>
+      <div id="map"></div>
+    </div>
+  </main>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""
+  ></script>
+  <script
+    src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"
+    crossorigin=""
+  ></script>
+  <script
+    src="https://cdnjs.cloudflare.com/ajax/libs/proj4js/2.11.0/proj4.js"
+    crossorigin="anonymous"
+    referrerpolicy="no-referrer"
+  ></script>
+  <script>
+    proj4.defs("EPSG:3857", "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs +type=crs");
+    proj4.defs("EPSG:25832", "+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs +type=crs");
+    proj4.defs("EPSG:25833", "+proj=utm +zone=33 +ellps=GRS80 +units=m +no_defs +type=crs");
+    proj4.defs("EPSG:27700", "+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 +units=m +no_defs +type=crs");
+    proj4.defs("EPSG:4283", "+proj=longlat +ellps=GRS80 +no_defs +type=crs");
+    proj4.defs("EPSG:7844", "+proj=longlat +ellps=GRS80 +no_defs +type=crs");
+
+    const map = L.map("map", {
+      zoomControl: true
+    }).setView([50.1109, 8.6821], 12);
+    const pageParams = new URLSearchParams(window.location.search);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+      edit: {
+        featureGroup: drawnItems,
+        edit: true,
+        remove: true
+      },
+      draw: {
+        polyline: false,
+        polygon: false,
+        circle: false,
+        marker: false,
+        circlemarker: false,
+        rectangle: {
+          shapeOptions: {
+            color: "#0c7a63",
+            weight: 2
+          }
+        }
+      }
+    });
+
+    map.addControl(drawControl);
+
+    const bbox4326 = document.getElementById("bbox4326");
+    const bbox25832 = document.getElementById("bbox25832");
+    const bbox25833 = document.getElementById("bbox25833");
+    const bbox27700 = document.getElementById("bbox27700");
+    const bbox4283 = document.getElementById("bbox4283");
+    const bbox7844 = document.getElementById("bbox7844");
+    const bbox3857 = document.getElementById("bbox3857");
+    const statusText = document.getElementById("status");
+    const copy4326BboxButton = document.getElementById("copy4326BboxButton");
+    const copy4326SrsButton = document.getElementById("copy4326SrsButton");
+    const copy25832BboxButton = document.getElementById("copy25832BboxButton");
+    const copy25832SrsButton = document.getElementById("copy25832SrsButton");
+    const copy25833BboxButton = document.getElementById("copy25833BboxButton");
+    const copy25833SrsButton = document.getElementById("copy25833SrsButton");
+    const copy27700BboxButton = document.getElementById("copy27700BboxButton");
+    const copy27700SrsButton = document.getElementById("copy27700SrsButton");
+    const copy4283BboxButton = document.getElementById("copy4283BboxButton");
+    const copy4283SrsButton = document.getElementById("copy4283SrsButton");
+    const copy7844BboxButton = document.getElementById("copy7844BboxButton");
+    const copy7844SrsButton = document.getElementById("copy7844SrsButton");
+    const copy3857BboxButton = document.getElementById("copy3857BboxButton");
+    const copy3857SrsButton = document.getElementById("copy3857SrsButton");
+    const clearButton = document.getElementById("clearButton");
+    const selectedSrsNote = document.getElementById("selectedSrsNote");
+
+    function setStatus(message) {
+      statusText.textContent = message;
+    }
+
+    function normalizeSupportedSrs(srsText) {
+      if (!srsText) {
+        return "";
+      }
+
+      if (srsText.includes("25832")) {
+        return "EPSG:25832";
+      }
+
+      if (srsText.includes("25833")) {
+        return "EPSG:25833";
+      }
+
+      if (srsText.includes("27700")) {
+        return "EPSG:27700";
+      }
+
+      if (srsText.includes("4283")) {
+        return "EPSG:4283";
+      }
+
+      if (srsText.includes("7844")) {
+        return "EPSG:7844";
+      }
+
+      if (srsText.includes("3857")) {
+        return "EPSG:3857";
+      }
+
+      if (srsText.includes("4326")) {
+        return "EPSG:4326";
+      }
+
+      return "";
+    }
+
+    function updateSelectedSrsNote() {
+      const preferredSrs = normalizeSupportedSrs(pageParams.get("preferredSrs"));
+
+      if (!preferredSrs) {
+        selectedSrsNote.textContent = "RhinoSpatial has not passed a preferred SRS yet. The values below are only for manual copy if you need them.";
+        return;
+      }
+
+      selectedSrsNote.textContent = `RhinoSpatial will currently use ${preferredSrs}. The manual copy section below is only needed if you want to inspect or paste the values yourself.`;
+    }
+
+    function tryFitInitialView() {
+      const view4326 = pageParams.get("view4326");
+
+      if (!view4326) {
+        setStatus("No rectangle selected yet.");
+        return;
+      }
+
+      const parts = view4326.split(",").map((part) => Number(part.trim()));
+
+      if (parts.length !== 4 || parts.some((value) => Number.isNaN(value))) {
+        setStatus("No rectangle selected yet.");
+        return;
+      }
+
+      const [minX, minY, maxX, maxY] = parts;
+      const southWest = L.latLng(minY, minX);
+      const northEast = L.latLng(maxY, maxX);
+      const bounds = L.latLngBounds(southWest, northEast);
+
+      if (!bounds.isValid()) {
+        setStatus("No rectangle selected yet.");
+        return;
+      }
+
+      map.fitBounds(bounds.pad(0.15));
+      setStatus("Map centered on the selected WFS layer extent. Click the rectangle tool, then drag to choose your area.");
+    }
+
+    function formatCoordinate(value) {
+      return value.toFixed(6);
+    }
+
+    function formatProjectedCoordinate(value) {
+      return value.toFixed(3);
+    }
+
+    function buildProjectedBounds(bounds, targetSrs) {
+      const sourceCorners = [
+        [bounds.getWest(), bounds.getSouth()],
+        [bounds.getWest(), bounds.getNorth()],
+        [bounds.getEast(), bounds.getSouth()],
+        [bounds.getEast(), bounds.getNorth()]
+      ];
+
+      const projectedCorners = sourceCorners.map((corner) => proj4("EPSG:4326", targetSrs, corner));
+      const xs = projectedCorners.map((corner) => corner[0]);
+      const ys = projectedCorners.map((corner) => corner[1]);
+
+      return {
+        minX: Math.min(...xs),
+        minY: Math.min(...ys),
+        maxX: Math.max(...xs),
+        maxY: Math.max(...ys)
+      };
+    }
+
+    function updateBoundingBox(layer) {
+      const bounds = layer.getBounds();
+      const minX4326 = formatCoordinate(bounds.getWest());
+      const minY4326 = formatCoordinate(bounds.getSouth());
+      const maxX4326 = formatCoordinate(bounds.getEast());
+      const maxY4326 = formatCoordinate(bounds.getNorth());
+
+      const projectedBounds25832 = buildProjectedBounds(bounds, "EPSG:25832");
+      const projectedBounds25833 = buildProjectedBounds(bounds, "EPSG:25833");
+      const projectedBounds27700 = buildProjectedBounds(bounds, "EPSG:27700");
+      const projectedBounds4283 = buildProjectedBounds(bounds, "EPSG:4283");
+      const projectedBounds7844 = buildProjectedBounds(bounds, "EPSG:7844");
+      const projectedBounds3857 = buildProjectedBounds(bounds, "EPSG:3857");
+
+      bbox4326.value = `${minX4326},${minY4326},${maxX4326},${maxY4326}`;
+      bbox25832.value = `${formatProjectedCoordinate(projectedBounds25832.minX)},${formatProjectedCoordinate(projectedBounds25832.minY)},${formatProjectedCoordinate(projectedBounds25832.maxX)},${formatProjectedCoordinate(projectedBounds25832.maxY)}`;
+      bbox25833.value = `${formatProjectedCoordinate(projectedBounds25833.minX)},${formatProjectedCoordinate(projectedBounds25833.minY)},${formatProjectedCoordinate(projectedBounds25833.maxX)},${formatProjectedCoordinate(projectedBounds25833.maxY)}`;
+      bbox27700.value = `${formatProjectedCoordinate(projectedBounds27700.minX)},${formatProjectedCoordinate(projectedBounds27700.minY)},${formatProjectedCoordinate(projectedBounds27700.maxX)},${formatProjectedCoordinate(projectedBounds27700.maxY)}`;
+      bbox4283.value = `${formatCoordinate(projectedBounds4283.minX)},${formatCoordinate(projectedBounds4283.minY)},${formatCoordinate(projectedBounds4283.maxX)},${formatCoordinate(projectedBounds4283.maxY)}`;
+      bbox7844.value = `${formatCoordinate(projectedBounds7844.minX)},${formatCoordinate(projectedBounds7844.minY)},${formatCoordinate(projectedBounds7844.maxX)},${formatCoordinate(projectedBounds7844.maxY)}`;
+      bbox3857.value = `${formatProjectedCoordinate(projectedBounds3857.minX)},${formatProjectedCoordinate(projectedBounds3857.minY)},${formatProjectedCoordinate(projectedBounds3857.maxX)},${formatProjectedCoordinate(projectedBounds3857.maxY)}`;
+      setStatus("Selected area updated. The Spatial Context component should refresh automatically. You can also copy the values manually.");
+      publishSelection();
+    }
+
+    function keepSingleRectangle(layer) {
+      drawnItems.clearLayers();
+      drawnItems.addLayer(layer);
+      updateBoundingBox(layer);
+    }
+
+    map.on(L.Draw.Event.CREATED, (event) => {
+      keepSingleRectangle(event.layer);
+    });
+
+    map.on(L.Draw.Event.EDITED, (event) => {
+      event.layers.eachLayer((layer) => {
+        keepSingleRectangle(layer);
+      });
+    });
+
+    map.on(L.Draw.Event.DELETED, () => {
+      bbox4326.value = "";
+      bbox25832.value = "";
+      bbox25833.value = "";
+      bbox27700.value = "";
+      bbox4283.value = "";
+      bbox7844.value = "";
+      bbox3857.value = "";
+      setStatus("Rectangle removed.");
+      publishSelection();
+    });
+
+    async function copyText(text, successMessage) {
+      if (!text) {
+        setStatus("There is nothing to copy yet.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus(successMessage);
+      } catch {
+        setStatus("Clipboard copy was blocked. Please copy the text manually.");
+      }
+    }
+
+    copy4326BboxButton.addEventListener("click", () => {
+      copyText(bbox4326.value, "EPSG:4326 bounding box copied.");
+    });
+
+    copy4326SrsButton.addEventListener("click", () => {
+      copyText("EPSG:4326", "EPSG:4326 copied.");
+    });
+
+    copy25832BboxButton.addEventListener("click", () => {
+      copyText(bbox25832.value, "EPSG:25832 bounding box copied.");
+    });
+
+    copy25832SrsButton.addEventListener("click", () => {
+      copyText("EPSG:25832", "EPSG:25832 copied.");
+    });
+
+    copy25833BboxButton.addEventListener("click", () => {
+      copyText(bbox25833.value, "EPSG:25833 bounding box copied.");
+    });
+
+    copy25833SrsButton.addEventListener("click", () => {
+      copyText("EPSG:25833", "EPSG:25833 copied.");
+    });
+
+    copy27700BboxButton.addEventListener("click", () => {
+      copyText(bbox27700.value, "EPSG:27700 bounding box copied.");
+    });
+
+    copy27700SrsButton.addEventListener("click", () => {
+      copyText("EPSG:27700", "EPSG:27700 copied.");
+    });
+
+    copy4283BboxButton.addEventListener("click", () => {
+      copyText(bbox4283.value, "EPSG:4283 bounding box copied.");
+    });
+
+    copy4283SrsButton.addEventListener("click", () => {
+      copyText("EPSG:4283", "EPSG:4283 copied.");
+    });
+
+    copy7844BboxButton.addEventListener("click", () => {
+      copyText(bbox7844.value, "EPSG:7844 bounding box copied.");
+    });
+
+    copy7844SrsButton.addEventListener("click", () => {
+      copyText("EPSG:7844", "EPSG:7844 copied.");
+    });
+
+    copy3857BboxButton.addEventListener("click", () => {
+      copyText(bbox3857.value, "EPSG:3857 bounding box copied.");
+    });
+
+    copy3857SrsButton.addEventListener("click", () => {
+      copyText("EPSG:3857", "EPSG:3857 copied.");
+    });
+
+    clearButton.addEventListener("click", () => {
+      drawnItems.clearLayers();
+      bbox4326.value = "";
+      bbox25832.value = "";
+      bbox25833.value = "";
+      bbox27700.value = "";
+      bbox4283.value = "";
+      bbox7844.value = "";
+      bbox3857.value = "";
+      setStatus("Rectangle cleared.");
+      publishSelection();
+    });
+
+    function publishSelection() {
+      const query = new URLSearchParams({
+        bbox4326: bbox4326.value,
+        bbox25832: bbox25832.value,
+        bbox25833: bbox25833.value,
+        bbox27700: bbox27700.value,
+        bbox4283: bbox4283.value,
+        bbox7844: bbox7844.value,
+        bbox3857: bbox3857.value
+      });
+
+      fetch(`/api/selection?${query.toString()}`, {
+        method: "GET",
+        cache: "no-store"
+      }).catch(() => {
+        setStatus("The map could not send the selection back to Grasshopper.");
+      });
+    }
+
+    tryFitInitialView();
+    updateSelectedSrsNote();
+  </script>
+</body>
+</html>

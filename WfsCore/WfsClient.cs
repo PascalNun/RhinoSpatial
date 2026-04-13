@@ -14,7 +14,7 @@ namespace WfsCore
         {
             Timeout = TimeSpan.FromSeconds(30)
         };
-        private static readonly ConcurrentDictionary<string, Task<List<WfsLayerInfo>>> LayerCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, Task<WfsCapabilitiesInfo>> CapabilitiesCache = new(StringComparer.OrdinalIgnoreCase);
         private static readonly HashSet<string> ReservedQueryKeys = new(StringComparer.OrdinalIgnoreCase)
         {
             "SERVICE",
@@ -32,12 +32,14 @@ namespace WfsCore
 
         static WfsClient()
         {
-            SharedHttpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RhinoWFS", "1.0"));
+            SharedHttpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("RhinoSpatial", "1.0"));
             SharedHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         }
 
         public async Task<List<WfsFeature>> LoadFeaturesAsync(WfsRequestOptions options)
         {
+            options = await PrepareRequestOptionsAsync(options);
+
             Exception? lastReadException = null;
 
             foreach (var candidateOptions in CreateRequestSequence(options))
@@ -53,13 +55,32 @@ namespace WfsCore
                 lastReadException = CreateUnsupportedFeatureResponseException(response);
             }
 
-            throw lastReadException ?? new InvalidOperationException("The WFS service returned a feature response that RhinoWFS could not read.");
+            throw lastReadException ?? new InvalidOperationException("The WFS service returned a feature response that RhinoSpatial could not read.");
+        }
+
+        public async Task<WfsFeatureResponse> LoadFeatureResponseAsync(WfsRequestOptions options)
+        {
+            options = await PrepareRequestOptionsAsync(options);
+
+            foreach (var candidateOptions in CreateRequestSequence(options))
+            {
+                var requestUrl = BuildGetFeatureRequestUrl(candidateOptions);
+                var response = await GetStringAsync(requestUrl);
+                return new WfsFeatureResponse(response, candidateOptions);
+            }
+
+            throw new InvalidOperationException("The WFS service request sequence did not produce a feature response.");
         }
 
         public async Task<List<WfsLayerInfo>> LoadLayersAsync(string baseUrl)
         {
-            var normalizedBaseUrl = NormalizeBaseUrl(baseUrl);
-            var loadTask = LayerCache.GetOrAdd(normalizedBaseUrl, LoadLayersUncachedAsync);
+            return (await LoadCapabilitiesAsync(baseUrl)).Layers;
+        }
+
+        public async Task<WfsCapabilitiesInfo> LoadCapabilitiesAsync(string baseUrl)
+        {
+            var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(baseUrl, ReservedQueryKeys);
+            var loadTask = CapabilitiesCache.GetOrAdd(normalizedBaseUrl, LoadCapabilitiesUncachedAsync);
 
             try
             {
@@ -67,7 +88,7 @@ namespace WfsCore
             }
             catch
             {
-                LayerCache.TryRemove(normalizedBaseUrl, out _);
+                CapabilitiesCache.TryRemove(normalizedBaseUrl, out _);
                 throw;
             }
         }
@@ -84,7 +105,8 @@ namespace WfsCore
                 throw new ArgumentException("TypeName is required.", nameof(options));
             }
 
-            var normalizedBaseUrl = NormalizeBaseUrl(options.BaseUrl);
+            var requestBaseUrl = string.IsNullOrWhiteSpace(options.GetFeatureBaseUrl) ? options.BaseUrl : options.GetFeatureBaseUrl;
+            var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(requestBaseUrl, ReservedQueryKeys);
             var queryPrefix = normalizedBaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
             var builder = new StringBuilder();
 
@@ -120,7 +142,7 @@ namespace WfsCore
             if (options.BoundingBox is not null)
             {
                 builder.Append("&BBOX=");
-                builder.Append(FormatBoundingBox(options.BoundingBox, options.SrsName));
+                builder.Append(OgcUrlUtilities.FormatBoundingBox(options.BoundingBox, options.SrsName));
             }
 
             return builder.ToString();
@@ -133,7 +155,7 @@ namespace WfsCore
                 throw new ArgumentException("BaseUrl is required.", nameof(baseUrl));
             }
 
-            var normalizedBaseUrl = NormalizeBaseUrl(baseUrl);
+            var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(baseUrl, ReservedQueryKeys);
             var queryPrefix = normalizedBaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
             var builder = new StringBuilder();
 
@@ -145,37 +167,34 @@ namespace WfsCore
             return builder.ToString();
         }
 
-        private static string FormatBoundingBox(BoundingBox2D boundingBox, string? srsName)
-        {
-            var builder = new StringBuilder();
-
-            builder.Append(FormatCoordinate(boundingBox.MinX));
-            builder.Append(",");
-            builder.Append(FormatCoordinate(boundingBox.MinY));
-            builder.Append(",");
-            builder.Append(FormatCoordinate(boundingBox.MaxX));
-            builder.Append(",");
-            builder.Append(FormatCoordinate(boundingBox.MaxY));
-
-            if (!string.IsNullOrWhiteSpace(srsName))
-            {
-                builder.Append(",");
-                builder.Append(Uri.EscapeDataString(srsName));
-            }
-
-            return builder.ToString();
-        }
-
-        private static string FormatCoordinate(double value)
-        {
-            return value.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        }
-
-        private async Task<List<WfsLayerInfo>> LoadLayersUncachedAsync(string normalizedBaseUrl)
+        private async Task<WfsCapabilitiesInfo> LoadCapabilitiesUncachedAsync(string normalizedBaseUrl)
         {
             var requestUrl = BuildGetCapabilitiesRequestUrl(normalizedBaseUrl);
             var response = await GetStringAsync(requestUrl);
-            return WfsCapabilitiesReader.ReadLayers(response);
+            return WfsCapabilitiesReader.ReadCapabilities(response);
+        }
+
+        private async Task<WfsRequestOptions> PrepareRequestOptionsAsync(WfsRequestOptions options)
+        {
+            if (!string.IsNullOrWhiteSpace(options.GetFeatureBaseUrl))
+            {
+                return options;
+            }
+
+            var capabilities = await LoadCapabilitiesAsync(options.BaseUrl);
+            var preparedOptions = CloneOptions(options);
+
+            if (!string.IsNullOrWhiteSpace(capabilities.GetFeatureUrl))
+            {
+                preparedOptions.GetFeatureBaseUrl = capabilities.GetFeatureUrl;
+            }
+
+            if (!string.IsNullOrWhiteSpace(capabilities.ServiceVersion))
+            {
+                preparedOptions.Version = capabilities.ServiceVersion;
+            }
+
+            return preparedOptions;
         }
 
         private static List<WfsRequestOptions> CreateRequestSequence(WfsRequestOptions options)
@@ -207,6 +226,7 @@ namespace WfsCore
             sequence.Add(new WfsRequestOptions
             {
                 BaseUrl = source.BaseUrl,
+                GetFeatureBaseUrl = source.GetFeatureBaseUrl,
                 TypeName = source.TypeName,
                 MaxFeatures = source.MaxFeatures,
                 Version = version,
@@ -221,6 +241,7 @@ namespace WfsCore
             return new WfsRequestOptions
             {
                 BaseUrl = options.BaseUrl,
+                GetFeatureBaseUrl = options.GetFeatureBaseUrl,
                 TypeName = options.TypeName,
                 MaxFeatures = options.MaxFeatures,
                 Version = options.Version,
@@ -228,44 +249,6 @@ namespace WfsCore
                 OutputFormat = options.OutputFormat,
                 BoundingBox = options.BoundingBox
             };
-        }
-
-        private static string NormalizeBaseUrl(string baseUrl)
-        {
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                throw new ArgumentException("BaseUrl is required.", nameof(baseUrl));
-            }
-
-            var trimmedBaseUrl = baseUrl.Trim();
-            var querySeparatorIndex = trimmedBaseUrl.IndexOf('?');
-
-            if (querySeparatorIndex < 0)
-            {
-                return trimmedBaseUrl;
-            }
-
-            var basePath = trimmedBaseUrl[..querySeparatorIndex];
-            var query = trimmedBaseUrl[(querySeparatorIndex + 1)..];
-            var preservedQueryParts = new List<string>();
-
-            foreach (var queryPart in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
-            {
-                var equalsIndex = queryPart.IndexOf('=');
-                var rawKey = equalsIndex >= 0 ? queryPart[..equalsIndex] : queryPart;
-                var key = Uri.UnescapeDataString(rawKey.Replace('+', ' '));
-
-                if (ReservedQueryKeys.Contains(key))
-                {
-                    continue;
-                }
-
-                preservedQueryParts.Add(queryPart);
-            }
-
-            return preservedQueryParts.Count == 0
-                ? basePath
-                : $"{basePath}?{string.Join("&", preservedQueryParts)}";
         }
 
         private static bool TryReadFeatures(string responseText, string sourceLayerName, out List<WfsFeature> features)
@@ -324,7 +307,7 @@ namespace WfsCore
                 }
             }
 
-            return new InvalidOperationException("The WFS service returned a feature response that RhinoWFS could not read as GeoJSON or GML.");
+            return new InvalidOperationException("The WFS service returned a feature response that RhinoSpatial could not read as GeoJSON or GML.");
         }
 
         private async Task<string> GetStringAsync(string requestUrl)

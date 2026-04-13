@@ -2,59 +2,65 @@
 
 ## Title
 
-RhinoWFS
+RhinoSpatial
 
 ## Short Description
 
-Grasshopper plugin for Rhino 8 that loads WFS data directly into Grasshopper.
+Study-oriented geospatial toolkit for Rhino 8 and Grasshopper.
 
 ## Long Description
 
-RhinoWFS is a Grasshopper plugin for Rhino 8 that tries to keep WFS loading simple and practical.
+RhinoSpatial is a Grasshopper toolkit for Rhino 8 that helps you assemble aligned spatial study context quickly and with as little GIS friction as possible.
 
-Many municipalities and public agencies publish planning and GIS data through WFS services. RhinoWFS is meant to make that data directly usable inside Grasshopper without requiring a separate GIS workflow first.
+It started as a WFS-focused loader, but the direction is now broader: one shared spatial selection, multiple aligned spatial sources, and useful defaults for early-stage design work.
 
 Current workflow:
 
-1. Connect a WFS URL
-2. List available layers
-3. Choose one or more layers
-4. Optionally define a bounding box
-5. Load the geometry into Grasshopper
+1. Define an area with `Spatial Context`
+2. Inspect available service layers where needed
+3. Load aligned vector, imagery, and LoD2 building sources
+4. Work with the combined result in Rhino / Grasshopper
 
 Current components:
 
-- `WFS Layers`
-- `WFS Bounding Box`
+- `Spatial Context`
+- `List WFS Layers`
+- `List WMS Layers`
 - `Load WFS`
+- `Load WMS`
+- `Load LoD2 Buildings`
 
 Current focus:
 
-- user-provided WFS URLs
-- layer discovery through `GetCapabilities`
-- optional bounding box filtering
-- automatic SRS handling
-- GeoJSON first, with GML fallback when needed
-- polygon, line, and point support where the provider response can be interpreted correctly
-- Grasshopper geometry output for curves and points
+- shared spatial context and placement logic
+- WFS vector loading
+- WMS imagery loading
+- early LoD2 building loading
+- aligned outputs for study and concept workflows
+- simple UI with practical defaults instead of full GIS complexity
+
+Planned next sources:
+
+- `Load Terrain`
+- later `Load OSM`
 
 ## Early Stage Note
 
-RhinoWFS is currently still in an early alpha stage.
+RhinoSpatial is currently still in an early alpha stage.
 
-It has only been tested with a relatively small number of real WFS services and datasets so far. Behavior may still vary depending on the WFS provider, geometry type, coordinate system, service version, or response format.
+It has only been tested with a relatively small number of real WFS, WMS, and LoD2 services so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, or response format.
 
-Feedback, edge cases, and additional WFS test links are very welcome.
+Feedback, edge cases, and additional test links are very welcome.
 
 ## Download
 
 Current release package:
 
-- `RhinoWFS-0.1.1-alpha.zip`
+- `RhinoSpatial-0.1.1-alpha.zip`
 
 ## Repository
 
-https://github.com/PascalNun/RhinoWFS
+https://github.com/PascalNun/RhinoSpatial
 
 ## License
 

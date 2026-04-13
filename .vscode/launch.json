@@ -2,10 +2,10 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Rhino 8 - RhinoWFS",
+      "name": "Rhino 8 - RhinoSpatial",
       "type": "coreclr",
       "request": "launch",
-      "preLaunchTask": "build RhinoWFS plugin",
+      "preLaunchTask": "build RhinoSpatial plugin",
       "osx": {
         "program": "/Applications/Rhino 8.app/Contents/MacOS/Rhinoceros",
         "args": [
@@ -13,7 +13,7 @@
         ]
       },
       "env": {
-        "RHINO_PACKAGE_DIRS": "${workspaceFolder}/RhinoWFS/bin/Debug"
+        "RHINO_PACKAGE_DIRS": "${workspaceFolder}/RhinoSpatial/bin/Debug/net7.0"
       },
       "cwd": "${workspaceFolder}",
       "stopAtEntry": false,

@@ -6,7 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURATION="${1:-Debug}"
 FRAMEWORK="net7.0"
 YAK_BIN="/Applications/Rhino 8.app/Contents/Resources/bin/yak"
-PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoWFS/bin/$CONFIGURATION/$FRAMEWORK"
+PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoSpatial/bin/$CONFIGURATION/$FRAMEWORK"
 STAGING_DIR="$ROOT_DIR/package/staging/yak"
 MANIFEST_SOURCE="$ROOT_DIR/package/yak/manifest.yml"
 
@@ -15,7 +15,9 @@ if [[ ! -x "$YAK_BIN" ]]; then
   exit 1
 fi
 
-dotnet build "$ROOT_DIR/RhinoWFS.sln" -c "$CONFIGURATION"
+dotnet build "$ROOT_DIR/RhinoSpatial.sln" -c "$CONFIGURATION"
+
+find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f -name 'RhinoWFS*' -delete
 
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"

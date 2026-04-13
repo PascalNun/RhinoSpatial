@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>RhinoSpatial.Sandbox</AssemblyName>
+    <RootNamespace>RhinoSpatial.Sandbox</RootNamespace>
+    <Product>RhinoSpatial</Product>
+    <Title>RhinoSpatial Sandbox</Title>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="WfsCore/**/*.cs" />
+    <Compile Remove="RhinoSpatial/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="WfsCore/WfsCore.csproj" />
+  </ItemGroup>
+</Project>

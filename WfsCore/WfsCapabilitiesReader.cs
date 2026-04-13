@@ -8,9 +8,14 @@ namespace WfsCore
 {
     public static class WfsCapabilitiesReader
     {
-        public static List<WfsLayerInfo> ReadLayers(string capabilitiesXml)
+        public static WfsCapabilitiesInfo ReadCapabilities(string capabilitiesXml)
         {
             var document = XDocument.Parse(capabilitiesXml);
+            var serviceVersion = document.Root?
+                .Attributes()
+                .FirstOrDefault(attribute => attribute.Name.LocalName == "version")
+                ?.Value
+                ?.Trim() ?? string.Empty;
 
             var layers = document
                 .Descendants()
@@ -22,7 +27,14 @@ namespace WfsCore
                 .OrderBy(layer => layer.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            return layers;
+            var getFeatureUrl = ReadOperationUrl(document, "GetFeature");
+
+            return new WfsCapabilitiesInfo(layers, getFeatureUrl, serviceVersion);
+        }
+
+        public static List<WfsLayerInfo> ReadLayers(string capabilitiesXml)
+        {
+            return ReadCapabilities(capabilitiesXml).Layers;
         }
 
         private static WfsLayerInfo ReadLayerInfo(XElement featureTypeElement)
@@ -50,6 +62,38 @@ namespace WfsCore
                 OtherSrs: otherSrs,
                 Wgs84BoundingBox: ReadWgs84BoundingBox(featureTypeElement)
             );
+        }
+
+        private static string ReadOperationUrl(XDocument document, string operationName)
+        {
+            var operationElement = document
+                .Descendants()
+                .FirstOrDefault(element =>
+                    element.Name.LocalName == "Operation" &&
+                    string.Equals(
+                        element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "name")?.Value,
+                        operationName,
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (operationElement is null)
+            {
+                return string.Empty;
+            }
+
+            var getElement = operationElement
+                .Descendants()
+                .FirstOrDefault(element => element.Name.LocalName == "Get");
+
+            if (getElement is null)
+            {
+                return string.Empty;
+            }
+
+            return getElement
+                .Attributes()
+                .FirstOrDefault(attribute => attribute.Name.LocalName == "href")
+                ?.Value
+                ?.Trim() ?? string.Empty;
         }
 
         private static BoundingBox2D? ReadWgs84BoundingBox(XElement featureTypeElement)

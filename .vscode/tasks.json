@@ -8,7 +8,7 @@
       "args": [
         "build",
         "-clp:NoSummary",
-        "${workspaceFolder}/RhinoWFS.sln"
+        "${workspaceFolder}/RhinoSpatial.sln"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
@@ -18,13 +18,13 @@
       "group": "build"
     },
     {
-      "label": "build RhinoWFS plugin",
+      "label": "build RhinoSpatial plugin",
       "command": "dotnet",
       "type": "shell",
       "args": [
         "build",
         "-clp:NoSummary",
-        "${workspaceFolder}/RhinoWFS/RhinoWFS.csproj"
+        "${workspaceFolder}/RhinoSpatial/RhinoSpatial.csproj"
       ],
       "problemMatcher": "$msCompile",
       "presentation": {
@@ -39,7 +39,7 @@
       "args": [
         "run",
         "--project",
-        "${workspaceFolder}/RhinoWFS.Sandbox.csproj"
+        "${workspaceFolder}/RhinoSpatial.Sandbox.csproj"
       ],
       "presentation": {
         "reveal": "always",

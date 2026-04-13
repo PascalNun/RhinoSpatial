@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <TargetExt>.gha</TargetExt>
+    <Nullable>enable</Nullable>
+    <NoWarn>NU1701;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>0.1.1</Version>
+    <AssemblyName>RhinoSpatial</AssemblyName>
+    <RootNamespace>RhinoSpatial</RootNamespace>
+    <Product>RhinoSpatial</Product>
+    <Title>RhinoSpatial</Title>
+    <Company>Pascal Nun</Company>
+    <Description>RhinoSpatial — a study-oriented geospatial toolkit for Rhino and Grasshopper.</Description>
+    <RepositoryUrl>https://github.com/PascalNun/RhinoSpatial</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/PascalNun/RhinoSpatial</PackageProjectUrl>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grasshopper" Version="8.0.23304.9001" ExcludeAssets="runtime" />
+    <PackageReference Include="System.Drawing.Common" Version="7.0.0" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WfsCore\WfsCore.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources/SpatialContext.png" LogicalName="RhinoSpatial.Resources.SpatialContext.png" />
+    <EmbeddedResource Include="Resources/BoundingBoxHelper.html" LogicalName="RhinoSpatial.Resources.BoundingBoxHelper.html" />
+    <EmbeddedResource Include="Resources/ListWfsLayers.png" LogicalName="RhinoSpatial.Resources.ListWfsLayers.png" />
+    <EmbeddedResource Include="Resources/ListWmsLayers.png" LogicalName="RhinoSpatial.Resources.ListWmsLayers.png" />
+    <EmbeddedResource Include="Resources/LoadWfs.png" LogicalName="RhinoSpatial.Resources.LoadWfs.png" />
+    <EmbeddedResource Include="Resources/LoadWms.png" LogicalName="RhinoSpatial.Resources.LoadWms.png" />
+    <EmbeddedResource Include="Resources/LoadLod2.png" LogicalName="RhinoSpatial.Resources.LoadLod2.png" />
+    <EmbeddedResource Include="Resources/Category.png" LogicalName="RhinoSpatial.Resources.Category.png" />
+  </ItemGroup>
+</Project>

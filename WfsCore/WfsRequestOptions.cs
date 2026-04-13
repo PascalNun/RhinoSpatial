@@ -4,6 +4,8 @@ namespace WfsCore
     {
         public string BaseUrl { get; set; } = string.Empty;
 
+        public string? GetFeatureBaseUrl { get; set; }
+
         public string TypeName { get; set; } = string.Empty;
 
         public int MaxFeatures { get; set; }
