@@ -1,6 +1,7 @@
 using System.Collections.Generic;
+using System.Globalization;
 using Rhino.Geometry;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
@@ -156,6 +157,17 @@ namespace RhinoSpatial
             mesh.Normals.ComputeNormals();
             mesh.Compact();
             return mesh;
+        }
+
+        public static string CreateSpatialContextKey(SpatialContext2D spatialContext)
+        {
+            var requestBoundingBox = spatialContext.RequestBoundingBox;
+            var placementBoundingBox = spatialContext.PlacementBoundingBox;
+            var placementOrigin = spatialContext.PlacementOrigin;
+
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{NormalizeSrsKey(spatialContext.ResolvedSrs)}|{spatialContext.UseAbsoluteCoordinates}|{requestBoundingBox.MinX}|{requestBoundingBox.MinY}|{requestBoundingBox.MaxX}|{requestBoundingBox.MaxY}|{placementBoundingBox.MinX}|{placementBoundingBox.MinY}|{placementBoundingBox.MaxX}|{placementBoundingBox.MaxY}|{placementOrigin.X}|{placementOrigin.Y}");
         }
 
         private static (int Width, int Height) ResolveImageSize(BoundingBox2D boundingBox, int? serviceMaxWidth, int? serviceMaxHeight)

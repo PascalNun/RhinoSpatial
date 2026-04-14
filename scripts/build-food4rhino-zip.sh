@@ -12,7 +12,7 @@ ZIP_NAME="RhinoSpatial-${VERSION}.zip"
 
 dotnet build "$ROOT_DIR/RhinoSpatial.sln" -c "$CONFIGURATION"
 
-find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f -name 'RhinoWFS*' -delete
+find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f \( -name 'RhinoWFS*' -o -name 'WfsCore*' \) -delete
 
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"

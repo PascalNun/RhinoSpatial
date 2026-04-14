@@ -2,12 +2,14 @@ using System;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
-    internal static class WfsComponentInputParser
+    internal static class RhinoSpatialInputParser
     {
+        public const string RequiredSpatialContextMessage = "Spatial Context is required. Connect the output of the Spatial Context component.";
+
         private static readonly JsonSerializerOptions SpatialContextJsonOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -107,6 +109,30 @@ namespace RhinoSpatial
                 errorMessage = "Spatial Context must be a valid RhinoSpatial context value.";
                 return false;
             }
+        }
+
+        public static bool TryGetRequiredSpatialContext(string? text, out SpatialContext2D spatialContext, out string errorMessage)
+        {
+            spatialContext = null!;
+            errorMessage = RequiredSpatialContextMessage;
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            if (!TryParseSpatialContext(text, out var parsedSpatialContext, out errorMessage) || parsedSpatialContext is null)
+            {
+                if (string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    errorMessage = RequiredSpatialContextMessage;
+                }
+
+                return false;
+            }
+
+            spatialContext = parsedSpatialContext;
+            return true;
         }
 
         private static bool TryParseDouble(string text, out double value)

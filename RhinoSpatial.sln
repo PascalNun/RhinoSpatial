@@ -5,7 +5,7 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RhinoSpatial.Sandbox", "RhinoSpatial.Sandbox.csproj", "{1DDEF266-611D-B563-E3BC-BB371F0D16BB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WfsCore", "WfsCore\WfsCore.csproj", "{3EBE18CB-D886-4493-AD56-7C823709937E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RhinoSpatial.Core", "RhinoSpatial.Core\RhinoSpatial.Core.csproj", "{3EBE18CB-D886-4493-AD56-7C823709937E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RhinoSpatial", "RhinoSpatial\RhinoSpatial.csproj", "{0616E2CE-D058-4093-B0A9-E394757B2ED9}"
 EndProject

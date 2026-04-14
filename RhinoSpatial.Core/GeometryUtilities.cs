@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace WfsCore
+namespace RhinoSpatial.Core
 {
     public static class GeometryUtilities
     {

@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Threading.Tasks;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial.Sandbox
 {
@@ -22,7 +22,7 @@ namespace RhinoSpatial.Sandbox
             {
                 Console.WriteLine("Loading WFS features...");
                 Console.WriteLine($"SRS: {requestOptions.SrsName}");
-                Console.WriteLine($"Bounding box active: {requestOptions.BoundingBox is not null}");
+                Console.WriteLine($"Selected area active: {requestOptions.BoundingBox is not null}");
                 Console.WriteLine(WfsClient.BuildGetFeatureRequestUrl(requestOptions));
                 Console.WriteLine();
 

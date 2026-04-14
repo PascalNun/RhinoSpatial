@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace WfsCore
+namespace RhinoSpatial.Core
 {
     public static class GeoJsonReader
     {

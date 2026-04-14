@@ -6,7 +6,7 @@ using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
@@ -32,8 +32,6 @@ namespace RhinoSpatial
             public string? LayerName { get; init; }
 
             public SpatialContext2D SpatialContext { get; init; } = null!;
-
-            public bool UseAbsoluteCoordinates { get; init; }
         }
 
         private sealed class ResolvedLayer
@@ -45,7 +43,7 @@ namespace RhinoSpatial
 
         public Lod2LoadComponent()
             : base("Load LoD2 Buildings", "Load LoD2",
-                "Load LoD2 building surfaces from a WFS service and output aligned building Breps.",
+                "Load aligned LoD2 building geometry for the shared RhinoSpatial spatial context.",
                 "RhinoSpatial", "Sources")
         {
         }
@@ -57,7 +55,6 @@ namespace RhinoSpatial
             pManager.AddTextParameter("LoD2 Service URL", "LoD2 URL", "Base URL of the LoD2 service. If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
             pManager.AddTextParameter("Layer", "Layer", "Optional LoD2 building layer name. Leave empty if the service only exposes one building layer.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. LoD2 requests use EPSG:7423/4326 internally, so any Spatial Context created from the map helper will align correctly.", GH_ParamAccess.item);
-            pManager.AddBooleanParameter("Use Absolute Coordinates (Legacy)", "Absolute (Legacy)", "Legacy compatibility input. New workflows should control coordinate placement from the Spatial Context component instead.", GH_ParamAccess.item, false);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -110,16 +107,14 @@ namespace RhinoSpatial
             string? baseUrl = null;
             string? layerName = null;
             string? spatialContextText = null;
-            var useAbsoluteCoordinates = false;
 
             dataAccess.GetData(0, ref baseUrl);
             dataAccess.GetData(1, ref layerName);
             dataAccess.GetData(2, ref spatialContextText);
-            dataAccess.GetData(3, ref useAbsoluteCoordinates);
 
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
-                WfsUpstreamContextResolver.TryResolveBaseUrlFromLayerInput(Params.Input[1], out var resolvedBaseUrl);
+                WfsLayerInputResolver.TryResolveBaseUrlFromLayerInput(Params.Input[1], out var resolvedBaseUrl);
                 if (!string.IsNullOrWhiteSpace(resolvedBaseUrl))
                 {
                     baseUrl = resolvedBaseUrl;
@@ -132,14 +127,7 @@ namespace RhinoSpatial
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(spatialContextText))
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Spatial Context is required. Connect the output of the Spatial Context component.");
-                return false;
-            }
-
-            if (!WfsComponentInputParser.TryParseSpatialContext(spatialContextText, out var spatialContext, out var spatialContextError) ||
-                spatialContext is null)
+            if (!RhinoSpatialInputParser.TryGetRequiredSpatialContext(spatialContextText, out var spatialContext, out var spatialContextError))
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, spatialContextError);
                 return false;
@@ -148,9 +136,8 @@ namespace RhinoSpatial
             requestData = new RequestData
             {
                 BaseUrl = baseUrl.Trim(),
-                LayerName = string.IsNullOrWhiteSpace(layerName) ? null : WfsComponentInputParser.ParseLayerName(layerName),
-                SpatialContext = spatialContext,
-                UseAbsoluteCoordinates = spatialContext.UseAbsoluteCoordinates || useAbsoluteCoordinates
+                LayerName = string.IsNullOrWhiteSpace(layerName) ? null : RhinoSpatialInputParser.ParseLayerName(layerName),
+                SpatialContext = spatialContext
             };
 
             return true;
@@ -194,6 +181,11 @@ namespace RhinoSpatial
             var buildings = Lod2GmlReader.ReadBuildings(response.ResponseText, resolvedLayer.LayerName);
             var targetBoundingBox = requestData.SpatialContext.RequestBoundingBox;
             var placementPoint = new Point3d(requestData.SpatialContext.PlacementOrigin.X, requestData.SpatialContext.PlacementOrigin.Y, 0.0);
+            var elevationBase = requestData.SpatialContext.UseAbsoluteCoordinates
+                ? 0.0
+                : SpatialElevationBaselineCache.ResolveOrStore(
+                    requestData.SpatialContext,
+                    RhinoSpatialLod2OutputBuilder.CalculateElevationBase(buildings));
             var brepTree = RhinoSpatialLod2OutputBuilder.BuildBrepTree(
                 buildings,
                 new[] { resolvedLayer.LayerName },
@@ -202,7 +194,8 @@ namespace RhinoSpatial
                 requestBoundingBox,
                 targetBoundingBox,
                 placementPoint,
-                requestData.UseAbsoluteCoordinates);
+                requestData.SpatialContext.UseAbsoluteCoordinates,
+                elevationBase);
 
             return new SolveResults
             {
@@ -210,9 +203,9 @@ namespace RhinoSpatial
                 BuildingCount = buildings.Count,
                 Status = buildings.Count == 0
                     ? "No LoD2 buildings were returned inside the current Spatial Context."
-                    : requestData.UseAbsoluteCoordinates
+                    : requestData.SpatialContext.UseAbsoluteCoordinates
                         ? $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' with absolute elevation."
-                        : $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' and grounded the lowest building point to Z=0.",
+                        : $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' and aligned them to the shared local terrain/building elevation baseline.",
                 MessageLevel = buildings.Count == 0 ? GH_RuntimeMessageLevel.Warning : null
             };
         }

@@ -4,7 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Xml.Linq;
 
-namespace WfsCore
+namespace RhinoSpatial.Core
 {
     public static class Lod2GmlReader
     {
@@ -86,7 +86,7 @@ namespace WfsCore
 
             foreach (var container in lod2GeometryContainers)
             {
-                foreach (var polygonElement in container.Descendants().Where(IsSupportedPolygonElement))
+                foreach (var polygonElement in EnumerateSupportedPolygonElements(container))
                 {
                     var surface = ReadSurface(polygonElement);
                     if (surface.Points.Count >= 4)
@@ -97,6 +97,25 @@ namespace WfsCore
             }
 
             return surfaces;
+        }
+
+        private static IEnumerable<XElement> EnumerateSupportedPolygonElements(XElement container)
+        {
+            foreach (var element in container.Descendants())
+            {
+                if (!IsSupportedPolygonElement(element))
+                {
+                    continue;
+                }
+
+                if (string.Equals(element.Name.LocalName, "Surface", StringComparison.OrdinalIgnoreCase) &&
+                    ContainsNestedPolygonGeometry(element))
+                {
+                    continue;
+                }
+
+                yield return element;
+            }
         }
 
         private static SurfaceRing3D ReadSurface(XElement polygonElement)
@@ -311,6 +330,15 @@ namespace WfsCore
             return string.Equals(localName, "Polygon", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(localName, "Surface", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(localName, "PolygonPatch", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ContainsNestedPolygonGeometry(XElement element)
+        {
+            return element
+                .Descendants()
+                .Any(child =>
+                    string.Equals(child.Name.LocalName, "Polygon", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(child.Name.LocalName, "PolygonPatch", StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool IsExceptionReport(XElement root)

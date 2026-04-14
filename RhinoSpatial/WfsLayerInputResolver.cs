@@ -4,7 +4,7 @@ using Grasshopper.Kernel;
 
 namespace RhinoSpatial
 {
-    internal static class WfsUpstreamContextResolver
+    internal static class WfsLayerInputResolver
     {
         public static bool IsConnectedDirectlyToWfsLayersOutput(IGH_Param? layerInputParameter)
         {

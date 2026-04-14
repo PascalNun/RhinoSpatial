@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
@@ -45,12 +45,12 @@ namespace RhinoSpatial
         public override void AddedToDocument(GH_Document document)
         {
             base.AddedToDocument(document);
-            BoundingBoxHelperHost.SelectionChanged += HandleSelectionChanged;
+            SpatialContextHelperHost.SelectionChanged += HandleSelectionChanged;
         }
 
         public override void RemovedFromDocument(GH_Document document)
         {
-            BoundingBoxHelperHost.SelectionChanged -= HandleSelectionChanged;
+            SpatialContextHelperHost.SelectionChanged -= HandleSelectionChanged;
             base.RemovedFromDocument(document);
         }
 
@@ -148,7 +148,7 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var selection = BoundingBoxHelperHost.GetLatestSelection();
+            var selection = SpatialContextHelperHost.GetLatestSelection();
 
             if (!selection.HasSelection)
             {
@@ -196,11 +196,11 @@ namespace RhinoSpatial
                 };
             }
 
-            if (!WfsComponentInputParser.TryParseBoundingBox(boundingBoxText, out var resolvedBoundingBox, out _))
+            if (!RhinoSpatialInputParser.TryParseBoundingBox(boundingBoxText, out var resolvedBoundingBox, out _))
             {
                 return new SolveResults
                 {
-                    Status = "The selected Bounding Box could not be converted into a reusable spatial context.",
+                    Status = "The selected area could not be converted into a reusable spatial context.",
                     MessageLevel = GH_RuntimeMessageLevel.Error
                 };
             }
@@ -214,7 +214,7 @@ namespace RhinoSpatial
 
             return new SolveResults
             {
-                SpatialContextText = WfsComponentInputParser.SerializeSpatialContext(spatialContext),
+                SpatialContextText = RhinoSpatialInputParser.SerializeSpatialContext(spatialContext),
                 Status = srsResolution.Status,
                 MessageLevel = srsResolution.MessageLevel
             };
@@ -237,7 +237,7 @@ namespace RhinoSpatial
             }
         }
 
-        private static Dictionary<string, BoundingBox2D> BuildBoundingBoxesBySrs(BoundingBoxHelperHost.BoundingBoxSelection selection)
+        private static Dictionary<string, BoundingBox2D> BuildBoundingBoxesBySrs(SpatialContextHelperHost.SpatialContextSelection selection)
         {
             var boundingBoxes = new Dictionary<string, BoundingBox2D>(StringComparer.OrdinalIgnoreCase);
             TryAddBoundingBox(boundingBoxes, "EPSG:4326", selection.BoundingBox4326);
@@ -253,7 +253,7 @@ namespace RhinoSpatial
 
         private static void TryAddBoundingBox(Dictionary<string, BoundingBox2D> target, string srsName, string text)
         {
-            if (WfsComponentInputParser.TryParseBoundingBox(text, out var boundingBox, out _) && boundingBox is not null)
+            if (RhinoSpatialInputParser.TryParseBoundingBox(text, out var boundingBox, out _) && boundingBox is not null)
             {
                 target[srsName] = boundingBox;
             }
@@ -261,7 +261,7 @@ namespace RhinoSpatial
 
         private static BoundingBox2D? TryGetBoundingBox(string text)
         {
-            return WfsComponentInputParser.TryParseBoundingBox(text, out var boundingBox, out _) ? boundingBox : null;
+            return RhinoSpatialInputParser.TryParseBoundingBox(text, out var boundingBox, out _) ? boundingBox : null;
         }
 
         private (string ResolvedSrsName, string Status, GH_RuntimeMessageLevel? MessageLevel) ResolveSrsName(RequestData requestData)
@@ -279,7 +279,7 @@ namespace RhinoSpatial
                     null);
             }
 
-            var layerName = WfsComponentInputParser.ParseLayerName(requestData.LayerSelection);
+            var layerName = RhinoSpatialInputParser.ParseLayerName(requestData.LayerSelection);
 
             if (string.IsNullOrWhiteSpace(layerName))
             {
@@ -480,18 +480,18 @@ namespace RhinoSpatial
             try
             {
                 var (initialViewBoundingBox, preferredSrs) = await ResolveInitialMapContextAsync(baseUrl, layerSelection, requestedSrs);
-                BoundingBoxHelperHost.OpenInBrowser(initialViewBoundingBox, preferredSrs);
+                SpatialContextHelperHost.OpenInBrowser(initialViewBoundingBox, preferredSrs);
             }
             catch
             {
-                BoundingBoxHelperHost.OpenInBrowser();
+                SpatialContextHelperHost.OpenInBrowser();
             }
         }
 
         private async Task<(BoundingBox2D? InitialViewBoundingBox4326, string PreferredSrs)> ResolveInitialMapContextAsync(string? baseUrl, string? layerSelection, string? requestedSrs)
         {
             var normalizedRequestedSrs = NormalizeSupportedMapSrs(requestedSrs ?? string.Empty);
-            var layerName = WfsComponentInputParser.ParseLayerName(layerSelection ?? string.Empty);
+            var layerName = RhinoSpatialInputParser.ParseLayerName(layerSelection ?? string.Empty);
 
             if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(layerName))
             {

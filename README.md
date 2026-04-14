@@ -1,8 +1,12 @@
+<p align="center">
+  <img src="RhinoSpatial/Resources/RhinoSpatial_Vector_Logo.svg" alt="RhinoSpatial logo" width="320" />
+</p>
+
 # RhinoSpatial
 
 RhinoSpatial is a study-oriented geospatial toolkit for Rhino and Grasshopper.
 
-The project started as a WFS-focused loader, but the direction is now broader: define one shared spatial area, then load aligned vector data, imagery, building massing, and later terrain or lightweight urban context into the same Rhino / Grasshopper study space.
+The project started as a WFS-focused loader, but the direction is now broader: define one shared spatial area, then load aligned vector data, imagery, building massing, terrain, and later lightweight urban context into the same Rhino / Grasshopper study space.
 
 ## Download
 
@@ -52,7 +56,7 @@ The Grasshopper tab is organized as:
   - `Load WFS`
   - `Load WMS`
   - `Load LoD2 Buildings`
-  - planned: `Load Terrain`
+  - `Load Terrain`
   - later: `Load OSM`
 
 Current component meaning:
@@ -65,11 +69,11 @@ Current component meaning:
   Imagery / orthophoto / map context.
 - `Load LoD2 Buildings`
   Building geometry / building mass / roof geometry context.
+- `Load Terrain`
+  Ground surface / terrain geometry, aligned through the same shared spatial context.
 
 Planned next sources:
 
-- `Load Terrain`
-  Ground surface / terrain geometry, aligned through the same shared spatial context.
 - `Load OSM`
   Lightweight, curated urban study context rather than a full OSM query interface.
 
@@ -119,6 +123,7 @@ Current focus:
 - layer discovery through `GetCapabilities`
 - automatic SRS handling
 - reusable shared spatial context for selection extent and placement
+- terrain surface loading from the first WCS-backed provider
 - GeoJSON first, with GML fallback when needed
 - `Polygon`, `MultiPolygon`, `LineString`, `MultiLineString`, `Point`, and `MultiPoint` where the provider response can be interpreted correctly
 - early LoD2 multi-surface loading
@@ -129,6 +134,7 @@ Current output:
 - points for point features
 - textured mesh previews for WMS imagery
 - Breps for LoD2 building surfaces
+- terrain meshes aligned to the same shared study space
 - grouped multi-layer output trees where appropriate
 
 ## Architecture
@@ -137,8 +143,8 @@ The project is split into small parts:
 
 - `RhinoSpatial`
   The Grasshopper plugin
-- `WfsCore`
-  The reusable WFS / WMS / parsing core logic
+- `RhinoSpatial.Core`
+  The reusable geospatial core for WFS, WMS, LoD2 parsing, and shared coordinate handling
 - `RhinoSpatial.Sandbox`
   A small console sandbox used for testing core logic outside Grasshopper
 
@@ -153,7 +159,7 @@ This is now the core architectural rule for:
 - WFS vector data
 - WMS imagery
 - LoD2 building data
-- future terrain data
+- terrain data
 - later OSM context
 
 ## Notes
@@ -161,7 +167,8 @@ This is now the core architectural rule for:
 - The plugin tries to prefer a layer's default SRS when possible.
 - `Spatial Context` is the central shared selection and placement component for RhinoSpatial.
 - `Load WFS`, `Load WMS`, and `Load LoD2 Buildings` all consume the same spatial context.
-- `Load Terrain` is planned as a separate aligned source and is not treated as part of LoD2 building loading.
+- `Load Terrain` and `Load LoD2 Buildings` share the same localized elevation baseline when absolute coordinates are off, so terrain and buildings sit on the same local Z reference.
+- `Load Terrain` is a separate aligned source and is not treated as part of LoD2 building loading.
 - The map helper currently supports the SRS values that have come up most often in testing so far, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, `EPSG:3857`, `EPSG:27700`, `EPSG:4283`, `EPSG:7423`, and `EPSG:7844`.
 - `Load LoD2 Buildings` is still experimental and currently tuned around the Hessen `bu-core3d:Building` service pattern.
 - Some providers behave differently, so more compatibility improvements may still be added over time.

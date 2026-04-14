@@ -7,7 +7,7 @@ This package is currently an early alpha release of RhinoSpatial for Rhino 8.
 - `RhinoSpatial.gha`
 - `RhinoSpatial.deps.json`
 - `RhinoSpatial.runtimeconfig.json`
-- `WfsCore.dll`
+- `RhinoSpatial.Core.dll`
 - `README.md`
 - `LICENSE`
 
@@ -24,5 +24,5 @@ If Grasshopper was already open while the file was copied, restart Rhino and Gra
 ## Notes
 
 - RhinoSpatial is currently still in an early alpha stage.
-- The plugin has only been tested with a limited number of real WFS, WMS, and LoD2 services so far.
-- Behavior may still vary depending on the WFS provider, geometry type, SRS, version, or response format.
+- The plugin has only been tested with a limited number of real WFS, WMS, LoD2, and terrain services so far.
+- Behavior may still vary depending on the provider, geometry type, SRS, version, or response format.

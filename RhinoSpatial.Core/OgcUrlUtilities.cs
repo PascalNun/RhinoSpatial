@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
-namespace WfsCore
+namespace RhinoSpatial.Core
 {
     internal static class OgcUrlUtilities
     {

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {

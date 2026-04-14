@@ -3,7 +3,7 @@ using System.Linq;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {

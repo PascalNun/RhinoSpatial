@@ -3,8 +3,11 @@
     <TargetFrameworks>net10.0;net7.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AssemblyName>RhinoSpatial.Core</AssemblyName>
+    <RootNamespace>RhinoSpatial.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="BitMiracle.LibTiff.NET" Version="2.4.660" />
     <PackageReference Include="ProjNET" Version="2.1.0" />
   </ItemGroup>
 </Project>

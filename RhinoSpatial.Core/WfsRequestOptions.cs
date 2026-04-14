@@ -1,4 +1,4 @@
-namespace WfsCore
+namespace RhinoSpatial.Core
 {
     public class WfsRequestOptions
     {

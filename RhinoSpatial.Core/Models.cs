@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace WfsCore
+namespace RhinoSpatial.Core
 {
     public record Coordinate2D(double X, double Y);
 
@@ -79,6 +79,74 @@ namespace WfsCore
         List<string> SupportedSrs,
         BoundingBox2D? Wgs84BoundingBox
     );
+
+    public record WcsCoverageInfo(
+        string CoverageId,
+        string Title,
+        BoundingBox2D? Wgs84BoundingBox
+    );
+
+    public record WcsCapabilitiesInfo(
+        List<WcsCoverageInfo> Coverages,
+        string GetCoverageUrl,
+        string DescribeCoverageUrl,
+        string ServiceVersion
+    );
+
+    public record WcsCoverageDescription(
+        string CoverageId,
+        string NativeSrs,
+        BoundingBox2D NativeBoundingBox,
+        Coordinate2D Origin,
+        Coordinate2D OffsetVectorX,
+        Coordinate2D OffsetVectorY,
+        string AxisXLabel,
+        string AxisYLabel,
+        double? NoDataValue
+    );
+
+    public record TerrainRasterData(
+        string CoverageId,
+        string SrsName,
+        int Width,
+        int Height,
+        Coordinate2D Origin,
+        Coordinate2D OffsetVectorX,
+        Coordinate2D OffsetVectorY,
+        double? NoDataValue,
+        float[] Elevations
+    );
+
+    public record WcsCoverageResult(
+        string RequestUrl,
+        string LocalFilePath,
+        string ContentType,
+        TerrainRasterData Raster
+    );
+
+    public record OsmAreaFeature(
+        long Id,
+        List<LinearRing> OuterRings,
+        Dictionary<string, string?> Tags
+    );
+
+    public record OsmLinearFeature(
+        long Id,
+        LineString CenterLine,
+        Dictionary<string, string?> Tags
+    );
+
+    public record OsmDataSet(
+        List<OsmAreaFeature> Buildings,
+        List<OsmLinearFeature> Roads,
+        List<OsmAreaFeature> WaterAreas,
+        List<OsmLinearFeature> WaterLines,
+        List<OsmAreaFeature> GreenAreas,
+        List<OsmLinearFeature> Rails
+    )
+    {
+        public string StatusNote { get; init; } = string.Empty;
+    }
 
     public record Lod2Building(
         string Id,

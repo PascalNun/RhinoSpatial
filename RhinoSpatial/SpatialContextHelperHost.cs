@@ -8,13 +8,13 @@ using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
-    internal static class BoundingBoxHelperHost
+    internal static class SpatialContextHelperHost
     {
-        internal sealed record BoundingBoxSelection(string BoundingBox4326, string BoundingBox25832, string BoundingBox25833, string BoundingBox27700, string BoundingBox3857, string BoundingBox4283, string BoundingBox7844)
+        internal sealed record SpatialContextSelection(string BoundingBox4326, string BoundingBox25832, string BoundingBox25833, string BoundingBox27700, string BoundingBox3857, string BoundingBox4283, string BoundingBox7844)
         {
             public bool HasSelection =>
                 !string.IsNullOrWhiteSpace(BoundingBox4326) ||
@@ -26,14 +26,14 @@ namespace RhinoSpatial
                 !string.IsNullOrWhiteSpace(BoundingBox7844);
         }
 
-        private const string HtmlResourceName = "RhinoSpatial.Resources.BoundingBoxHelper.html";
+        private const string HtmlResourceName = "RhinoSpatial.Resources.SpatialContextHelper.html";
         private static readonly object SyncRoot = new();
         private static TcpListener? _listener;
         private static CancellationTokenSource? _cancellationTokenSource;
         private static Task? _serverTask;
         private static int _port;
         private static string? _htmlDocument;
-        private static BoundingBoxSelection _latestSelection = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+        private static SpatialContextSelection _latestSelection = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
 
         public static event EventHandler? SelectionChanged;
 
@@ -119,7 +119,7 @@ namespace RhinoSpatial
             });
         }
 
-        public static BoundingBoxSelection GetLatestSelection()
+        public static SpatialContextSelection GetLatestSelection()
         {
             lock (SyncRoot)
             {
@@ -290,7 +290,7 @@ namespace RhinoSpatial
                     return;
                 }
 
-                _latestSelection = new BoundingBoxSelection(normalized4326, normalized25832, normalized25833, normalized27700, normalized3857, normalized4283, normalized7844);
+                _latestSelection = new SpatialContextSelection(normalized4326, normalized25832, normalized25833, normalized27700, normalized3857, normalized4283, normalized7844);
                 shouldRaiseEvent = true;
             }
 

@@ -1,7 +1,7 @@
 using ProjNet.CoordinateSystems;
 using ProjNet.CoordinateSystems.Transformations;
 
-namespace WfsCore
+namespace RhinoSpatial.Core
 {
     public static class SpatialReferenceTransform
     {

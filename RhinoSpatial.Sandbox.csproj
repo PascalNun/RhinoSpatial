@@ -11,11 +11,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="WfsCore/**/*.cs" />
+    <Compile Remove="RhinoSpatial.Core/**/*.cs" />
     <Compile Remove="RhinoSpatial/**/*.cs" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="WfsCore/WfsCore.csproj" />
+    <ProjectReference Include="RhinoSpatial.Core/RhinoSpatial.Core.csproj" />
   </ItemGroup>
 </Project>

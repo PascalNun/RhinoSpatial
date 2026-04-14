@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Types;
 using Rhino.Display;
@@ -9,7 +10,7 @@ using Rhino.DocObjects;
 using Rhino.Geometry;
 using Rhino;
 using Rhino.Render;
-using WfsCore;
+using RhinoSpatial.Core;
 using System.Linq;
 using Rhino.DocObjects.Tables;
 
@@ -40,9 +41,10 @@ namespace RhinoSpatial
 
         public WmsLoadComponent()
             : base("Load WMS", "Load WMS",
-                "Download a WMS image from a shared RhinoSpatial spatial context and output a textured mesh that previews cleanly and bakes more reliably.",
+                "Load aligned WMS imagery for the shared RhinoSpatial spatial context and output a textured mesh that previews cleanly and bakes more reliably.",
                 "RhinoSpatial", "Sources")
         {
+            NormalizeInputConfiguration();
         }
 
         public override GH_Exposure Exposure => GH_Exposure.tertiary;
@@ -55,6 +57,21 @@ namespace RhinoSpatial
             pManager.AddTextParameter("Format", "Format", "Requested image format.", GH_ParamAccess.item, "image/png");
 
             pManager[0].Optional = true;
+            pManager[1].Optional = true;
+            pManager[3].Optional = true;
+        }
+
+        public override void AddedToDocument(GH_Document document)
+        {
+            base.AddedToDocument(document);
+            NormalizeInputConfiguration();
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            var result = base.Read(reader);
+            NormalizeInputConfiguration();
+            return result;
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -157,7 +174,7 @@ namespace RhinoSpatial
 
             if (!string.IsNullOrWhiteSpace(layerName))
             {
-                layerName = WfsComponentInputParser.ParseLayerName(layerName);
+                layerName = RhinoSpatialInputParser.ParseLayerName(layerName);
             }
 
             if (!string.IsNullOrWhiteSpace(layerName) &&
@@ -171,13 +188,7 @@ namespace RhinoSpatial
                 return false;
             }
 
-            if (string.IsNullOrWhiteSpace(spatialContextText))
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Spatial Context is required. Connect the output of the Spatial Context component.");
-                return false;
-            }
-
-            if (!WfsComponentInputParser.TryParseSpatialContext(spatialContextText, out var spatialContext, out var errorMessage) || spatialContext is null)
+            if (!RhinoSpatialInputParser.TryGetRequiredSpatialContext(spatialContextText, out var spatialContext, out var errorMessage))
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, errorMessage);
                 return false;
@@ -304,25 +315,15 @@ namespace RhinoSpatial
             SpatialContext2D requestSpatialContext = requestData.SpatialContext;
             if (requestData.UsingFallback)
             {
-                var normalizedSrs = RhinoSpatialContextTools.NormalizeSrsKey(requestData.SpatialContext.ResolvedSrs);
-                if (normalizedSrs != "EPSG:4326" && normalizedSrs != "EPSG:7423")
-                {
-                    return new SolveResults
-                    {
-                        Status = "NASA GIBS fallback imagery uses EPSG:4326. Set the Spatial Context SRS to EPSG:4326 (or EPSG:7423) or provide a custom WMS URL.",
-                        MessageLevel = GH_RuntimeMessageLevel.Error
-                    };
-                }
-
                 if (!RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
                         requestData.SpatialContext,
                         "EPSG:4326",
                         out var fallbackBoundingBox,
-                        out var fallbackOrigin))
+                        out _))
                 {
                     return new SolveResults
                     {
-                        Status = "The Spatial Context could not be converted to EPSG:4326 for the NASA GIBS fallback.",
+                        Status = "The Spatial Context could not provide a usable EPSG:4326 bounding box for the NASA GIBS fallback.",
                         MessageLevel = GH_RuntimeMessageLevel.Error
                     };
                 }
@@ -330,9 +331,9 @@ namespace RhinoSpatial
                 requestSpatialContext = new SpatialContext2D(
                     "EPSG:4326",
                     fallbackBoundingBox,
-                    fallbackBoundingBox,
+                    requestData.SpatialContext.PlacementBoundingBox,
                     requestData.SpatialContext.Wgs84BoundingBox,
-                    fallbackOrigin,
+                    requestData.SpatialContext.PlacementOrigin,
                     requestData.SpatialContext.UseAbsoluteCoordinates,
                     requestData.SpatialContext.BoundingBoxesBySrs);
             }
@@ -357,7 +358,7 @@ namespace RhinoSpatial
 
             var imageResult = _wmsClient.DownloadImageAsync(requestOptions).GetAwaiter().GetResult();
             var imageMesh = RhinoSpatialContextTools.CreateBoundingBoxMesh(
-                requestSpatialContext.RequestBoundingBox,
+                requestSpatialContext.PlacementBoundingBox,
                 requestSpatialContext.PlacementOrigin,
                 requestSpatialContext.UseAbsoluteCoordinates);
 
@@ -520,5 +521,17 @@ namespace RhinoSpatial
         }
 
         public override Guid ComponentGuid => new Guid("70c5074b-d37f-4459-b287-2a1ecaf17870");
+
+        private void NormalizeInputConfiguration()
+        {
+            if (Params.Input.Count < 4)
+            {
+                return;
+            }
+
+            Params.Input[0].Optional = true;
+            Params.Input[1].Optional = true;
+            Params.Input[3].Optional = true;
+        }
     }
 }

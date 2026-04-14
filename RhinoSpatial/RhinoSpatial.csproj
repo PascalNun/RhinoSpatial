@@ -25,17 +25,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\WfsCore\WfsCore.csproj" />
+    <ProjectReference Include="..\RhinoSpatial.Core\RhinoSpatial.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="Resources/SpatialContext.png" LogicalName="RhinoSpatial.Resources.SpatialContext.png" />
-    <EmbeddedResource Include="Resources/BoundingBoxHelper.html" LogicalName="RhinoSpatial.Resources.BoundingBoxHelper.html" />
+    <EmbeddedResource Include="Resources/SpatialContextHelper.html" LogicalName="RhinoSpatial.Resources.SpatialContextHelper.html" />
     <EmbeddedResource Include="Resources/ListWfsLayers.png" LogicalName="RhinoSpatial.Resources.ListWfsLayers.png" />
     <EmbeddedResource Include="Resources/ListWmsLayers.png" LogicalName="RhinoSpatial.Resources.ListWmsLayers.png" />
     <EmbeddedResource Include="Resources/LoadWfs.png" LogicalName="RhinoSpatial.Resources.LoadWfs.png" />
     <EmbeddedResource Include="Resources/LoadWms.png" LogicalName="RhinoSpatial.Resources.LoadWms.png" />
     <EmbeddedResource Include="Resources/LoadLod2.png" LogicalName="RhinoSpatial.Resources.LoadLod2.png" />
+    <EmbeddedResource Include="Resources/LoadTerrain.png" LogicalName="RhinoSpatial.Resources.LoadTerrain.png" />
     <EmbeddedResource Include="Resources/Category.png" LogicalName="RhinoSpatial.Resources.Category.png" />
   </ItemGroup>
 </Project>

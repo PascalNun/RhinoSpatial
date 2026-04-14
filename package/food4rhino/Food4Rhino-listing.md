@@ -29,6 +29,7 @@ Current components:
 - `Load WFS`
 - `Load WMS`
 - `Load LoD2 Buildings`
+- `Load Terrain`
 
 Current focus:
 
@@ -36,12 +37,13 @@ Current focus:
 - WFS vector loading
 - WMS imagery loading
 - early LoD2 building loading
+- terrain surface loading
+- shared localized elevation behavior so terrain and buildings align to the same local Z reference
 - aligned outputs for study and concept workflows
 - simple UI with practical defaults instead of full GIS complexity
 
 Planned next sources:
 
-- `Load Terrain`
 - later `Load OSM`
 
 ## Early Stage Note
@@ -56,7 +58,7 @@ Feedback, edge cases, and additional test links are very welcome.
 
 Current release package:
 
-- `RhinoSpatial-0.1.1-alpha.zip`
+- `RhinoSpatial-0.1.1-alpha.zip` 
 
 ## Repository
 

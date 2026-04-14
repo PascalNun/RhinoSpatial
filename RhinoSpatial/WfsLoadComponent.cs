@@ -6,13 +6,13 @@ using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
 using Rhino.Geometry;
-using WfsCore;
+using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
     public class WfsLoadComponent : GH_TaskCapableComponent<WfsLoadComponent.SolveResults>
     {
-        private const int MaxDirectLayerCountFromFullList = 8;
+        private const int DirectLayerWarningThreshold = 8;
         private readonly WfsClient _wfsClient = new();
 
         public class SolveResults
@@ -36,14 +36,12 @@ namespace RhinoSpatial
 
             public int MaxFeatures { get; init; }
 
-            public SpatialContext2D? SpatialContext { get; init; }
-
-            public bool UseAbsoluteCoordinates { get; init; }
+            public SpatialContext2D SpatialContext { get; init; } = null!;
         }
 
         public WfsLoadComponent()
             : base("Load WFS", "Load WFS",
-                "Load WFS data into Grasshopper.",
+                "Load aligned WFS geometry for the shared RhinoSpatial spatial context.",
                 "RhinoSpatial", "Sources")
         {
         }
@@ -56,7 +54,6 @@ namespace RhinoSpatial
             pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers.", GH_ParamAccess.list);
             pManager.AddIntegerParameter("Max Features", "Max Features", "Maximum number of features to request. Use 0 to request all available features.", GH_ParamAccess.item, 0);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. This is required so WFS, WMS, LoD2, terrain, and future sources stay aligned.", GH_ParamAccess.item);
-            pManager.AddBooleanParameter("Use Absolute Coordinates (Legacy)", "Absolute (Legacy)", "Legacy compatibility input. New workflows should control coordinate placement from the Spatial Context component instead.", GH_ParamAccess.item, false);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -115,7 +112,6 @@ namespace RhinoSpatial
             string? spatialContextText = null;
             var layerSelections = new List<string>();
             var maxFeatures = 0;
-            var useAbsoluteCoordinates = false;
 
             dataAccess.GetData(0, ref baseUrl);
 
@@ -126,11 +122,10 @@ namespace RhinoSpatial
 
             dataAccess.GetData(2, ref maxFeatures);
             dataAccess.GetData(3, ref spatialContextText);
-            dataAccess.GetData(4, ref useAbsoluteCoordinates);
 
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
-                WfsUpstreamContextResolver.TryResolveBaseUrlFromLayerInput(Params.Input[1], out var resolvedBaseUrl);
+                WfsLayerInputResolver.TryResolveBaseUrlFromLayerInput(Params.Input[1], out var resolvedBaseUrl);
 
                 if (!string.IsNullOrWhiteSpace(resolvedBaseUrl))
                 {
@@ -146,7 +141,7 @@ namespace RhinoSpatial
 
             var requestedLayerNames = layerSelections
                 .Where(layerName => !string.IsNullOrWhiteSpace(layerName))
-                .Select(WfsComponentInputParser.ParseLayerName)
+                .Select(RhinoSpatialInputParser.ParseLayerName)
                 .Where(layerName => !string.IsNullOrWhiteSpace(layerName))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -158,33 +153,19 @@ namespace RhinoSpatial
             }
 
             if (requestedLayerNames.Count > 1 &&
-                WfsUpstreamContextResolver.IsConnectedDirectlyToWfsLayersOutput(Params.Input[1]))
+                WfsLayerInputResolver.IsConnectedDirectlyToWfsLayersOutput(Params.Input[1]))
             {
-                if (requestedLayerNames.Count > MaxDirectLayerCountFromFullList)
+                if (requestedLayerNames.Count > DirectLayerWarningThreshold)
                 {
                     AddRuntimeMessage(
-                        GH_RuntimeMessageLevel.Error,
-                        $"The Layer input is connected directly to the full WFS Layers output ({requestedLayerNames.Count} layers). Choose one layer with List Item, or merge only the specific layers you really want to load.");
-                    return false;
+                        GH_RuntimeMessageLevel.Remark,
+                        $"Loading {requestedLayerNames.Count} WFS layers directly from the full layer list. RhinoSpatial will place them in separate top-level branches by layer. Use List Item if you only want one layer.");
                 }
-
             }
 
-            if (string.IsNullOrWhiteSpace(spatialContextText))
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Spatial Context is required. Connect the output of the Spatial Context component.");
-                return false;
-            }
-
-            if (!WfsComponentInputParser.TryParseSpatialContext(spatialContextText, out var spatialContext, out var spatialContextError))
+            if (!RhinoSpatialInputParser.TryGetRequiredSpatialContext(spatialContextText, out var spatialContext, out var spatialContextError))
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, spatialContextError);
-                return false;
-            }
-
-            if (spatialContext is null)
-            {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Spatial Context is required. Connect the output of the Spatial Context component.");
                 return false;
             }
 
@@ -193,8 +174,7 @@ namespace RhinoSpatial
                 BaseUrl = baseUrl,
                 RequestedLayerNames = requestedLayerNames,
                 MaxFeatures = maxFeatures,
-                SpatialContext = spatialContext,
-                UseAbsoluteCoordinates = spatialContext.UseAbsoluteCoordinates || useAbsoluteCoordinates
+                SpatialContext = spatialContext
             };
 
             return true;
@@ -213,7 +193,7 @@ namespace RhinoSpatial
                     TypeName = requestedLayerName,
                     MaxFeatures = requestData.MaxFeatures,
                     SrsName = resolvedSrsName,
-                    BoundingBox = requestData.SpatialContext?.RequestBoundingBox
+                    BoundingBox = requestData.SpatialContext.RequestBoundingBox
                 };
 
                 var layerFeatures = _wfsClient.LoadFeaturesAsync(layerRequestOptions).GetAwaiter().GetResult();
@@ -222,7 +202,7 @@ namespace RhinoSpatial
 
             var appliedOffset = RhinoSpatialContextTools.ResolvePlacementOrigin(
                 requestData.SpatialContext,
-                requestData.UseAbsoluteCoordinates,
+                requestData.SpatialContext.UseAbsoluteCoordinates,
                 features);
 
             var geometryTree = RhinoSpatialOutputBuilder.BuildGeometryTree(features, requestData.RequestedLayerNames, appliedOffset.X, appliedOffset.Y);
@@ -262,7 +242,7 @@ namespace RhinoSpatial
 
         private static (string ResolvedSrsName, bool UsedAutoDetectedSrs) ResolveSrsName(RequestData requestData)
         {
-            if (requestData.SpatialContext is not null && !string.IsNullOrWhiteSpace(requestData.SpatialContext.ResolvedSrs))
+            if (!string.IsNullOrWhiteSpace(requestData.SpatialContext.ResolvedSrs))
             {
                 return (requestData.SpatialContext.ResolvedSrs, false);
             }
@@ -272,7 +252,7 @@ namespace RhinoSpatial
 
         private static string BuildStatusMessage(RequestData requestData, int featureCount, int geometryItemCount, string maxFeaturesText, string resolvedSrsText, string srsSourceText)
         {
-            var coordinateText = requestData.UseAbsoluteCoordinates
+            var coordinateText = requestData.SpatialContext.UseAbsoluteCoordinates
                 ? "using absolute coordinates."
                 : "then localized the geometry near the Rhino origin.";
 
