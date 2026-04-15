@@ -58,7 +58,7 @@ namespace RhinoSpatial
             pManager.AddTextParameter("Status", "Status", "Status or warning information from the GeoTIFF loader.", GH_ParamAccess.item);
         }
 
-        protected override System.Drawing.Bitmap? Icon => IconLoader.Load("RhinoSpatial.Resources.LoadWms.png");
+        protected override System.Drawing.Bitmap? Icon => IconLoader.Load("RhinoSpatial.Resources.LoadGeoTIFF.png");
 
         public override bool Read(GH_IReader reader)
         {

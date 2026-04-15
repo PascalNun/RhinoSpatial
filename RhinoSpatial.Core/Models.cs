@@ -153,6 +153,8 @@ namespace RhinoSpatial.Core
     )
     {
         public string StatusNote { get; init; } = string.Empty;
+
+        public List<string> UnavailableCategories { get; init; } = new();
     }
 
     public record Lod2Building(

@@ -129,7 +129,7 @@ namespace RhinoSpatial
             }
         }
 
-        protected override System.Drawing.Bitmap? Icon => IconLoader.Load("RhinoSpatial.Resources.LoadWfs.png");
+        protected override System.Drawing.Bitmap? Icon => IconLoader.Load("RhinoSpatial.Resources.LoadOSM.png");
 
         public override Guid ComponentGuid => new Guid("e46bdb4f-3dd1-4cc8-bb32-83076f2a30b3");
 

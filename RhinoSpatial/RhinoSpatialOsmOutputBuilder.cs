@@ -193,7 +193,23 @@ namespace RhinoSpatial
 
         public static GH_Structure<IGH_GeometricGoo> BuildRailTree(IReadOnlyList<OsmLinearFeature> rails, SpatialContext2D spatialContext)
         {
-            return BuildRibbonTree(rails, spatialContext, ResolveRailWidth);
+            var tree = new GH_Structure<IGH_GeometricGoo>();
+
+            for (var featureIndex = 0; featureIndex < rails.Count; featureIndex++)
+            {
+                var rail = rails[featureIndex];
+                var path = new GH_Path(featureIndex);
+                tree.EnsurePath(path);
+
+                if (!TryTransformLine(rail.CenterLine.Points, spatialContext, useTerrainAverage: false, out var centerLine))
+                {
+                    continue;
+                }
+
+                tree.Append(new GH_Curve(new PolylineCurve(centerLine)), path);
+            }
+
+            return tree;
         }
 
         private static GH_Structure<IGH_GeometricGoo> BuildAreaTree(IReadOnlyList<OsmAreaFeature> areas, SpatialContext2D spatialContext)

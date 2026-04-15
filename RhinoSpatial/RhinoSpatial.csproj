@@ -38,6 +38,8 @@
     <EmbeddedResource Include="Resources/LoadWms.png" LogicalName="RhinoSpatial.Resources.LoadWms.png" />
     <EmbeddedResource Include="Resources/LoadLod2.png" LogicalName="RhinoSpatial.Resources.LoadLod2.png" />
     <EmbeddedResource Include="Resources/LoadTerrain.png" LogicalName="RhinoSpatial.Resources.LoadTerrain.png" />
+    <EmbeddedResource Include="Resources/LoadGeoTIFF.png" LogicalName="RhinoSpatial.Resources.LoadGeoTIFF.png" />
+    <EmbeddedResource Include="Resources/LoadOSM.png" LogicalName="RhinoSpatial.Resources.LoadOSM.png" />
     <EmbeddedResource Include="Resources/Category.png" LogicalName="RhinoSpatial.Resources.Category.png" />
   </ItemGroup>
 </Project>

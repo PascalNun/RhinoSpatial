@@ -56,29 +56,67 @@ namespace RhinoSpatial.Core
             var combinedDataSet = CreateEmptyDataSet();
             string? statusNote = null;
             var failureMessages = new List<string>();
+            var unavailableCategories = new List<string>();
 
             try
             {
                 foreach (var queryBatch in queryBatches)
                 {
-                    var batchResult = await LoadBatchAsync(queryBatch, failureMessages);
-                    combinedDataSet = MergeDataSets(combinedDataSet, batchResult.DataSet);
-
-                    if (string.IsNullOrWhiteSpace(statusNote) && !string.IsNullOrWhiteSpace(batchResult.StatusNote))
+                    try
                     {
-                        statusNote = batchResult.StatusNote;
+                        var batchResult = await LoadBatchAsync(queryBatch, failureMessages);
+                        combinedDataSet = MergeDataSets(combinedDataSet, batchResult.DataSet);
+
+                        if (string.IsNullOrWhiteSpace(statusNote) && !string.IsNullOrWhiteSpace(batchResult.StatusNote))
+                        {
+                            statusNote = batchResult.StatusNote;
+                        }
+                    }
+                    catch (Exception) when (TryGetCachedCategoryDataSet(cacheKey, queryBatch.Label, out var cachedBatchDataSet))
+                    {
+                        combinedDataSet = MergeDataSets(combinedDataSet, cachedBatchDataSet);
+                    }
+                    catch (Exception)
+                    {
+                        unavailableCategories.Add(queryBatch.Label);
                     }
                 }
 
-                var cleanCachedDataSet = combinedDataSet with { StatusNote = string.Empty };
+                if (combinedDataSet.Buildings.Count == 0 &&
+                    combinedDataSet.Roads.Count == 0 &&
+                    combinedDataSet.WaterAreas.Count == 0 &&
+                    combinedDataSet.GreenAreas.Count == 0 &&
+                    combinedDataSet.Rails.Count == 0)
+                {
+                    throw new InvalidOperationException(BuildFailureMessage(failureMessages));
+                }
+
+                if (unavailableCategories.Count > 0)
+                {
+                    var unavailableNote =
+                        $"Some OSM context groups were temporarily unavailable and were skipped: {string.Join(", ", unavailableCategories)}.";
+                    statusNote = string.IsNullOrWhiteSpace(statusNote)
+                        ? unavailableNote
+                        : $"{statusNote} {unavailableNote}";
+                }
+
+                var cleanCachedDataSet = combinedDataSet with
+                {
+                    StatusNote = string.Empty,
+                    UnavailableCategories = new List<string>()
+                };
                 CacheEntriesByKey[cacheKey] = new CacheEntry(cleanCachedDataSet, DateTimeOffset.UtcNow);
 
                 if (!string.IsNullOrWhiteSpace(statusNote))
                 {
-                    return combinedDataSet with { StatusNote = statusNote };
+                    return combinedDataSet with
+                    {
+                        StatusNote = statusNote,
+                        UnavailableCategories = unavailableCategories
+                    };
                 }
 
-                return combinedDataSet;
+                return combinedDataSet with { UnavailableCategories = unavailableCategories };
             }
             catch (Exception) when (TryGetCachedDataSet(cacheKey, allowStale: true, out var staleCachedDataSet))
             {
@@ -188,8 +226,8 @@ namespace RhinoSpatial.Core
 
             if (options.IncludeGreen)
             {
-                AppendAreaQuery(builder, "way", "\"landuse\"~\"^(grass|forest|meadow|farmland)$\"", bbox);
-                AppendAreaQuery(builder, "relation", "\"landuse\"~\"^(grass|forest|meadow|farmland)$\"", bbox);
+                AppendAreaQuery(builder, "way", "\"landuse\"~\"^(grass|meadow)$\"", bbox);
+                AppendAreaQuery(builder, "relation", "\"landuse\"~\"^(grass|meadow)$\"", bbox);
                 AppendAreaQuery(builder, "way", "\"leisure\"=\"park\"", bbox);
                 AppendAreaQuery(builder, "relation", "\"leisure\"=\"park\"", bbox);
                 AppendAreaQuery(builder, "way", "\"natural\"~\"^(wood|grassland)$\"", bbox);
@@ -314,7 +352,10 @@ namespace RhinoSpatial.Core
                 }
             }
 
-            return new OsmDataSet(buildings, roads, waterAreas, greenAreas, rails);
+            return new OsmDataSet(buildings, roads, waterAreas, greenAreas, rails)
+            {
+                UnavailableCategories = new List<string>()
+            };
         }
 
         private static OsmDataSet CreateEmptyDataSet()
@@ -324,7 +365,10 @@ namespace RhinoSpatial.Core
                 new List<OsmLinearFeature>(),
                 new List<OsmAreaFeature>(),
                 new List<OsmAreaFeature>(),
-                new List<OsmLinearFeature>());
+                new List<OsmLinearFeature>())
+            {
+                UnavailableCategories = new List<string>()
+            };
         }
 
         private static List<QueryBatch> BuildQueryBatches(OsmRequestOptions options)
@@ -451,6 +495,43 @@ namespace RhinoSpatial.Core
 
             dataSet = entry.DataSet;
             return true;
+        }
+
+        private static bool TryGetCachedCategoryDataSet(string cacheKey, string label, out OsmDataSet dataSet)
+        {
+            dataSet = default!;
+
+            if (!TryGetCachedDataSet(cacheKey, allowStale: true, out var cachedDataSet))
+            {
+                return false;
+            }
+
+            dataSet = label switch
+            {
+                "Buildings" when cachedDataSet.Buildings.Count > 0 => CreateEmptyDataSet() with
+                {
+                    Buildings = cachedDataSet.Buildings
+                },
+                "Roads" when cachedDataSet.Roads.Count > 0 => CreateEmptyDataSet() with
+                {
+                    Roads = cachedDataSet.Roads
+                },
+                "Water" when cachedDataSet.WaterAreas.Count > 0 => CreateEmptyDataSet() with
+                {
+                    WaterAreas = cachedDataSet.WaterAreas
+                },
+                "Green" when cachedDataSet.GreenAreas.Count > 0 => CreateEmptyDataSet() with
+                {
+                    GreenAreas = cachedDataSet.GreenAreas
+                },
+                "Rail" when cachedDataSet.Rails.Count > 0 => CreateEmptyDataSet() with
+                {
+                    Rails = cachedDataSet.Rails
+                },
+                _ => default!
+            };
+
+            return dataSet is not null;
         }
 
         private static IReadOnlyList<string> ResolveCandidateBaseUrls(string? baseUrl)
@@ -758,9 +839,7 @@ namespace RhinoSpatial.Core
                 switch (landuseValue)
                 {
                     case "grass":
-                    case "forest":
                     case "meadow":
-                    case "farmland":
                         return true;
                 }
             }
@@ -790,12 +869,25 @@ namespace RhinoSpatial.Core
                 return false;
             }
 
+            if (HasTagValue(tags, "location", "underground") ||
+                HasTagValue(tags, "location", "underwater") ||
+                HasTagValue(tags, "covered", "yes"))
+            {
+                return false;
+            }
+
+            if (tags.TryGetValue("tunnel", out var tunnelValue) &&
+                !string.IsNullOrWhiteSpace(tunnelValue) &&
+                !HasTagValue(tags, "tunnel", "no"))
+            {
+                return false;
+            }
+
             return railwayValue switch
             {
                 "rail" => true,
                 "light_rail" => true,
                 "tram" => true,
-                "subway" => true,
                 "narrow_gauge" => true,
                 _ => false
             };
