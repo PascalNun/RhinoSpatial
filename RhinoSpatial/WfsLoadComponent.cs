@@ -182,7 +182,7 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var (resolvedSrsName, _) = ResolveSrsName(requestData);
+            var resolvedSrsName = requestData.SpatialContext.ResolvedSrs;
             var features = new List<WfsFeature>();
 
             foreach (var requestedLayerName in requestData.RequestedLayerNames)
@@ -209,15 +209,14 @@ namespace RhinoSpatial
             var geometryItemCount = geometryTree.DataCount;
             var resolvedSrsText = string.IsNullOrWhiteSpace(resolvedSrsName) ? "service default" : resolvedSrsName;
             var maxFeaturesText = requestData.MaxFeatures > 0 ? requestData.MaxFeatures.ToString() : "all available";
-            var srsSourceText = "shared context";
 
             return new SolveResults
             {
                 GeometryTree = geometryTree,
                 FeatureCount = features.Count,
                 GeometryItemCount = geometryItemCount,
-                Status = BuildStatusMessage(requestData, features.Count, geometryItemCount, maxFeaturesText, resolvedSrsText, srsSourceText),
-                MessageLevel = ResolveMessageLevel(requestData, features.Count)
+                Status = BuildStatusMessage(requestData, features.Count, geometryItemCount, maxFeaturesText, resolvedSrsText),
+                MessageLevel = ResolveMessageLevel(features.Count)
             };
         }
 
@@ -240,17 +239,7 @@ namespace RhinoSpatial
             }
         }
 
-        private static (string ResolvedSrsName, bool UsedAutoDetectedSrs) ResolveSrsName(RequestData requestData)
-        {
-            if (!string.IsNullOrWhiteSpace(requestData.SpatialContext.ResolvedSrs))
-            {
-                return (requestData.SpatialContext.ResolvedSrs, false);
-            }
-
-            throw new InvalidOperationException("Spatial Context did not provide a resolved SRS.");
-        }
-
-        private static string BuildStatusMessage(RequestData requestData, int featureCount, int geometryItemCount, string maxFeaturesText, string resolvedSrsText, string srsSourceText)
+        private static string BuildStatusMessage(RequestData requestData, int featureCount, int geometryItemCount, string maxFeaturesText, string resolvedSrsText)
         {
             var coordinateText = requestData.SpatialContext.UseAbsoluteCoordinates
                 ? "using absolute coordinates."
@@ -258,13 +247,13 @@ namespace RhinoSpatial
 
             if (featureCount == 0)
             {
-                return $"No features were found for the selected layer selection inside the current Spatial Context using {srsSourceText} SRS '{resolvedSrsText}'.";
+                return $"No features were found for the selected layer selection inside the current Spatial Context using shared-context SRS '{resolvedSrsText}'.";
             }
 
-            return $"Loaded {featureCount} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and {srsSourceText} SRS '{resolvedSrsText}', {coordinateText}";
+            return $"Loaded {featureCount} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and shared-context SRS '{resolvedSrsText}', {coordinateText}";
         }
 
-        private static GH_RuntimeMessageLevel? ResolveMessageLevel(RequestData requestData, int featureCount)
+        private static GH_RuntimeMessageLevel? ResolveMessageLevel(int featureCount)
         {
             if (featureCount == 0)
             {

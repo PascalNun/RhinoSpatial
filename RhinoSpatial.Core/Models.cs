@@ -124,6 +124,14 @@ namespace RhinoSpatial.Core
         TerrainRasterData Raster
     );
 
+    public record GeoReferencedRasterInfo(
+        string LocalFilePath,
+        string SrsName,
+        int Width,
+        int Height,
+        BoundingBox2D BoundingBox
+    );
+
     public record OsmAreaFeature(
         long Id,
         List<LinearRing> OuterRings,
@@ -140,7 +148,6 @@ namespace RhinoSpatial.Core
         List<OsmAreaFeature> Buildings,
         List<OsmLinearFeature> Roads,
         List<OsmAreaFeature> WaterAreas,
-        List<OsmLinearFeature> WaterLines,
         List<OsmAreaFeature> GreenAreas,
         List<OsmLinearFeature> Rails
     )

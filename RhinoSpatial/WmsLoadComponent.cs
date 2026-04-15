@@ -18,8 +18,6 @@ namespace RhinoSpatial
 {
     public class WmsLoadComponent : GH_TaskCapableComponent<WmsLoadComponent.SolveResults>
     {
-        private const string FallbackWmsUrl = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
-        private const string FallbackLayerName = "BlueMarble_ShadedRelief_Bathymetry";
         private readonly WmsClient _wmsClient = new();
         private Mesh? _previewMesh;
         private DisplayMaterial? _previewMaterial;
@@ -116,7 +114,7 @@ namespace RhinoSpatial
                 dataAccess.SetData(0, result.ImageMesh);
             }
 
-            var material = CreateGrasshopperMaterial(result.ImageFilePath);
+            var material = RhinoSpatialRasterDisplayTools.CreateGrasshopperMaterial(result.ImageFilePath);
             if (material is not null)
             {
                 dataAccess.SetData(1, material);
@@ -135,15 +133,11 @@ namespace RhinoSpatial
 
         private sealed class RequestData
         {
-            public string BaseUrl { get; init; } = string.Empty;
-
-            public string? LayerName { get; init; }
+            public ResolvedImagerySource Source { get; init; } = null!;
 
             public SpatialContext2D SpatialContext { get; init; } = null!;
 
             public string Format { get; init; } = "image/png";
-
-            public bool UsingFallback { get; init; }
         }
 
         private bool TryGetRequestData(IGH_DataAccess dataAccess, out RequestData requestData)
@@ -160,17 +154,6 @@ namespace RhinoSpatial
 
             dataAccess.GetData(2, ref spatialContextText);
             dataAccess.GetData(3, ref format);
-
-            var usingFallback = false;
-            if (string.IsNullOrWhiteSpace(baseUrl))
-            {
-                usingFallback = true;
-                baseUrl = FallbackWmsUrl;
-                if (string.IsNullOrWhiteSpace(layerName))
-                {
-                    layerName = FallbackLayerName;
-                }
-            }
 
             if (!string.IsNullOrWhiteSpace(layerName))
             {
@@ -196,11 +179,9 @@ namespace RhinoSpatial
 
             requestData = new RequestData
             {
-                BaseUrl = baseUrl.Trim(),
-                LayerName = string.IsNullOrWhiteSpace(layerName) ? null : layerName.Trim(),
+                Source = RhinoSpatialSourceFallbacks.ResolveImagerySource(baseUrl, layerName),
                 SpatialContext = spatialContext,
-                Format = string.IsNullOrWhiteSpace(format) ? "image/png" : format.Trim(),
-                UsingFallback = usingFallback
+                Format = string.IsNullOrWhiteSpace(format) ? "image/png" : format.Trim()
             };
 
             return true;
@@ -313,33 +294,21 @@ namespace RhinoSpatial
         private SolveResults Compute(RequestData requestData)
         {
             SpatialContext2D requestSpatialContext = requestData.SpatialContext;
-            if (requestData.UsingFallback)
+            if (!RhinoSpatialSourceFallbacks.TryCreateRequestSpatialContext(
+                    requestData.SpatialContext,
+                    requestData.Source.RequiredQuerySrs,
+                    out requestSpatialContext,
+                    out var fallbackError))
             {
-                if (!RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
-                        requestData.SpatialContext,
-                        "EPSG:4326",
-                        out var fallbackBoundingBox,
-                        out _))
+                return new SolveResults
                 {
-                    return new SolveResults
-                    {
-                        Status = "The Spatial Context could not provide a usable EPSG:4326 bounding box for the NASA GIBS fallback.",
-                        MessageLevel = GH_RuntimeMessageLevel.Error
-                    };
-                }
-
-                requestSpatialContext = new SpatialContext2D(
-                    "EPSG:4326",
-                    fallbackBoundingBox,
-                    requestData.SpatialContext.PlacementBoundingBox,
-                    requestData.SpatialContext.Wgs84BoundingBox,
-                    requestData.SpatialContext.PlacementOrigin,
-                    requestData.SpatialContext.UseAbsoluteCoordinates,
-                    requestData.SpatialContext.BoundingBoxesBySrs);
+                    Status = fallbackError,
+                    MessageLevel = GH_RuntimeMessageLevel.Error
+                };
             }
 
-            var capabilities = _wmsClient.LoadCapabilitiesAsync(requestData.BaseUrl).GetAwaiter().GetResult();
-            var resolvedLayer = ResolveLayerName(capabilities, requestData.LayerName);
+            var capabilities = _wmsClient.LoadCapabilitiesAsync(requestData.Source.BaseUrl).GetAwaiter().GetResult();
+            var resolvedLayer = ResolveLayerName(capabilities, requestData.Source.PreferredLayerName);
             if (string.IsNullOrWhiteSpace(resolvedLayer.LayerName))
             {
                 return new SolveResults
@@ -350,7 +319,7 @@ namespace RhinoSpatial
             }
 
             var requestOptions = RhinoSpatialContextTools.CreateWmsRequestOptions(
-                requestData.BaseUrl,
+                requestData.Source.BaseUrl,
                 resolvedLayer.LayerName,
                 requestSpatialContext,
                 capabilities,
@@ -362,9 +331,7 @@ namespace RhinoSpatial
                 requestSpatialContext.PlacementOrigin,
                 requestSpatialContext.UseAbsoluteCoordinates);
 
-            var statusPrefix = requestData.UsingFallback
-                ? "Using fallback global imagery source (NASA GIBS). "
-                : string.Empty;
+            var statusPrefix = requestData.Source.CreateStatusPrefix();
 
             return new SolveResults
             {
@@ -372,7 +339,7 @@ namespace RhinoSpatial
                 ImageMesh = imageMesh,
                 GetMapUrl = imageResult.RequestUrl,
                 Status = $"{statusPrefix}Downloaded WMS image to '{imageResult.LocalFilePath}'.",
-                MessageLevel = requestData.UsingFallback ? GH_RuntimeMessageLevel.Remark : null
+                MessageLevel = requestData.Source.UsesFallback ? GH_RuntimeMessageLevel.Remark : null
             };
         }
 
@@ -392,59 +359,10 @@ namespace RhinoSpatial
             }
         }
 
-        private static GH_Material? CreateGrasshopperMaterial(string imageFilePath)
-        {
-            var rhinoMaterial = CreateRhinoMaterial(imageFilePath);
-            if (rhinoMaterial is null)
-            {
-                return null;
-            }
-
-            if (RhinoDoc.ActiveDoc is not null)
-            {
-                var renderMaterial = RenderMaterial.CreateBasicMaterial(rhinoMaterial, RhinoDoc.ActiveDoc);
-                return new GH_Material(renderMaterial);
-            }
-
-            return new GH_Material(new DisplayMaterial(rhinoMaterial));
-        }
-
-        private static Material? CreateRhinoMaterial(string imageFilePath)
-        {
-            if (string.IsNullOrWhiteSpace(imageFilePath) || !File.Exists(imageFilePath))
-            {
-                return null;
-            }
-
-            var material = new Material
-            {
-                DiffuseColor = System.Drawing.Color.White,
-                Transparency = 0.0,
-                DisableLighting = true
-            };
-            material.SetBitmapTexture(imageFilePath);
-            return material;
-        }
-
-        private static DisplayMaterial? CreateDisplayMaterial(string imageFilePath)
-        {
-            var rhinoMaterial = CreateRhinoMaterial(imageFilePath);
-            if (rhinoMaterial is null)
-            {
-                return null;
-            }
-
-            var displayMaterial = new DisplayMaterial(rhinoMaterial)
-            {
-                IsTwoSided = true
-            };
-            return displayMaterial;
-        }
-
         private void UpdatePreviewState(SolveResults result)
         {
             _previewMesh = result.ImageMesh;
-            _previewMaterial = CreateDisplayMaterial(result.ImageFilePath);
+            _previewMaterial = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(result.ImageFilePath);
             _previewImageFilePath = result.ImageFilePath;
             _previewBox = _previewMesh?.GetBoundingBox(false) ?? BoundingBox.Empty;
         }
@@ -485,7 +403,7 @@ namespace RhinoSpatial
 
             var meshToBake = _previewMesh.DuplicateMesh();
             var attributes = att.Duplicate();
-            var material = CreateRhinoMaterial(_previewImageFilePath);
+            var material = RhinoSpatialRasterDisplayTools.CreateRhinoMaterial(_previewImageFilePath);
             RenderMaterial? renderMaterial = null;
 
             if (material is not null)

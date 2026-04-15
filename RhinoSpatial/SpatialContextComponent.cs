@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
 using RhinoSpatial.Core;
 
@@ -9,9 +10,26 @@ namespace RhinoSpatial
 {
     public class SpatialContextComponent : GH_TaskCapableComponent<SpatialContextComponent.SolveResults>
     {
+        private const string PersistedSelectionChunk = "PersistedSelection";
+        private const string BoundingBox4326Key = "BoundingBox4326";
+        private const string BoundingBox25832Key = "BoundingBox25832";
+        private const string BoundingBox25833Key = "BoundingBox25833";
+        private const string BoundingBox27700Key = "BoundingBox27700";
+        private const string BoundingBox3857Key = "BoundingBox3857";
+        private const string BoundingBox4283Key = "BoundingBox4283";
+        private const string BoundingBox7844Key = "BoundingBox7844";
+
         private readonly WfsClient _wfsClient = new();
         private readonly WmsClient _wmsClient = new();
         private bool _lastOpenMapRequest;
+        private SpatialContextHelperHost.SpatialContextSelection _persistedSelection = new(
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty,
+            string.Empty);
 
         public class SolveResults
         {
@@ -52,6 +70,33 @@ namespace RhinoSpatial
         {
             SpatialContextHelperHost.SelectionChanged -= HandleSelectionChanged;
             base.RemovedFromDocument(document);
+        }
+
+        public override bool Write(GH_IWriter writer)
+        {
+            var result = base.Write(writer);
+
+            if (!_persistedSelection.HasSelection)
+            {
+                return result;
+            }
+
+            var chunk = writer.CreateChunk(PersistedSelectionChunk);
+            chunk.SetString(BoundingBox4326Key, _persistedSelection.BoundingBox4326);
+            chunk.SetString(BoundingBox25832Key, _persistedSelection.BoundingBox25832);
+            chunk.SetString(BoundingBox25833Key, _persistedSelection.BoundingBox25833);
+            chunk.SetString(BoundingBox27700Key, _persistedSelection.BoundingBox27700);
+            chunk.SetString(BoundingBox3857Key, _persistedSelection.BoundingBox3857);
+            chunk.SetString(BoundingBox4283Key, _persistedSelection.BoundingBox4283);
+            chunk.SetString(BoundingBox7844Key, _persistedSelection.BoundingBox7844);
+            return result;
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            var result = base.Read(reader);
+            _persistedSelection = ReadPersistedSelection(reader);
+            return result;
         }
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
@@ -148,7 +193,7 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var selection = SpatialContextHelperHost.GetLatestSelection();
+            var selection = GetActiveSelection();
 
             if (!selection.HasSelection)
             {
@@ -465,6 +510,12 @@ namespace RhinoSpatial
 
         private void HandleSelectionChanged(object? sender, EventArgs e)
         {
+            var latestSelection = SpatialContextHelperHost.GetLatestSelection();
+            if (latestSelection.HasSelection)
+            {
+                _persistedSelection = latestSelection;
+            }
+
             var document = OnPingDocument();
 
             if (document is null)
@@ -473,6 +524,42 @@ namespace RhinoSpatial
             }
 
             document.ScheduleSolution(1, _ => ExpireSolution(false));
+        }
+
+        private SpatialContextHelperHost.SpatialContextSelection GetActiveSelection()
+        {
+            var liveSelection = SpatialContextHelperHost.GetLatestSelection();
+            return liveSelection.HasSelection ? liveSelection : _persistedSelection;
+        }
+
+        private static SpatialContextHelperHost.SpatialContextSelection ReadPersistedSelection(GH_IReader reader)
+        {
+            var chunk = reader.FindChunk(PersistedSelectionChunk);
+            if (chunk is null)
+            {
+                return new SpatialContextHelperHost.SpatialContextSelection(
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    string.Empty);
+            }
+
+            return new SpatialContextHelperHost.SpatialContextSelection(
+                ReadChunkString(chunk, BoundingBox4326Key),
+                ReadChunkString(chunk, BoundingBox25832Key),
+                ReadChunkString(chunk, BoundingBox25833Key),
+                ReadChunkString(chunk, BoundingBox27700Key),
+                ReadChunkString(chunk, BoundingBox3857Key),
+                ReadChunkString(chunk, BoundingBox4283Key),
+                ReadChunkString(chunk, BoundingBox7844Key));
+        }
+
+        private static string ReadChunkString(GH_IReader chunk, string key)
+        {
+            return chunk.ItemExists(key) ? chunk.GetString(key) : string.Empty;
         }
 
         private async Task OpenMapAsync(string? baseUrl, string? layerSelection, string? requestedSrs)

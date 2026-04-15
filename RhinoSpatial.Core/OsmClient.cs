@@ -27,6 +27,7 @@ namespace RhinoSpatial.Core
         };
 
         private sealed record CacheEntry(OsmDataSet DataSet, DateTimeOffset StoredAtUtc);
+        private sealed record QueryBatch(OsmRequestOptions Options, string Label);
 
         static OsmClient()
         {
@@ -51,31 +52,65 @@ namespace RhinoSpatial.Core
                 return freshCachedDataSet;
             }
 
-            var query = BuildOverpassQuery(options);
-            var candidateBaseUrls = ResolveCandidateBaseUrls(options.BaseUrl);
+            var queryBatches = BuildQueryBatches(options);
+            var combinedDataSet = CreateEmptyDataSet();
+            string? statusNote = null;
             var failureMessages = new List<string>();
+
+            try
+            {
+                foreach (var queryBatch in queryBatches)
+                {
+                    var batchResult = await LoadBatchAsync(queryBatch, failureMessages);
+                    combinedDataSet = MergeDataSets(combinedDataSet, batchResult.DataSet);
+
+                    if (string.IsNullOrWhiteSpace(statusNote) && !string.IsNullOrWhiteSpace(batchResult.StatusNote))
+                    {
+                        statusNote = batchResult.StatusNote;
+                    }
+                }
+
+                var cleanCachedDataSet = combinedDataSet with { StatusNote = string.Empty };
+                CacheEntriesByKey[cacheKey] = new CacheEntry(cleanCachedDataSet, DateTimeOffset.UtcNow);
+
+                if (!string.IsNullOrWhiteSpace(statusNote))
+                {
+                    return combinedDataSet with { StatusNote = statusNote };
+                }
+
+                return combinedDataSet;
+            }
+            catch (Exception) when (TryGetCachedDataSet(cacheKey, allowStale: true, out var staleCachedDataSet))
+            {
+                return staleCachedDataSet with
+                {
+                    StatusNote = "Using cached OSM result because the live OSM service was temporarily unavailable."
+                };
+            }
+
+            throw new InvalidOperationException(BuildFailureMessage(failureMessages));
+        }
+
+        private async Task<(OsmDataSet DataSet, string StatusNote)> LoadBatchAsync(QueryBatch queryBatch, List<string> failureMessages)
+        {
+            var query = BuildOverpassQuery(queryBatch.Options);
+            var candidateBaseUrls = ResolveCandidateBaseUrls(queryBatch.Options.BaseUrl);
 
             foreach (var candidateBaseUrl in candidateBaseUrls)
             {
-                var maxAttempts = ShouldRetryEndpoints(options.BaseUrl) ? 2 : 1;
+                var maxAttempts = ShouldRetryEndpoints(queryBatch.Options.BaseUrl) ? 2 : 1;
 
                 for (var attempt = 0; attempt < maxAttempts; attempt++)
                 {
                     try
                     {
                         var responseText = await PostQueryAsync(candidateBaseUrl, query);
-                        var dataSet = ParseResponse(responseText, options);
-                        var cleanCachedDataSet = dataSet with { StatusNote = string.Empty };
-                        CacheEntriesByKey[cacheKey] = new CacheEntry(cleanCachedDataSet, DateTimeOffset.UtcNow);
-
-                        var statusNote = BuildEndpointStatusNote(candidateBaseUrl, options.BaseUrl);
-                        return string.IsNullOrWhiteSpace(statusNote)
-                            ? dataSet
-                            : dataSet with { StatusNote = statusNote };
+                        var dataSet = ParseResponse(responseText, queryBatch.Options);
+                        return (dataSet, BuildEndpointStatusNote(candidateBaseUrl, queryBatch.Options.BaseUrl));
                     }
                     catch (Exception ex)
                     {
-                        failureMessages.Add(ex.Message);
+                        failureMessages.Add($"{queryBatch.Label}: {ex.Message}");
 
                         if (attempt + 1 < maxAttempts && IsTransientFailure(ex))
                         {
@@ -86,14 +121,6 @@ namespace RhinoSpatial.Core
                         break;
                     }
                 }
-            }
-
-            if (TryGetCachedDataSet(cacheKey, allowStale: true, out var staleCachedDataSet))
-            {
-                return staleCachedDataSet with
-                {
-                    StatusNote = "Using cached OSM result because the live OSM service was temporarily unavailable."
-                };
             }
 
             throw new InvalidOperationException(BuildFailureMessage(failureMessages));
@@ -152,14 +179,11 @@ namespace RhinoSpatial.Core
                 AppendAreaQuery(builder, "relation", "\"natural\"=\"water\"", bbox);
                 AppendAreaQuery(builder, "way", "\"water\"", bbox);
                 AppendAreaQuery(builder, "relation", "\"water\"", bbox);
-                AppendAreaQuery(builder, "way", "\"landuse\"~\"^(reservoir|basin)$\"", bbox);
-                AppendAreaQuery(builder, "relation", "\"landuse\"~\"^(reservoir|basin)$\"", bbox);
-                AppendAreaQuery(builder, "way", "\"waterway\"~\"^(riverbank|dock)$\"", bbox);
-                AppendAreaQuery(builder, "relation", "\"waterway\"~\"^(riverbank|dock)$\"", bbox);
+                AppendAreaQuery(builder, "way", "\"landuse\"=\"reservoir\"", bbox);
+                AppendAreaQuery(builder, "relation", "\"landuse\"=\"reservoir\"", bbox);
+                AppendAreaQuery(builder, "way", "\"waterway\"=\"riverbank\"", bbox);
+                AppendAreaQuery(builder, "relation", "\"waterway\"=\"riverbank\"", bbox);
 
-                builder.Append("way[\"waterway\"]");
-                builder.Append(bbox);
-                builder.Append(';');
             }
 
             if (options.IncludeGreen)
@@ -220,7 +244,6 @@ namespace RhinoSpatial.Core
             var buildings = new List<OsmAreaFeature>();
             var roads = new List<OsmLinearFeature>();
             var waterAreas = new List<OsmAreaFeature>();
-            var waterLines = new List<OsmLinearFeature>();
             var greenAreas = new List<OsmAreaFeature>();
             var rails = new List<OsmLinearFeature>();
 
@@ -271,11 +294,6 @@ namespace RhinoSpatial.Core
                         }
                     }
 
-                    if (IsWaterLinear(tags) && TryReadLineString(element, out var waterCenterLine))
-                    {
-                        waterLines.Add(new OsmLinearFeature(id, waterCenterLine, tags));
-                        continue;
-                    }
                 }
 
                 if (options.IncludeGreen && IsGreen(tags))
@@ -296,7 +314,7 @@ namespace RhinoSpatial.Core
                 }
             }
 
-            return new OsmDataSet(buildings, roads, waterAreas, waterLines, greenAreas, rails);
+            return new OsmDataSet(buildings, roads, waterAreas, greenAreas, rails);
         }
 
         private static OsmDataSet CreateEmptyDataSet()
@@ -305,9 +323,100 @@ namespace RhinoSpatial.Core
                 new List<OsmAreaFeature>(),
                 new List<OsmLinearFeature>(),
                 new List<OsmAreaFeature>(),
-                new List<OsmLinearFeature>(),
                 new List<OsmAreaFeature>(),
                 new List<OsmLinearFeature>());
+        }
+
+        private static List<QueryBatch> BuildQueryBatches(OsmRequestOptions options)
+        {
+            var batches = new List<QueryBatch>();
+
+            if (options.IncludeBuildings)
+            {
+                batches.Add(new QueryBatch(
+                    options with
+                    {
+                        IncludeBuildings = true,
+                        IncludeRoads = false,
+                        IncludeWater = false,
+                        IncludeGreen = false,
+                        IncludeRail = false
+                    },
+                    "Buildings"));
+            }
+
+            if (options.IncludeRoads)
+            {
+                batches.Add(new QueryBatch(
+                    options with
+                    {
+                        IncludeBuildings = false,
+                        IncludeRoads = true,
+                        IncludeWater = false,
+                        IncludeGreen = false,
+                        IncludeRail = false
+                    },
+                    "Roads"));
+            }
+
+            if (options.IncludeWater)
+            {
+                batches.Add(new QueryBatch(
+                    options with
+                    {
+                        IncludeBuildings = false,
+                        IncludeRoads = false,
+                        IncludeWater = true,
+                        IncludeGreen = false,
+                        IncludeRail = false
+                    },
+                    "Water"));
+            }
+
+            if (options.IncludeGreen)
+            {
+                batches.Add(new QueryBatch(
+                    options with
+                    {
+                        IncludeBuildings = false,
+                        IncludeRoads = false,
+                        IncludeWater = false,
+                        IncludeGreen = true,
+                        IncludeRail = false
+                    },
+                    "Green"));
+            }
+
+            if (options.IncludeRail)
+            {
+                batches.Add(new QueryBatch(
+                    options with
+                    {
+                        IncludeBuildings = false,
+                        IncludeRoads = false,
+                        IncludeWater = false,
+                        IncludeGreen = false,
+                        IncludeRail = true
+                    },
+                    "Rail"));
+            }
+
+            return batches;
+        }
+
+        private static OsmDataSet MergeDataSets(OsmDataSet left, OsmDataSet right)
+        {
+            return new OsmDataSet(
+                left.Buildings.Concat(right.Buildings).ToList(),
+                left.Roads.Concat(right.Roads).ToList(),
+                left.WaterAreas.Concat(right.WaterAreas).ToList(),
+                left.GreenAreas.Concat(right.GreenAreas).ToList(),
+                left.Rails.Concat(right.Rails).ToList())
+            {
+                StatusNote = string.IsNullOrWhiteSpace(left.StatusNote)
+                    ? right.StatusNote
+                    : left.StatusNote
+            };
         }
 
         private static string BuildCacheKey(OsmRequestOptions options)
@@ -321,7 +430,9 @@ namespace RhinoSpatial.Core
 
         private static string NormalizeBaseUrlForCache(string? baseUrl)
         {
-            return string.IsNullOrWhiteSpace(baseUrl) ? "default-overpass" : baseUrl.Trim();
+            return UsesBuiltInDefaultEndpoints(baseUrl)
+                ? "default-overpass"
+                : baseUrl!.Trim();
         }
 
         private static bool TryGetCachedDataSet(string cacheKey, bool allowStale, out OsmDataSet dataSet)
@@ -344,6 +455,11 @@ namespace RhinoSpatial.Core
 
         private static IReadOnlyList<string> ResolveCandidateBaseUrls(string? baseUrl)
         {
+            if (UsesBuiltInDefaultEndpoints(baseUrl))
+            {
+                return DefaultOverpassUrls;
+            }
+
             if (!string.IsNullOrWhiteSpace(baseUrl) &&
                 Uri.TryCreate(baseUrl.Trim(), UriKind.Absolute, out var uri) &&
                 (string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
@@ -357,7 +473,7 @@ namespace RhinoSpatial.Core
 
         private static bool ShouldRetryEndpoints(string? baseUrl)
         {
-            return string.IsNullOrWhiteSpace(baseUrl);
+            return UsesBuiltInDefaultEndpoints(baseUrl);
         }
 
         private static bool IsTransientFailure(Exception ex)
@@ -384,7 +500,7 @@ namespace RhinoSpatial.Core
 
         private static string BuildEndpointStatusNote(string resolvedBaseUrl, string? requestedBaseUrl)
         {
-            if (!string.IsNullOrWhiteSpace(requestedBaseUrl))
+            if (!UsesBuiltInDefaultEndpoints(requestedBaseUrl))
             {
                 return string.Empty;
             }
@@ -410,6 +526,25 @@ namespace RhinoSpatial.Core
 
             hostLabel = uri.Host;
             return !string.IsNullOrWhiteSpace(hostLabel);
+        }
+
+        private static bool UsesBuiltInDefaultEndpoints(string? baseUrl)
+        {
+            if (string.IsNullOrWhiteSpace(baseUrl))
+            {
+                return true;
+            }
+
+            var trimmedBaseUrl = baseUrl.Trim();
+            foreach (var defaultOverpassUrl in DefaultOverpassUrls)
+            {
+                if (string.Equals(trimmedBaseUrl, defaultOverpassUrl, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static string BuildFailureMessage(IReadOnlyList<string> failureMessages)
@@ -576,9 +711,13 @@ namespace RhinoSpatial.Core
 
         private static bool IsWaterArea(IReadOnlyDictionary<string, string?> tags)
         {
+            if (IsHiddenOrIntermittentWater(tags))
+            {
+                return false;
+            }
+
             if (HasTagValue(tags, "natural", "water") ||
-                HasTagValue(tags, "waterway", "riverbank") ||
-                HasTagValue(tags, "waterway", "dock"))
+                HasTagValue(tags, "waterway", "riverbank"))
             {
                 return true;
             }
@@ -588,12 +727,28 @@ namespace RhinoSpatial.Core
                 return true;
             }
 
-            return HasTagValue(tags, "landuse", "reservoir") || HasTagValue(tags, "landuse", "basin");
+            return HasTagValue(tags, "landuse", "reservoir");
         }
 
-        private static bool IsWaterLinear(IReadOnlyDictionary<string, string?> tags)
+        private static bool IsHiddenOrIntermittentWater(IReadOnlyDictionary<string, string?> tags)
         {
-            return tags.TryGetValue("waterway", out var waterwayValue) && !string.IsNullOrWhiteSpace(waterwayValue);
+            if (HasTagValue(tags, "intermittent", "yes") ||
+                HasTagValue(tags, "seasonal", "yes") ||
+                HasTagValue(tags, "covered", "yes") ||
+                HasTagValue(tags, "location", "underground") ||
+                HasTagValue(tags, "location", "underwater"))
+            {
+                return true;
+            }
+
+            if (tags.TryGetValue("tunnel", out var tunnelValue) && !string.IsNullOrWhiteSpace(tunnelValue) && !HasTagValue(tags, "tunnel", "no"))
+            {
+                return true;
+            }
+
+            return HasTagValue(tags, "waterway", "ditch") ||
+                   HasTagValue(tags, "waterway", "drain") ||
+                   HasTagValue(tags, "waterway", "culvert");
         }
 
         private static bool IsGreen(IReadOnlyDictionary<string, string?> tags)

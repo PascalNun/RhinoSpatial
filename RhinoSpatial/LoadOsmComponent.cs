@@ -249,7 +249,7 @@ namespace RhinoSpatial
                 ? RhinoSpatialOsmOutputBuilder.BuildRoadTree(dataSet.Roads, requestData.SpatialContext)
                 : new GH_Structure<IGH_GeometricGoo>();
             var waterTree = requestData.IncludeWater
-                ? RhinoSpatialOsmOutputBuilder.BuildWaterTree(dataSet.WaterAreas, dataSet.WaterLines, requestData.SpatialContext)
+                ? RhinoSpatialOsmOutputBuilder.BuildWaterTree(dataSet.WaterAreas, requestData.SpatialContext)
                 : new GH_Structure<IGH_GeometricGoo>();
             var greenTree = requestData.IncludeGreen
                 ? RhinoSpatialOsmOutputBuilder.BuildGreenTree(dataSet.GreenAreas, requestData.SpatialContext)
@@ -262,7 +262,6 @@ namespace RhinoSpatial
                 dataSet.Buildings.Count +
                 dataSet.Roads.Count +
                 dataSet.WaterAreas.Count +
-                dataSet.WaterLines.Count +
                 dataSet.GreenAreas.Count +
                 dataSet.Rails.Count;
 
@@ -301,7 +300,7 @@ namespace RhinoSpatial
             var summary =
                 $"Loaded {dataSet.Buildings.Count} building feature(s), " +
                 $"{dataSet.Roads.Count} road feature(s), " +
-                $"{dataSet.WaterAreas.Count + dataSet.WaterLines.Count} water feature(s), " +
+                $"{dataSet.WaterAreas.Count} water feature(s), " +
                 $"{dataSet.GreenAreas.Count} green feature(s), and " +
                 $"{dataSet.Rails.Count} rail feature(s).";
 

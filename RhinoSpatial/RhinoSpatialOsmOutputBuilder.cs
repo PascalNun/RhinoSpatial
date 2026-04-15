@@ -5,9 +5,18 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.Operation.Buffer;
+using NetTopologySuite.Operation.Union;
 using Rhino;
 using Rhino.Geometry;
 using RhinoSpatial.Core;
+using NtsGeometry = NetTopologySuite.Geometries.Geometry;
+using NtsGeometryCollection = NetTopologySuite.Geometries.GeometryCollection;
+using NtsLineString = NetTopologySuite.Geometries.LineString;
+using NtsLinearRing = NetTopologySuite.Geometries.LinearRing;
+using NtsMultiPolygon = NetTopologySuite.Geometries.MultiPolygon;
+using NtsPolygon = NetTopologySuite.Geometries.Polygon;
 
 namespace RhinoSpatial
 {
@@ -87,9 +96,9 @@ namespace RhinoSpatial
         {
             var tree = new GH_Structure<IGH_GeometricGoo>();
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
-            var angleTolerance = RhinoDoc.ActiveDoc?.ModelAngleToleranceRadians ?? RhinoMath.ToRadians(1.0);
             var planZ = ResolveSharedLinearPlanElevation(roads, spatialContext);
-            var outlineCurves = new List<Curve>();
+            var roadRegions = new List<NtsGeometry>();
+            var collectedWidths = new List<double>();
 
             for (var featureIndex = 0; featureIndex < roads.Count; featureIndex++)
             {
@@ -100,40 +109,33 @@ namespace RhinoSpatial
                 }
 
                 var width = ResolveRoadWidth(road.Tags);
-                if (TryCreateRibbonOutlineCurve(centerLine, width, out var outlineCurve))
+                if (TryCreateBufferedLineRegion(centerLine, width, tolerance, out var roadRegion))
                 {
-                    outlineCurves.Add(
-                        TryFilletRoadOutlineCurve(outlineCurve, width, tolerance, angleTolerance) ?? outlineCurve);
+                    roadRegions.Add(roadRegion);
+                    collectedWidths.Add(width);
                 }
             }
 
-            if (outlineCurves.Count == 0)
+            if (roadRegions.Count == 0)
             {
                 return tree;
             }
 
-            var mergedCurves = Curve.CreateBooleanUnion(outlineCurves, tolerance);
-            var resultCurves = mergedCurves is { Length: > 0 }
-                ? mergedCurves
-                : outlineCurves.ToArray();
-
-            for (var curveIndex = 0; curveIndex < resultCurves.Length; curveIndex++)
+            var representativeWidth = ResolveRepresentativeRoadWidth(collectedWidths, tolerance);
+            var mergedGeometry = UnaryUnionOp.Union(roadRegions);
+            mergedGeometry = CleanMergedRoadGeometry(mergedGeometry, representativeWidth, tolerance);
+            mergedGeometry = SmoothMergedRoadGeometry(
+                mergedGeometry,
+                representativeWidth,
+                tolerance);
+            if (TryAppendRoadGeometry(tree, mergedGeometry, planZ, tolerance))
             {
-                var path = new GH_Path(curveIndex);
-                tree.EnsurePath(path);
+                return tree;
+            }
 
-                var planarBreps = CreatePlanarBreps(resultCurves[curveIndex], tolerance);
-                if (planarBreps.Count > 0)
-                {
-                    foreach (var brep in planarBreps)
-                    {
-                        tree.Append(new GH_Brep(brep), path);
-                    }
-
-                    continue;
-                }
-
-                tree.Append(new GH_Curve(resultCurves[curveIndex]), path);
+            for (var roadIndex = 0; roadIndex < roadRegions.Count; roadIndex++)
+            {
+                TryAppendRoadGeometry(tree, roadRegions[roadIndex], planZ, tolerance, roadIndex);
             }
 
             return tree;
@@ -141,11 +143,46 @@ namespace RhinoSpatial
 
         public static GH_Structure<IGH_GeometricGoo> BuildWaterTree(
             IReadOnlyList<OsmAreaFeature> waterAreas,
-            IReadOnlyList<OsmLinearFeature> waterLines,
             SpatialContext2D spatialContext)
         {
-            var tree = BuildAreaTree(waterAreas, spatialContext);
-            AppendRibbonFeatures(tree, waterLines, spatialContext, ResolveWaterWidth, waterAreas.Count);
+            var tree = new GH_Structure<IGH_GeometricGoo>();
+            var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
+            var planZ = ResolveSharedWaterPlanElevation(waterAreas, spatialContext);
+            var waterRegions = new List<NtsGeometry>();
+
+            for (var areaIndex = 0; areaIndex < waterAreas.Count; areaIndex++)
+            {
+                var area = waterAreas[areaIndex];
+                foreach (var ring in area.OuterRings)
+                {
+                    if (!TryTransformRing(ring.Points, spatialContext, out var polyline, out _))
+                    {
+                        continue;
+                    }
+
+                    if (TryCreatePolygonRegion(polyline, out var polygonRegion))
+                    {
+                        waterRegions.Add(polygonRegion);
+                    }
+                }
+            }
+
+            if (waterRegions.Count == 0)
+            {
+                return tree;
+            }
+
+            var mergedGeometry = UnaryUnionOp.Union(waterRegions);
+            if (TryAppendRoadGeometry(tree, mergedGeometry, planZ, tolerance))
+            {
+                return tree;
+            }
+
+            for (var regionIndex = 0; regionIndex < waterRegions.Count; regionIndex++)
+            {
+                TryAppendRoadGeometry(tree, waterRegions[regionIndex], planZ, tolerance, regionIndex);
+            }
+
             return tree;
         }
 
@@ -239,44 +276,14 @@ namespace RhinoSpatial
             out Polyline polyline,
             out double baseZ)
         {
-            polyline = new Polyline();
-            baseZ = 0.0;
-
-            if (sourcePoints.Count < 4)
-            {
-                return false;
-            }
-
-            baseZ = ResolveAverageElevation(sourcePoints, spatialContext);
-            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
-            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
-            var transformedPoints = new List<Point3d>(sourcePoints.Count);
-
-            foreach (var sourcePoint in sourcePoints)
-            {
-                if (!SpatialReferenceTransform.TryTransformXY("EPSG:4326", spatialContext.ResolvedSrs, sourcePoint.X, sourcePoint.Y, out var x, out var y))
-                {
-                    return false;
-                }
-
-                transformedPoints.Add(new Point3d(x - offsetX, y - offsetY, baseZ));
-            }
-
-            polyline = new Polyline(transformedPoints);
-            polyline.RemoveNearlyEqualSubsequentPoints(VertexTolerance);
-            polyline.DeleteShortSegments(VertexTolerance);
-
-            if (polyline.Count < 3)
-            {
-                return false;
-            }
-
-            if (!polyline[0].EpsilonEquals(polyline[^1], VertexTolerance))
-            {
-                polyline.Add(polyline[0]);
-            }
-
-            return polyline.Count >= 4 && polyline.IsClosed;
+            baseZ = RhinoSpatialContextTools.ResolveAveragePlacedElevation(spatialContext, sourcePoints);
+            return RhinoSpatialContextTools.TryTransformPolyline(
+                sourcePoints,
+                spatialContext,
+                "EPSG:4326",
+                baseZ,
+                closePolyline: true,
+                out polyline);
         }
 
         private static bool TryTransformLine(
@@ -285,32 +292,17 @@ namespace RhinoSpatial
             bool useTerrainAverage,
             out Polyline polyline)
         {
-            polyline = new Polyline();
+            var baseZ = useTerrainAverage
+                ? RhinoSpatialContextTools.ResolveAveragePlacedElevation(spatialContext, sourcePoints)
+                : 0.0;
 
-            if (sourcePoints.Count < 2)
-            {
-                return false;
-            }
-
-            var baseZ = useTerrainAverage ? ResolveAverageElevation(sourcePoints, spatialContext) : 0.0;
-            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
-            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
-            var transformedPoints = new List<Point3d>(sourcePoints.Count);
-
-            foreach (var sourcePoint in sourcePoints)
-            {
-                if (!SpatialReferenceTransform.TryTransformXY("EPSG:4326", spatialContext.ResolvedSrs, sourcePoint.X, sourcePoint.Y, out var x, out var y))
-                {
-                    return false;
-                }
-
-                transformedPoints.Add(new Point3d(x - offsetX, y - offsetY, baseZ));
-            }
-
-            polyline = new Polyline(transformedPoints);
-            polyline.RemoveNearlyEqualSubsequentPoints(VertexTolerance);
-            polyline.DeleteShortSegments(VertexTolerance);
-            return polyline.Count >= 2;
+            return RhinoSpatialContextTools.TryTransformPolyline(
+                sourcePoints,
+                spatialContext,
+                "EPSG:4326",
+                baseZ,
+                closePolyline: false,
+                out polyline);
         }
 
         private static bool TryTransformLineAtZ(
@@ -319,51 +311,13 @@ namespace RhinoSpatial
             double z,
             out Polyline polyline)
         {
-            polyline = new Polyline();
-
-            if (sourcePoints.Count < 2)
-            {
-                return false;
-            }
-
-            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
-            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
-            var transformedPoints = new List<Point3d>(sourcePoints.Count);
-
-            foreach (var sourcePoint in sourcePoints)
-            {
-                if (!SpatialReferenceTransform.TryTransformXY("EPSG:4326", spatialContext.ResolvedSrs, sourcePoint.X, sourcePoint.Y, out var x, out var y))
-                {
-                    return false;
-                }
-
-                transformedPoints.Add(new Point3d(x - offsetX, y - offsetY, z));
-            }
-
-            polyline = new Polyline(transformedPoints);
-            polyline.RemoveNearlyEqualSubsequentPoints(VertexTolerance);
-            polyline.DeleteShortSegments(VertexTolerance);
-            return polyline.Count >= 2;
-        }
-
-        private static double ResolveAverageElevation(IReadOnlyList<Coordinate2D> sourcePoints, SpatialContext2D spatialContext)
-        {
-            var sampledElevations = new List<double>(sourcePoints.Count);
-
-            foreach (var point in sourcePoints)
-            {
-                if (SpatialTerrainCache.TrySamplePlacedElevation(spatialContext, "EPSG:4326", point.X, point.Y, out var sampledElevation))
-                {
-                    sampledElevations.Add(sampledElevation);
-                }
-            }
-
-            if (sampledElevations.Count == 0)
-            {
-                return 0.0;
-            }
-
-            return sampledElevations.Average();
+            return RhinoSpatialContextTools.TryTransformPolyline(
+                sourcePoints,
+                spatialContext,
+                "EPSG:4326",
+                z,
+                closePolyline: false,
+                out polyline);
         }
 
         private static double ResolveSharedLinearPlanElevation(IReadOnlyList<OsmLinearFeature> features, SpatialContext2D spatialContext)
@@ -382,7 +336,29 @@ namespace RhinoSpatial
                 return 0.0;
             }
 
-            return ResolveAverageElevation(sourcePoints, spatialContext);
+            return RhinoSpatialContextTools.ResolveAveragePlacedElevation(spatialContext, sourcePoints);
+        }
+
+        private static double ResolveSharedWaterPlanElevation(
+            IReadOnlyList<OsmAreaFeature> waterAreas,
+            SpatialContext2D spatialContext)
+        {
+            if (!spatialContext.UseAbsoluteCoordinates)
+            {
+                return 0.0;
+            }
+
+            var sourcePoints = waterAreas
+                .SelectMany(area => area.OuterRings)
+                .SelectMany(ring => ring.Points)
+                .ToList();
+
+            if (sourcePoints.Count == 0)
+            {
+                return 0.0;
+            }
+
+            return RhinoSpatialContextTools.ResolveAveragePlacedElevation(spatialContext, sourcePoints);
         }
 
         private static List<Brep> CreatePlanarBreps(Polyline polyline, double z, double tolerance)
@@ -438,6 +414,189 @@ namespace RhinoSpatial
                 return false;
             }
 
+            var preparedCenterLine = ExtendOpenPolyline(centerLine, ResolveRoadOverlapDistance(width));
+            var preparedCurve = preparedCenterLine.ToPolylineCurve();
+            if (preparedCurve is not { IsValid: true })
+            {
+                return TryCreateRibbonOutlineCurveFallback(centerLine, width, out outlineCurve);
+            }
+
+            var halfWidth = width * 0.5;
+            var leftOffset = SelectBestOffsetCurve(
+                preparedCurve.Offset(Plane.WorldXY, halfWidth, VertexTolerance, CurveOffsetCornerStyle.Round));
+            var rightOffset = SelectBestOffsetCurve(
+                preparedCurve.Offset(Plane.WorldXY, -halfWidth, VertexTolerance, CurveOffsetCornerStyle.Round));
+
+            if (leftOffset is null || rightOffset is null)
+            {
+                return TryCreateRibbonOutlineCurveFallback(centerLine, width, out outlineCurve);
+            }
+
+            var reversedRightOffset = rightOffset.DuplicateCurve();
+            reversedRightOffset.Reverse();
+
+            var joinedCurves = Curve.JoinCurves(
+                new Curve[]
+                {
+                    leftOffset,
+                    new LineCurve(leftOffset.PointAtEnd, reversedRightOffset.PointAtStart),
+                    reversedRightOffset,
+                    new LineCurve(reversedRightOffset.PointAtEnd, leftOffset.PointAtStart)
+                },
+                VertexTolerance);
+
+            var closedOutline = joinedCurves
+                .Where(curve => curve is not null && curve.IsClosed && curve.IsValid)
+                .OrderByDescending(GetCurveLengthSafe)
+                .FirstOrDefault();
+
+            if (closedOutline is not null)
+            {
+                outlineCurve = closedOutline;
+                return true;
+            }
+
+            return TryCreateRibbonOutlineCurveFallback(centerLine, width, out outlineCurve);
+        }
+
+        private static bool TryCreateBufferedLineRegion(Polyline centerLine, double width, double tolerance, out NtsGeometry roadRegion)
+        {
+            roadRegion = null!;
+
+            if (!TryCreateLineString(centerLine, out var lineString))
+            {
+                return false;
+            }
+
+            var bufferParameters = new BufferParameters
+            {
+                EndCapStyle = EndCapStyle.Flat,
+                JoinStyle = JoinStyle.Round,
+                QuadrantSegments = 6,
+                MitreLimit = 2.0
+            };
+
+            var mergeAllowance = ResolveRoadMergeAllowance(width, tolerance);
+            var candidate = BufferOp.Buffer(lineString, (width * 0.5) + mergeAllowance, bufferParameters);
+            if (candidate is null || candidate.IsEmpty)
+            {
+                return false;
+            }
+
+            roadRegion = candidate;
+            return true;
+        }
+
+        private static bool TryCreatePolygonRegion(Polyline polyline, out NtsGeometry polygonRegion)
+        {
+            polygonRegion = null!;
+
+            if (polyline.Count < 4)
+            {
+                return false;
+            }
+
+            var coordinates = polyline
+                .Select(point => new Coordinate(point.X, point.Y))
+                .ToArray();
+
+            if (coordinates.Length < 4)
+            {
+                return false;
+            }
+
+            if (!coordinates[0].Equals2D(coordinates[^1]))
+            {
+                Array.Resize(ref coordinates, coordinates.Length + 1);
+                coordinates[^1] = new Coordinate(coordinates[0]);
+            }
+
+            var shell = new NtsLinearRing(coordinates);
+            if (!shell.IsValid || shell.IsEmpty)
+            {
+                return false;
+            }
+
+            var polygon = new NtsPolygon(shell);
+            if (!polygon.IsValid || polygon.IsEmpty)
+            {
+                return false;
+            }
+
+            polygonRegion = polygon;
+            return true;
+        }
+
+        private static NtsGeometry CleanMergedRoadGeometry(NtsGeometry geometry, double representativeWidth, double tolerance)
+        {
+            if (geometry is null || geometry.IsEmpty)
+            {
+                return geometry!;
+            }
+
+            var cleanupDistance = ResolveRoadCleanupDistance(representativeWidth, tolerance);
+            if (cleanupDistance <= tolerance)
+            {
+                return geometry;
+            }
+
+            var bufferParameters = new BufferParameters
+            {
+                EndCapStyle = EndCapStyle.Round,
+                JoinStyle = JoinStyle.Round,
+                QuadrantSegments = 6,
+                MitreLimit = 2.0
+            };
+
+            var expanded = BufferOp.Buffer(geometry, cleanupDistance, bufferParameters);
+            if (expanded is null || expanded.IsEmpty)
+            {
+                return geometry;
+            }
+
+            var contracted = BufferOp.Buffer(expanded, -cleanupDistance, bufferParameters);
+            return contracted is null || contracted.IsEmpty
+                ? geometry
+                : contracted;
+        }
+
+        private static NtsGeometry SmoothMergedRoadGeometry(NtsGeometry geometry, double representativeWidth, double tolerance)
+        {
+            if (geometry is null || geometry.IsEmpty)
+            {
+                return geometry!;
+            }
+
+            var smoothingRadius = ResolveRoadSmoothingDistance(representativeWidth, tolerance);
+            if (smoothingRadius <= tolerance)
+            {
+                return geometry;
+            }
+
+            var bufferParameters = new BufferParameters
+            {
+                EndCapStyle = EndCapStyle.Round,
+                JoinStyle = JoinStyle.Round,
+                QuadrantSegments = 12,
+                MitreLimit = 2.0
+            };
+
+            var eroded = BufferOp.Buffer(geometry, -smoothingRadius, bufferParameters);
+            if (eroded is null || eroded.IsEmpty)
+            {
+                return geometry;
+            }
+
+            var restored = BufferOp.Buffer(eroded, smoothingRadius, bufferParameters);
+            return restored is null || restored.IsEmpty
+                ? geometry
+                : restored;
+        }
+
+        private static bool TryCreateRibbonOutlineCurveFallback(Polyline centerLine, double width, out Curve outlineCurve)
+        {
+            outlineCurve = null!;
+
             var halfWidth = width * 0.5;
             var left = new List<Point3d>(centerLine.Count);
             var right = new List<Point3d>(centerLine.Count);
@@ -489,27 +648,225 @@ namespace RhinoSpatial
             return true;
         }
 
-        private static Curve? TryFilletRoadOutlineCurve(Curve outlineCurve, double width, double tolerance, double angleTolerance)
+        private static bool TryCreateLineString(Polyline polyline, out NtsLineString lineString)
         {
-            if (outlineCurve is null || !outlineCurve.IsClosed)
+            lineString = null!;
+
+            if (polyline.Count < 2)
             {
-                return null;
+                return false;
             }
 
-            var radius = ResolveRoadCornerRadius(width, tolerance);
-            if (radius <= tolerance)
+            var coordinates = polyline
+                .Select(point => new Coordinate(point.X, point.Y))
+                .ToArray();
+
+            if (coordinates.Length < 2)
             {
-                return null;
+                return false;
             }
 
-            var filletedCurve = Curve.CreateFilletCornersCurve(outlineCurve, radius, tolerance, angleTolerance);
-            return filletedCurve is not null && filletedCurve.IsClosed ? filletedCurve : null;
+            lineString = new NtsLineString(coordinates);
+            return lineString.IsValid && !lineString.IsEmpty;
         }
 
-        private static double ResolveRoadCornerRadius(double width, double tolerance)
+        private static bool TryAppendRoadGeometry(
+            GH_Structure<IGH_GeometricGoo> tree,
+            NtsGeometry geometry,
+            double z,
+            double tolerance,
+            int pathOffset = 0)
         {
-            var unclampedRadius = width * 0.35;
-            return Math.Max(tolerance * 2.0, Math.Min(unclampedRadius, 8.0));
+            if (geometry is null || geometry.IsEmpty)
+            {
+                return false;
+            }
+
+            var appendedAny = false;
+
+            switch (geometry)
+            {
+                case NtsPolygon polygon:
+                    appendedAny |= TryAppendRoadPolygon(tree, polygon, z, tolerance, pathOffset);
+                    break;
+                case NtsMultiPolygon multiPolygon:
+                    for (var index = 0; index < multiPolygon.NumGeometries; index++)
+                    {
+                        if (multiPolygon.GetGeometryN(index) is NtsPolygon childPolygon)
+                        {
+                            appendedAny |= TryAppendRoadPolygon(tree, childPolygon, z, tolerance, pathOffset + index);
+                        }
+                    }
+                    break;
+                case NtsGeometryCollection geometryCollection:
+                    for (var index = 0; index < geometryCollection.NumGeometries; index++)
+                    {
+                        appendedAny |= TryAppendRoadGeometry(
+                            tree,
+                            geometryCollection.GetGeometryN(index),
+                            z,
+                            tolerance,
+                            pathOffset + index);
+                    }
+                    break;
+            }
+
+            return appendedAny;
+        }
+
+        private static bool TryAppendRoadPolygon(
+            GH_Structure<IGH_GeometricGoo> tree,
+            NtsPolygon polygon,
+            double z,
+            double tolerance,
+            int pathIndex)
+        {
+            if (!TryCreateCurveFromLineString(polygon.ExteriorRing, z, out var exteriorCurve))
+            {
+                return false;
+            }
+
+            var boundaryCurves = new List<Curve> { exteriorCurve };
+            for (var holeIndex = 0; holeIndex < polygon.NumInteriorRings; holeIndex++)
+            {
+                if (TryCreateCurveFromLineString(polygon.GetInteriorRingN(holeIndex), z, out var holeCurve))
+                {
+                    boundaryCurves.Add(holeCurve);
+                }
+            }
+
+            var planarBreps = Brep.CreatePlanarBreps(boundaryCurves, tolerance);
+            if (planarBreps is not { Length: > 0 })
+            {
+                return false;
+            }
+
+            var path = new GH_Path(pathIndex);
+            tree.EnsurePath(path);
+
+            foreach (var brep in planarBreps.Where(candidate => candidate is not null && candidate.IsValid))
+            {
+                tree.Append(new GH_Brep(brep), path);
+            }
+
+            return tree.get_Branch(path).Count > 0;
+        }
+
+        private static bool TryCreateCurveFromLineString(NtsLineString lineString, double z, out Curve curve)
+        {
+            curve = null!;
+
+            var coordinates = lineString.Coordinates;
+            if (coordinates.Length < 4)
+            {
+                return false;
+            }
+
+            var polyline = new Polyline(
+                coordinates.Select(coordinate => new Point3d(coordinate.X, coordinate.Y, z)));
+
+            polyline.RemoveNearlyEqualSubsequentPoints(VertexTolerance);
+            polyline.DeleteShortSegments(VertexTolerance);
+
+            if (polyline.Count < 4)
+            {
+                return false;
+            }
+
+            if (!polyline[0].EpsilonEquals(polyline[^1], VertexTolerance))
+            {
+                polyline.Add(polyline[0]);
+            }
+
+            curve = polyline.ToPolylineCurve();
+            return curve is not null && curve.IsClosed && curve.IsValid;
+        }
+
+        private static Polyline ExtendOpenPolyline(Polyline polyline, double distance)
+        {
+            if (polyline.Count < 2 || distance <= VertexTolerance)
+            {
+                return new Polyline(polyline);
+            }
+
+            var extendedPoints = polyline.ToList();
+            var startDirection = extendedPoints[0] - extendedPoints[1];
+            if (startDirection.Unitize())
+            {
+                extendedPoints[0] += startDirection * distance;
+            }
+
+            var endIndex = extendedPoints.Count - 1;
+            var endDirection = extendedPoints[endIndex] - extendedPoints[endIndex - 1];
+            if (endDirection.Unitize())
+            {
+                extendedPoints[endIndex] += endDirection * distance;
+            }
+
+            var extendedPolyline = new Polyline(extendedPoints);
+            extendedPolyline.RemoveNearlyEqualSubsequentPoints(VertexTolerance);
+            extendedPolyline.DeleteShortSegments(VertexTolerance);
+            return extendedPolyline;
+        }
+
+        private static Curve? SelectBestOffsetCurve(IEnumerable<Curve>? candidateCurves)
+        {
+            if (candidateCurves is null)
+            {
+                return null;
+            }
+
+            return candidateCurves
+                .Where(curve => curve is not null && curve.IsValid)
+                .OrderByDescending(GetCurveLengthSafe)
+                .FirstOrDefault();
+        }
+
+        private static double ResolveRoadOverlapDistance(double width)
+        {
+            return Math.Max(width * 0.75, VertexTolerance * 20.0);
+        }
+
+        private static double GetCurveLengthSafe(Curve curve)
+        {
+            return curve.GetLength();
+        }
+
+        private static double ResolveRoadMergeAllowance(double width, double tolerance)
+        {
+            return Math.Max(tolerance * 2.0, width * 0.08);
+        }
+
+        private static double ResolveRoadCleanupDistance(double representativeWidth, double tolerance)
+        {
+            var unclampedDistance = representativeWidth * 0.18;
+            return Math.Max(0.5, Math.Max(tolerance * 4.0, Math.Min(unclampedDistance, 4.0)));
+        }
+
+        private static double ResolveRepresentativeRoadWidth(IReadOnlyList<double> widths, double tolerance)
+        {
+            if (widths.Count == 0)
+            {
+                return Math.Max(6.0, tolerance * 10.0);
+            }
+
+            var sortedWidths = widths
+                .Where(width => width > tolerance)
+                .OrderBy(width => width)
+                .ToArray();
+
+            if (sortedWidths.Length == 0)
+            {
+                return Math.Max(6.0, tolerance * 10.0);
+            }
+
+            return sortedWidths[sortedWidths.Length / 2];
+        }
+
+        private static double ResolveRoadSmoothingDistance(double representativeWidth, double tolerance)
+        {
+            var unclampedDistance = representativeWidth * 0.35;
+            return Math.Max(2.0, Math.Max(tolerance * 4.0, Math.Min(unclampedDistance, 10.0)));
         }
 
         private static Vector3d ResolveTangent(Polyline polyline, int index)
@@ -619,29 +976,6 @@ namespace RhinoSpatial
                 "service" => 5.0,
                 "unclassified" => 6.5,
                 _ => 8.0
-            };
-        }
-
-        private static double ResolveWaterWidth(IReadOnlyDictionary<string, string?> tags)
-        {
-            if (TryGetTagLength(tags, "width", out var widthMeters))
-            {
-                return Math.Max(widthMeters, 2.0);
-            }
-
-            if (!tags.TryGetValue("waterway", out var waterwayType) || string.IsNullOrWhiteSpace(waterwayType))
-            {
-                return 6.0;
-            }
-
-            return waterwayType switch
-            {
-                "river" => 18.0,
-                "canal" => 10.0,
-                "stream" => 4.0,
-                "drain" => 3.0,
-                "ditch" => 2.0,
-                _ => 6.0
             };
         }
 

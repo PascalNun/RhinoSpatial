@@ -10,8 +10,6 @@ namespace RhinoSpatial
 {
     public class LoadTerrainComponent : GH_TaskCapableComponent<LoadTerrainComponent.SolveResults>
     {
-        private const string DefaultTerrainServiceUrl = "https://inspire-hessen.de/raster/dgm1/ows";
-        private const string DefaultCoverageId = "he_dgm1";
         private const int InternalGridSize = 512;
         private const int DefaultMaxGridSizeLimit = 2048;
 
@@ -39,8 +37,8 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service. Leave empty to use the default Hessen DGM1 service.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. Leave empty to use the default coverage.", GH_ParamAccess.item, DefaultCoverageId);
+            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service. Leave empty to use the built-in default terrain source. RhinoSpatial is structured so lower-resolution global DEM fallbacks can be added later.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. Leave empty to use the default coverage of the selected terrain source.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
 
             pManager[0].Optional = true;
@@ -107,10 +105,8 @@ namespace RhinoSpatial
             }
 
             return new RequestData(
-                string.IsNullOrWhiteSpace(serviceUrl) ? DefaultTerrainServiceUrl : serviceUrl.Trim(),
-                string.IsNullOrWhiteSpace(coverageId) ? DefaultCoverageId : coverageId.Trim(),
-                spatialContext,
-                InternalGridSize);
+                RhinoSpatialSourceFallbacks.ResolveTerrainSource(serviceUrl, coverageId),
+                spatialContext);
         }
 
         private async Task<SolveResults> ComputeAsync(RequestData requestData)
@@ -118,9 +114,9 @@ namespace RhinoSpatial
             try
             {
                 var spatialContext = requestData.SpatialContext;
-                var capabilities = await _wcsClient.LoadCapabilitiesAsync(requestData.ServiceUrl);
+                var capabilities = await _wcsClient.LoadCapabilitiesAsync(requestData.Source.BaseUrl);
 
-                var coverageId = requestData.CoverageId;
+                var coverageId = requestData.Source.CoverageId;
                 if (!capabilities.Coverages.Exists(coverage => coverage.CoverageId.Equals(coverageId, StringComparison.OrdinalIgnoreCase)))
                 {
                     if (capabilities.Coverages.Count > 0)
@@ -131,7 +127,7 @@ namespace RhinoSpatial
 
                 var options = new WcsRequestOptions
                 {
-                    BaseUrl = requestData.ServiceUrl,
+                    BaseUrl = requestData.Source.BaseUrl,
                     CoverageId = coverageId,
                     Version = string.IsNullOrWhiteSpace(capabilities.ServiceVersion) ? "2.0.1" : capabilities.ServiceVersion,
                     Format = "image/tiff"
@@ -174,8 +170,7 @@ namespace RhinoSpatial
                     requestBoundingBox,
                     placementOrigin,
                     spatialContext.UseAbsoluteCoordinates,
-                    elevationBase,
-                    requestData.MaxGridSize);
+                    elevationBase);
                 var status = string.IsNullOrWhiteSpace(coverageId)
                     ? string.Empty
                     : spatialContext.UseAbsoluteCoordinates
@@ -185,7 +180,7 @@ namespace RhinoSpatial
                 return new SolveResults
                 {
                     TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
-                    Status = status
+                    Status = $"{requestData.Source.CreateStatusPrefix()}{status}"
                 };
             }
             catch (Exception ex)
@@ -233,8 +228,7 @@ namespace RhinoSpatial
             BoundingBox2D requestBoundingBox,
             Coordinate2D placementOrigin,
             bool useAbsoluteCoordinates,
-            double elevationBase,
-            int maxGridSize)
+            double elevationBase)
         {
             var width = raster.Width;
             var height = raster.Height;
@@ -243,7 +237,7 @@ namespace RhinoSpatial
                 return null;
             }
 
-            var safeMaxGrid = Math.Clamp(maxGridSize, 64, DefaultMaxGridSizeLimit);
+            var safeMaxGrid = Math.Clamp(InternalGridSize, 64, DefaultMaxGridSizeLimit);
             var strideX = Math.Max(1, (int)Math.Ceiling(width / (double)safeMaxGrid));
             var strideY = Math.Max(1, (int)Math.Ceiling(height / (double)safeMaxGrid));
 
@@ -316,7 +310,7 @@ namespace RhinoSpatial
             return double.IsInfinity(minZ) ? 0.0 : minZ;
         }
 
-        private record RequestData(string ServiceUrl, string CoverageId, SpatialContext2D SpatialContext, int MaxGridSize);
+        private record RequestData(ResolvedTerrainSource Source, SpatialContext2D SpatialContext);
 
         public override Guid ComponentGuid => new Guid("e6941d59-50c0-46f4-96fa-9546a0f54f9d");
     }

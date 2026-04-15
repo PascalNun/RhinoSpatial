@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Globalization;
 using Rhino.Geometry;
 using RhinoSpatial.Core;
@@ -9,6 +10,7 @@ namespace RhinoSpatial
     {
         private const int DefaultMaxImageDimension = 6144;
         private const int DefaultMaxImagePixels = 24_000_000;
+        private const double DefaultVertexTolerance = 0.001;
 
         public static Point3d ResolvePlacementOrigin(SpatialContext2D? spatialContext, bool useAbsoluteCoordinates, IReadOnlyList<WfsFeature> features)
         {
@@ -168,6 +170,87 @@ namespace RhinoSpatial
             return string.Create(
                 CultureInfo.InvariantCulture,
                 $"{NormalizeSrsKey(spatialContext.ResolvedSrs)}|{spatialContext.UseAbsoluteCoordinates}|{requestBoundingBox.MinX}|{requestBoundingBox.MinY}|{requestBoundingBox.MaxX}|{requestBoundingBox.MaxY}|{placementBoundingBox.MinX}|{placementBoundingBox.MinY}|{placementBoundingBox.MaxX}|{placementBoundingBox.MaxY}|{placementOrigin.X}|{placementOrigin.Y}");
+        }
+
+        public static bool DoBoundingBoxesIntersect(BoundingBox2D left, BoundingBox2D right)
+        {
+            return left.MinX <= right.MaxX &&
+                   left.MaxX >= right.MinX &&
+                   left.MinY <= right.MaxY &&
+                   left.MaxY >= right.MinY;
+        }
+
+        public static double ResolveAveragePlacedElevation(
+            SpatialContext2D spatialContext,
+            IEnumerable<Coordinate2D> sourcePoints,
+            string sourceSrs = "EPSG:4326")
+        {
+            var sampledElevations = sourcePoints
+                .Select(point => SpatialTerrainCache.TrySamplePlacedElevation(spatialContext, sourceSrs, point.X, point.Y, out var sampledElevation)
+                    ? (double?)sampledElevation
+                    : null)
+                .Where(sampledElevation => sampledElevation.HasValue)
+                .Select(sampledElevation => sampledElevation!.Value)
+                .ToList();
+
+            if (sampledElevations.Count == 0)
+            {
+                return 0.0;
+            }
+
+            return sampledElevations.Average();
+        }
+
+        public static bool TryTransformPolyline(
+            IReadOnlyList<Coordinate2D> sourcePoints,
+            SpatialContext2D spatialContext,
+            string sourceSrs,
+            double z,
+            bool closePolyline,
+            out Polyline polyline)
+        {
+            polyline = new Polyline();
+
+            var minimumPointCount = closePolyline ? 3 : 2;
+            if (sourcePoints.Count < minimumPointCount)
+            {
+                return false;
+            }
+
+            var transformedPoints = new List<Point3d>(sourcePoints.Count + (closePolyline ? 1 : 0));
+            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
+            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
+
+            foreach (var sourcePoint in sourcePoints)
+            {
+                if (!SpatialReferenceTransform.TryTransformXY(sourceSrs, spatialContext.ResolvedSrs, sourcePoint.X, sourcePoint.Y, out var x, out var y))
+                {
+                    return false;
+                }
+
+                transformedPoints.Add(new Point3d(x - offsetX, y - offsetY, z));
+            }
+
+            polyline = new Polyline(transformedPoints);
+            polyline.RemoveNearlyEqualSubsequentPoints(DefaultVertexTolerance);
+            polyline.DeleteShortSegments(DefaultVertexTolerance);
+
+            if (polyline.Count < minimumPointCount)
+            {
+                return false;
+            }
+
+            if (!closePolyline)
+            {
+                return polyline.Count >= 2;
+            }
+
+            if (!polyline[0].EpsilonEquals(polyline[^1], DefaultVertexTolerance))
+            {
+                polyline.Add(polyline[0]);
+            }
+
+            return polyline.Count >= 4 && polyline.IsClosed;
         }
 
         private static (int Width, int Height) ResolveImageSize(BoundingBox2D boundingBox, int? serviceMaxWidth, int? serviceMaxHeight)
