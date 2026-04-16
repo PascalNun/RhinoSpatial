@@ -149,6 +149,7 @@ namespace RhinoSpatial
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
             var planZ = ResolveSharedWaterPlanElevation(waterAreas, spatialContext);
             var waterRegions = new List<NtsGeometry>();
+            var waterHoleRegions = new List<NtsGeometry>();
 
             for (var areaIndex = 0; areaIndex < waterAreas.Count; areaIndex++)
             {
@@ -165,6 +166,19 @@ namespace RhinoSpatial
                         waterRegions.Add(polygonRegion);
                     }
                 }
+
+                foreach (var holeRing in area.InnerRings)
+                {
+                    if (!TryTransformRing(holeRing.Points, spatialContext, out var holePolyline, out _))
+                    {
+                        continue;
+                    }
+
+                    if (TryCreatePolygonRegion(holePolyline, out var holeRegion))
+                    {
+                        waterHoleRegions.Add(holeRegion);
+                    }
+                }
             }
 
             if (waterRegions.Count == 0)
@@ -173,6 +187,16 @@ namespace RhinoSpatial
             }
 
             var mergedGeometry = UnaryUnionOp.Union(waterRegions);
+            if (waterHoleRegions.Count > 0)
+            {
+                var mergedHoles = UnaryUnionOp.Union(waterHoleRegions);
+                var clippedGeometry = mergedGeometry.Difference(mergedHoles);
+                if (clippedGeometry is not null && !clippedGeometry.IsEmpty)
+                {
+                    mergedGeometry = clippedGeometry;
+                }
+            }
+
             if (TryAppendRoadGeometry(tree, mergedGeometry, planZ, tolerance))
             {
                 return tree;

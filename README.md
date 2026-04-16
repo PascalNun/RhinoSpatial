@@ -24,6 +24,8 @@ https://github.com/PascalNun/RhinoSpatial/releases
 
 On the release page, open the latest release and download the attached `.zip` file.
 
+Release packages include a small number of third-party libraries used for raster handling, topology operations, and coordinate transforms. See `THIRD-PARTY-NOTICES.md` in the repository or release archive for bundled dependency notices.
+
 ## Project Status
 
 RhinoSpatial is currently still in an early alpha stage.

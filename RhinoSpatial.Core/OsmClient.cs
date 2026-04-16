@@ -12,6 +12,7 @@ namespace RhinoSpatial.Core
 {
     public class OsmClient
     {
+        private const string CacheSchemaVersion = "osm-v3";
         private static readonly string[] DefaultOverpassUrls =
         {
             "https://overpass-api.de/api/interpreter",
@@ -305,7 +306,7 @@ namespace RhinoSpatial.Core
                     var rings = ReadAreaRings(element, type);
                     if (rings.Count > 0)
                     {
-                        buildings.Add(new OsmAreaFeature(id, rings, tags));
+                        buildings.Add(new OsmAreaFeature(id, rings, new List<LinearRing>(), tags));
                     }
 
                     continue;
@@ -324,10 +325,10 @@ namespace RhinoSpatial.Core
                 {
                     if (IsWaterArea(tags))
                     {
-                        var rings = ReadAreaRings(element, type);
-                        if (rings.Count > 0)
+                        var areaGeometry = ReadAreaGeometry(element, type);
+                        if (areaGeometry.OuterRings.Count > 0)
                         {
-                            waterAreas.Add(new OsmAreaFeature(id, rings, tags));
+                            waterAreas.Add(new OsmAreaFeature(id, areaGeometry.OuterRings, areaGeometry.InnerRings, tags));
                             continue;
                         }
                     }
@@ -336,10 +337,10 @@ namespace RhinoSpatial.Core
 
                 if (options.IncludeGreen && IsGreen(tags))
                 {
-                    var rings = ReadAreaRings(element, type);
-                    if (rings.Count > 0)
+                    var areaGeometry = ReadAreaGeometry(element, type);
+                    if (areaGeometry.OuterRings.Count > 0)
                     {
-                        greenAreas.Add(new OsmAreaFeature(id, rings, tags));
+                        greenAreas.Add(new OsmAreaFeature(id, areaGeometry.OuterRings, areaGeometry.InnerRings, tags));
                         continue;
                     }
                 }
@@ -467,7 +468,7 @@ namespace RhinoSpatial.Core
         {
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"{NormalizeBaseUrlForCache(options.BaseUrl)}|" +
+                $"{CacheSchemaVersion}|{NormalizeBaseUrlForCache(options.BaseUrl)}|" +
                 $"{options.BoundingBox4326.MinX:F6},{options.BoundingBox4326.MinY:F6},{options.BoundingBox4326.MaxX:F6},{options.BoundingBox4326.MaxY:F6}|" +
                 $"b:{options.IncludeBuildings}|r:{options.IncludeRoads}|w:{options.IncludeWater}|g:{options.IncludeGreen}|rail:{options.IncludeRail}");
         }
@@ -675,12 +676,24 @@ namespace RhinoSpatial.Core
             return true;
         }
 
-        private static List<LinearRing> ReadAreaRings(JsonElement element, string type)
+        private static (List<LinearRing> OuterRings, List<LinearRing> InnerRings) ReadAreaGeometry(JsonElement element, string type)
+        {
+            var outerRings = ReadAreaRings(element, type, includeInnerRings: false);
+            var innerRings = ReadAreaRings(element, type, includeInnerRings: true);
+            return (outerRings, innerRings);
+        }
+
+        private static List<LinearRing> ReadAreaRings(JsonElement element, string type, bool includeInnerRings = false)
         {
             var rings = new List<LinearRing>();
 
             if (string.Equals(type, "way", StringComparison.OrdinalIgnoreCase))
             {
+                if (includeInnerRings)
+                {
+                    return rings;
+                }
+
                 if (element.TryGetProperty("geometry", out var geometryElement) && geometryElement.ValueKind == JsonValueKind.Array)
                 {
                     var points = ReadCoordinates(geometryElement, closeRing: true);
@@ -700,6 +713,8 @@ namespace RhinoSpatial.Core
                 return rings;
             }
 
+            var relationSegments = new List<List<Coordinate2D>>();
+
             foreach (var member in membersElement.EnumerateArray())
             {
                 if (!member.TryGetProperty("type", out var memberTypeElement) ||
@@ -708,8 +723,9 @@ namespace RhinoSpatial.Core
                     continue;
                 }
 
-                if (member.TryGetProperty("role", out var roleElement) &&
-                    string.Equals(roleElement.GetString(), "inner", StringComparison.OrdinalIgnoreCase))
+                var isInnerRing = member.TryGetProperty("role", out var roleElement) &&
+                    string.Equals(roleElement.GetString(), "inner", StringComparison.OrdinalIgnoreCase);
+                if (isInnerRing != includeInnerRings)
                 {
                     continue;
                 }
@@ -719,14 +735,99 @@ namespace RhinoSpatial.Core
                     continue;
                 }
 
-                var points = ReadCoordinates(memberGeometry, closeRing: true);
-                if (points.Count >= 4)
+                var points = ReadCoordinates(memberGeometry, closeRing: false);
+                if (points.Count >= 2)
                 {
-                    rings.Add(new LinearRing(points));
+                    relationSegments.Add(points);
                 }
             }
 
-            return rings;
+            return AssembleRelationRings(relationSegments);
+        }
+
+        private static List<LinearRing> AssembleRelationRings(List<List<Coordinate2D>> segments)
+        {
+            var assembledRings = new List<LinearRing>();
+            var remaining = new List<List<Coordinate2D>>(segments);
+
+            while (remaining.Count > 0)
+            {
+                var current = new List<Coordinate2D>(remaining[0]);
+                remaining.RemoveAt(0);
+
+                var merged = true;
+                while (merged)
+                {
+                    merged = false;
+
+                    for (var index = 0; index < remaining.Count; index++)
+                    {
+                        if (!TryMergeRingSegment(current, remaining[index]))
+                        {
+                            continue;
+                        }
+
+                        remaining.RemoveAt(index);
+                        merged = true;
+                        break;
+                    }
+                }
+
+                if (current.Count < 3)
+                {
+                    continue;
+                }
+
+                if (!CoordinatesMatch(current[0], current[^1]))
+                {
+                    current.Add(current[0]);
+                }
+
+                if (current.Count >= 4)
+                {
+                    assembledRings.Add(new LinearRing(current));
+                }
+            }
+
+            return assembledRings;
+        }
+
+        private static bool TryMergeRingSegment(List<Coordinate2D> current, List<Coordinate2D> candidate)
+        {
+            if (CoordinatesMatch(current[^1], candidate[0]))
+            {
+                current.AddRange(candidate.GetRange(1, candidate.Count - 1));
+                return true;
+            }
+
+            if (CoordinatesMatch(current[^1], candidate[^1]))
+            {
+                candidate.Reverse();
+                current.AddRange(candidate.GetRange(1, candidate.Count - 1));
+                return true;
+            }
+
+            if (CoordinatesMatch(current[0], candidate[^1]))
+            {
+                current.InsertRange(0, candidate.GetRange(0, candidate.Count - 1));
+                return true;
+            }
+
+            if (CoordinatesMatch(current[0], candidate[0]))
+            {
+                candidate.Reverse();
+                current.InsertRange(0, candidate.GetRange(0, candidate.Count - 1));
+                return true;
+            }
+
+            return false;
+        }
+
+        private static bool CoordinatesMatch(Coordinate2D left, Coordinate2D right)
+        {
+            const double epsilon = 1e-8;
+            return Math.Abs(left.X - right.X) <= epsilon &&
+                   Math.Abs(left.Y - right.Y) <= epsilon;
         }
 
         private static List<Coordinate2D> ReadCoordinates(JsonElement geometryElement, bool closeRing)
@@ -803,7 +904,7 @@ namespace RhinoSpatial.Core
                 return true;
             }
 
-            if (tags.TryGetValue("water", out var waterValue) && !string.IsNullOrWhiteSpace(waterValue))
+            if (tags.TryGetValue("water", out var waterValue) && IsSupportedWaterValue(waterValue))
             {
                 return true;
             }
@@ -830,6 +931,19 @@ namespace RhinoSpatial.Core
             return HasTagValue(tags, "waterway", "ditch") ||
                    HasTagValue(tags, "waterway", "drain") ||
                    HasTagValue(tags, "waterway", "culvert");
+        }
+
+        private static bool IsSupportedWaterValue(string? waterValue)
+        {
+            return waterValue switch
+            {
+                "river" => true,
+                "canal" => true,
+                "lake" => true,
+                "pond" => true,
+                "reservoir" => true,
+                _ => false
+            };
         }
 
         private static bool IsGreen(IReadOnlyDictionary<string, string?> tags)

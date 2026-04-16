@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <PropertyGroup>
-    <Version>0.1.1</Version>
+    <Version>0.2.1</Version>
     <AssemblyName>RhinoSpatial</AssemblyName>
     <RootNamespace>RhinoSpatial</RootNamespace>
     <Product>RhinoSpatial</Product>

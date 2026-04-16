@@ -10,6 +10,7 @@ This package is currently an early alpha release of RhinoSpatial for Rhino 8.
 - `RhinoSpatial.Core.dll`
 - `README.md`
 - `LICENSE`
+- `THIRD-PARTY-NOTICES.md`
 
 ## Manual Installation
 
@@ -26,3 +27,4 @@ If Grasshopper was already open while the file was copied, restart Rhino and Gra
 - RhinoSpatial is currently still in an early alpha stage.
 - The plugin has only been tested with a limited number of real WFS, WMS, LoD2, and terrain services so far.
 - Behavior may still vary depending on the provider, geometry type, SRS, version, or response format.
+- Release packages also include a small number of third-party libraries. See `THIRD-PARTY-NOTICES.md` for bundled dependency notices.

@@ -1,6 +1,6 @@
 ---
 name: RhinoSpatial
-version: 0.1.1.0
+version: 0.2.1.0
 authors:
   - Pascal Nun
 description: Study-oriented geospatial toolkit for Rhino and Grasshopper.

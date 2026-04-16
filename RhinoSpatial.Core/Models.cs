@@ -135,6 +135,7 @@ namespace RhinoSpatial.Core
     public record OsmAreaFeature(
         long Id,
         List<LinearRing> OuterRings,
+        List<LinearRing> InnerRings,
         Dictionary<string, string?> Tags
     );
 

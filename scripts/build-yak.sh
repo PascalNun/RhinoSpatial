@@ -25,6 +25,7 @@ mkdir -p "$STAGING_DIR"
 cp "$MANIFEST_SOURCE" "$STAGING_DIR/manifest.yml"
 cp "$ROOT_DIR/README.md" "$STAGING_DIR/README.md"
 cp "$ROOT_DIR/LICENSE" "$STAGING_DIR/LICENSE"
+cp "$ROOT_DIR/THIRD-PARTY-NOTICES.md" "$STAGING_DIR/THIRD-PARTY-NOTICES.md"
 find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f \
   ! -name '*.pdb' \
   -exec cp {} "$STAGING_DIR/" \;
