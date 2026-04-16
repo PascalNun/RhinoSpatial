@@ -66,6 +66,11 @@ namespace RhinoSpatial
 
         public static void OpenInBrowser(BoundingBox2D? initialViewBoundingBox4326, string? preferredSrs)
         {
+            OpenInBrowser(initialViewBoundingBox4326, preferredSrs, null);
+        }
+
+        public static void OpenInBrowser(BoundingBox2D? initialViewBoundingBox4326, string? preferredSrs, SpatialContextSelection? persistedSelection)
+        {
             var url = EnsureStarted();
             var queryParts = new List<string>();
 
@@ -80,6 +85,11 @@ namespace RhinoSpatial
             if (!string.IsNullOrWhiteSpace(preferredSrs))
             {
                 queryParts.Add($"preferredSrs={Uri.EscapeDataString(preferredSrs)}");
+            }
+
+            if (persistedSelection is not null && !string.IsNullOrWhiteSpace(persistedSelection.BoundingBox4326))
+            {
+                queryParts.Add($"selected4326={Uri.EscapeDataString(persistedSelection.BoundingBox4326)}");
             }
 
             if (queryParts.Count > 0)
@@ -124,6 +134,19 @@ namespace RhinoSpatial
             lock (SyncRoot)
             {
                 return _latestSelection;
+            }
+        }
+
+        public static void RestoreSelection(SpatialContextSelection selection)
+        {
+            if (!selection.HasSelection)
+            {
+                return;
+            }
+
+            lock (SyncRoot)
+            {
+                _latestSelection = selection;
             }
         }
 

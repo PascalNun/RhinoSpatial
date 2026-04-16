@@ -545,6 +545,41 @@
       setStatus("Map centered on the selected WFS layer extent. Click the rectangle tool, then drag to choose your area.");
     }
 
+    function tryRestorePersistedSelection() {
+      const selected4326 = pageParams.get("selected4326");
+
+      if (!selected4326) {
+        return false;
+      }
+
+      const parts = selected4326.split(",").map((part) => Number(part.trim()));
+
+      if (parts.length !== 4 || parts.some((value) => Number.isNaN(value))) {
+        return false;
+      }
+
+      const [minX, minY, maxX, maxY] = parts;
+      const southWest = L.latLng(minY, minX);
+      const northEast = L.latLng(maxY, maxX);
+      const bounds = L.latLngBounds(southWest, northEast);
+
+      if (!bounds.isValid()) {
+        return false;
+      }
+
+      const restoredRectangle = L.rectangle(bounds, {
+        color: "#0c7a63",
+        weight: 2
+      });
+
+      drawnItems.clearLayers();
+      drawnItems.addLayer(restoredRectangle);
+      map.fitBounds(bounds.pad(0.15));
+      updateBoundingBox(restoredRectangle);
+      setStatus("Saved area restored. Drag the rectangle corners or draw a new one if you want to change it.");
+      return true;
+    }
+
     function formatCoordinate(value) {
       return value.toFixed(6);
     }
@@ -728,7 +763,9 @@
       });
     }
 
-    tryFitInitialView();
+    if (!tryRestorePersistedSelection()) {
+      tryFitInitialView();
+    }
     updateSelectedSrsNote();
   </script>
 </body>

@@ -64,6 +64,7 @@ namespace RhinoSpatial
         {
             base.AddedToDocument(document);
             SpatialContextHelperHost.SelectionChanged += HandleSelectionChanged;
+            SpatialContextHelperHost.RestoreSelection(_persistedSelection);
         }
 
         public override void RemovedFromDocument(GH_Document document)
@@ -96,6 +97,7 @@ namespace RhinoSpatial
         {
             var result = base.Read(reader);
             _persistedSelection = ReadPersistedSelection(reader);
+            SpatialContextHelperHost.RestoreSelection(_persistedSelection);
             return result;
         }
 
@@ -564,13 +566,29 @@ namespace RhinoSpatial
 
         private async Task OpenMapAsync(string? baseUrl, string? layerSelection, string? requestedSrs)
         {
+            var persistedSelection = GetActiveSelection();
+            var persistedViewBoundingBox = TryGetBoundingBox(persistedSelection.BoundingBox4326);
+
             try
             {
                 var (initialViewBoundingBox, preferredSrs) = await ResolveInitialMapContextAsync(baseUrl, layerSelection, requestedSrs);
-                SpatialContextHelperHost.OpenInBrowser(initialViewBoundingBox, preferredSrs);
+                var initialMapView = persistedViewBoundingBox ?? initialViewBoundingBox;
+                SpatialContextHelperHost.OpenInBrowser(
+                    initialMapView,
+                    preferredSrs,
+                    persistedSelection.HasSelection ? persistedSelection : null);
             }
             catch
             {
+                if (persistedSelection.HasSelection)
+                {
+                    SpatialContextHelperHost.OpenInBrowser(
+                        persistedViewBoundingBox,
+                        NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
+                        persistedSelection);
+                    return;
+                }
+
                 SpatialContextHelperHost.OpenInBrowser();
             }
         }

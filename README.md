@@ -5,16 +5,33 @@
 # RhinoSpatial
 
 **A simple geospatial toolkit for working with site context directly in Rhino and Grasshopper.**
-
+what shuld wed
 RhinoSpatial helps bring spatial data directly into Rhino and Grasshopper, so you can work with real site context inside your design environment without first going through a separate GIS workflow.
 
 Built around simple workflows, sensible defaults, and aligned outputs, RhinoSpatial is intended to support contextual modeling, concept work, and early-stage design with official geodata, imagery, terrain, and lightweight urban context.
+
+The current RhinoSpatial scope is centered around:
+
+- `Spatial Context`
+- `WFS`
+- `WMS`
+- `LoD2 Buildings`
+- `Terrain`
+- `GeoTIFF`
+- `OSM`
+
+This core source ecosystem is considered stable in category, but still open to refinement where it improves geometry quality, output usefulness, fallback behavior, alignment consistency, and general usability.
 
 ## Why RhinoSpatial
 
 RhinoSpatial grew out of a simple practical need: loading official geodata such as WFS-based planning and city data directly into Rhino and Grasshopper in a way that feels usable for design work.
 
 What started as a WFS-focused workflow has gradually grown into a broader contextual geospatial toolkit built around one shared spatial context and multiple aligned data sources.
+
+Two internal project docs track that direction more explicitly:
+
+- `docs/PROJECT_SCOPE.md`
+- `docs/ROADMAP.md`
 
 ## Download
 
@@ -47,6 +64,8 @@ Instead of exposing every possible data-source parameter or building a heavy GIS
 - useful geometry for design work
 
 The focus is on practical results inside Rhino and Grasshopper, not on recreating a full GIS workflow.
+
+RhinoSpatial should not become a mini GIS desktop application, a giant source browser, or a heavily overloaded expert interface. The goal is to keep common geospatial tasks direct, lightweight, and usable in the design environment.
 
 ## What It Supports Right Now
 
@@ -146,6 +165,8 @@ Its role is to quickly generate useful study geometry for the selected area, inc
 
 Buildings are the primary priority. Roads, water, green areas, and rail are meant to support black-plan style workflows, quick contextual modeling, and site understanding without overloading the UI with too many low-level options.
 
+OSM is part of the core RhinoSpatial scope, and it is expected to keep evolving inside that scope through better geometry, better grouping, and stronger black-plan usefulness.
+
 ## Typical Workflows
 
 ### Typical WFS workflow
@@ -222,6 +243,8 @@ This shared spatial logic is the core architectural rule for:
 - terrain data
 - georeferenced raster data
 - OSM context
+
+Later extension goals may exist, but they should not redefine the current product identity. For example, a Google 3D Tiles reference importer may still be considered later, optional, and advanced rather than part of the core system.
 
 ## Notes
 
