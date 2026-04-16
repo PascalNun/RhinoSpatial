@@ -122,20 +122,21 @@ namespace RhinoSpatial
             }
 
             var representativeWidth = ResolveRepresentativeRoadWidth(collectedWidths, tolerance);
+            var holeAreaThreshold = ResolveRoadHoleAreaThreshold(representativeWidth, tolerance);
             var mergedGeometry = UnaryUnionOp.Union(roadRegions);
             mergedGeometry = CleanMergedRoadGeometry(mergedGeometry, representativeWidth, tolerance);
             mergedGeometry = SmoothMergedRoadGeometry(
                 mergedGeometry,
                 representativeWidth,
                 tolerance);
-            if (TryAppendRoadGeometry(tree, mergedGeometry, planZ, tolerance))
+            if (TryAppendRoadGeometry(tree, mergedGeometry, planZ, tolerance, holeAreaThreshold))
             {
                 return tree;
             }
 
             for (var roadIndex = 0; roadIndex < roadRegions.Count; roadIndex++)
             {
-                TryAppendRoadGeometry(tree, roadRegions[roadIndex], planZ, tolerance, roadIndex);
+                TryAppendRoadGeometry(tree, roadRegions[roadIndex], planZ, tolerance, holeAreaThreshold, roadIndex);
             }
 
             return tree;
@@ -204,7 +205,7 @@ namespace RhinoSpatial
 
             for (var regionIndex = 0; regionIndex < waterRegions.Count; regionIndex++)
             {
-                TryAppendRoadGeometry(tree, waterRegions[regionIndex], planZ, tolerance, regionIndex);
+                TryAppendRoadGeometry(tree, waterRegions[regionIndex], planZ, tolerance, 0.0, regionIndex);
             }
 
             return tree;
@@ -512,12 +513,11 @@ namespace RhinoSpatial
             {
                 EndCapStyle = EndCapStyle.Flat,
                 JoinStyle = JoinStyle.Round,
-                QuadrantSegments = 6,
+                QuadrantSegments = 18,
                 MitreLimit = 2.0
             };
 
-            var mergeAllowance = ResolveRoadMergeAllowance(width, tolerance);
-            var candidate = BufferOp.Buffer(lineString, (width * 0.5) + mergeAllowance, bufferParameters);
+            var candidate = BufferOp.Buffer(lineString, width * 0.5, bufferParameters);
             if (candidate is null || candidate.IsEmpty)
             {
                 return false;
@@ -584,7 +584,7 @@ namespace RhinoSpatial
             {
                 EndCapStyle = EndCapStyle.Round,
                 JoinStyle = JoinStyle.Round,
-                QuadrantSegments = 6,
+                QuadrantSegments = 16,
                 MitreLimit = 2.0
             };
 
@@ -617,7 +617,7 @@ namespace RhinoSpatial
             {
                 EndCapStyle = EndCapStyle.Round,
                 JoinStyle = JoinStyle.Round,
-                QuadrantSegments = 12,
+                QuadrantSegments = 36,
                 MitreLimit = 2.0
             };
 
@@ -715,6 +715,7 @@ namespace RhinoSpatial
             NtsGeometry geometry,
             double z,
             double tolerance,
+            double holeAreaThreshold = 0.0,
             int pathOffset = 0)
         {
             if (geometry is null || geometry.IsEmpty)
@@ -727,14 +728,14 @@ namespace RhinoSpatial
             switch (geometry)
             {
                 case NtsPolygon polygon:
-                    appendedAny |= TryAppendRoadPolygon(tree, polygon, z, tolerance, pathOffset);
+                    appendedAny |= TryAppendRoadPolygon(tree, polygon, z, tolerance, holeAreaThreshold, pathOffset);
                     break;
                 case NtsMultiPolygon multiPolygon:
                     for (var index = 0; index < multiPolygon.NumGeometries; index++)
                     {
                         if (multiPolygon.GetGeometryN(index) is NtsPolygon childPolygon)
                         {
-                            appendedAny |= TryAppendRoadPolygon(tree, childPolygon, z, tolerance, pathOffset + index);
+                            appendedAny |= TryAppendRoadPolygon(tree, childPolygon, z, tolerance, holeAreaThreshold, pathOffset + index);
                         }
                     }
                     break;
@@ -746,6 +747,7 @@ namespace RhinoSpatial
                             geometryCollection.GetGeometryN(index),
                             z,
                             tolerance,
+                            holeAreaThreshold,
                             pathOffset + index);
                     }
                     break;
@@ -759,6 +761,7 @@ namespace RhinoSpatial
             NtsPolygon polygon,
             double z,
             double tolerance,
+            double holeAreaThreshold,
             int pathIndex)
         {
             if (!TryCreateCurveFromLineString(polygon.ExteriorRing, z, out var exteriorCurve))
@@ -769,7 +772,13 @@ namespace RhinoSpatial
             var boundaryCurves = new List<Curve> { exteriorCurve };
             for (var holeIndex = 0; holeIndex < polygon.NumInteriorRings; holeIndex++)
             {
-                if (TryCreateCurveFromLineString(polygon.GetInteriorRingN(holeIndex), z, out var holeCurve))
+                var interiorRing = polygon.GetInteriorRingN(holeIndex);
+                if (!ShouldKeepRoadHole(interiorRing, holeAreaThreshold))
+                {
+                    continue;
+                }
+
+                if (TryCreateCurveFromLineString(interiorRing, z, out var holeCurve))
                 {
                     boundaryCurves.Add(holeCurve);
                 }
@@ -872,15 +881,10 @@ namespace RhinoSpatial
             return curve.GetLength();
         }
 
-        private static double ResolveRoadMergeAllowance(double width, double tolerance)
-        {
-            return Math.Max(tolerance * 2.0, width * 0.08);
-        }
-
         private static double ResolveRoadCleanupDistance(double representativeWidth, double tolerance)
         {
-            var unclampedDistance = representativeWidth * 0.18;
-            return Math.Max(0.5, Math.Max(tolerance * 4.0, Math.Min(unclampedDistance, 4.0)));
+            var unclampedDistance = representativeWidth * 0.24;
+            return Math.Max(0.9, Math.Max(tolerance * 6.0, Math.Min(unclampedDistance, 6.0)));
         }
 
         private static double ResolveRepresentativeRoadWidth(IReadOnlyList<double> widths, double tolerance)
@@ -907,6 +911,28 @@ namespace RhinoSpatial
         {
             var unclampedDistance = representativeWidth * 0.35;
             return Math.Max(2.0, Math.Max(tolerance * 4.0, Math.Min(unclampedDistance, 10.0)));
+        }
+
+        private static double ResolveRoadHoleAreaThreshold(double representativeWidth, double tolerance)
+        {
+            var unclampedArea = representativeWidth * representativeWidth * 1.5;
+            return Math.Max(20.0, Math.Max(tolerance * tolerance * 100.0, Math.Min(unclampedArea, 180.0)));
+        }
+
+        private static bool ShouldKeepRoadHole(NtsLineString interiorRing, double holeAreaThreshold)
+        {
+            if (holeAreaThreshold <= 0.0)
+            {
+                return true;
+            }
+
+            if (interiorRing is not NtsLinearRing linearRing)
+            {
+                return true;
+            }
+
+            var holePolygon = new NtsPolygon((NtsLinearRing)linearRing.Copy());
+            return !holePolygon.IsEmpty && Math.Abs(holePolygon.Area) >= holeAreaThreshold;
         }
 
         private static Vector3d ResolveTangent(Polyline polyline, int index)

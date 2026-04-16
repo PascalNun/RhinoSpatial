@@ -274,8 +274,8 @@ namespace RhinoSpatial
                 Rail = railTree,
                 Status = totalFeatureCount == 0
                     ? "No OSM context was returned inside the current Spatial Context."
-                    : BuildStatusMessage(dataSet),
-                MessageLevel = totalFeatureCount == 0 ? GH_RuntimeMessageLevel.Warning : null
+                    : BuildStatusMessage(requestData, dataSet),
+                MessageLevel = ResolveMessageLevel(totalFeatureCount, dataSet)
             };
         }
 
@@ -295,18 +295,59 @@ namespace RhinoSpatial
             }
         }
 
-        private static string BuildStatusMessage(OsmDataSet dataSet)
+        private static string BuildStatusMessage(RequestData requestData, OsmDataSet dataSet)
         {
-            var summary =
-                $"Loaded {dataSet.Buildings.Count} building feature(s), " +
-                $"{dataSet.Roads.Count} road feature(s), " +
-                $"{dataSet.WaterAreas.Count} water feature(s), " +
-                $"{dataSet.GreenAreas.Count} green feature(s), and " +
-                $"{dataSet.Rails.Count} rail feature(s).";
+            var summaryParts = new System.Collections.Generic.List<string>();
+
+            if (requestData.IncludeBuildings)
+            {
+                summaryParts.Add($"{dataSet.Buildings.Count} building feature(s)");
+            }
+
+            if (requestData.IncludeRoads)
+            {
+                summaryParts.Add($"{dataSet.Roads.Count} road feature(s)");
+            }
+
+            if (requestData.IncludeWater)
+            {
+                summaryParts.Add($"{dataSet.WaterAreas.Count} water feature(s)");
+            }
+
+            if (requestData.IncludeGreen)
+            {
+                summaryParts.Add($"{dataSet.GreenAreas.Count} green feature(s)");
+            }
+
+            if (requestData.IncludeRail)
+            {
+                summaryParts.Add($"{dataSet.Rails.Count} rail feature(s)");
+            }
+
+            var summary = summaryParts.Count == 0
+                ? "No OSM context groups were enabled."
+                : $"Loaded {string.Join(", ", summaryParts)}.";
 
             return string.IsNullOrWhiteSpace(dataSet.StatusNote)
                 ? summary
                 : $"{summary} {dataSet.StatusNote}";
+        }
+
+        private static GH_RuntimeMessageLevel? ResolveMessageLevel(int totalFeatureCount, OsmDataSet dataSet)
+        {
+            if (totalFeatureCount == 0)
+            {
+                return GH_RuntimeMessageLevel.Warning;
+            }
+
+            if (!string.IsNullOrWhiteSpace(dataSet.StatusNote) ||
+                dataSet.UnavailableCategories.Count > 0 ||
+                dataSet.CachedCategories.Count > 0)
+            {
+                return GH_RuntimeMessageLevel.Remark;
+            }
+
+            return null;
         }
 
         private void NormalizeInputConfiguration()

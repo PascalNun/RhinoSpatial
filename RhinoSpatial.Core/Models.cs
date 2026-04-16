@@ -156,6 +156,8 @@ namespace RhinoSpatial.Core
         public string StatusNote { get; init; } = string.Empty;
 
         public List<string> UnavailableCategories { get; init; } = new();
+
+        public List<string> CachedCategories { get; init; } = new();
     }
 
     public record Lod2Building(

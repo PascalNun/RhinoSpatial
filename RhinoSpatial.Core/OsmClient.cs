@@ -12,7 +12,7 @@ namespace RhinoSpatial.Core
 {
     public class OsmClient
     {
-        private const string CacheSchemaVersion = "osm-v3";
+        private const string CacheSchemaVersion = "osm-v4";
         private static readonly string[] DefaultOverpassUrls =
         {
             "https://overpass-api.de/api/interpreter",
@@ -28,7 +28,7 @@ namespace RhinoSpatial.Core
         };
 
         private sealed record CacheEntry(OsmDataSet DataSet, DateTimeOffset StoredAtUtc);
-        private sealed record QueryBatch(OsmRequestOptions Options, string Label);
+        private sealed record QueryBatch(OsmRequestOptions Options, string CategoryLabel, string Label);
 
         static OsmClient()
         {
@@ -58,28 +58,42 @@ namespace RhinoSpatial.Core
             string? statusNote = null;
             var failureMessages = new List<string>();
             var unavailableCategories = new List<string>();
+            var cachedCategories = new List<string>();
 
             try
             {
                 foreach (var queryBatch in queryBatches)
                 {
+                    var batchCacheKey = BuildCacheKey(queryBatch.Options);
+
                     try
                     {
                         var batchResult = await LoadBatchAsync(queryBatch, failureMessages);
                         combinedDataSet = MergeDataSets(combinedDataSet, batchResult.DataSet);
+                        CacheEntriesByKey[batchCacheKey] = new CacheEntry(
+                            batchResult.DataSet with
+                            {
+                                StatusNote = string.Empty,
+                                UnavailableCategories = new List<string>(),
+                                CachedCategories = new List<string>()
+                            },
+                            DateTimeOffset.UtcNow);
 
                         if (string.IsNullOrWhiteSpace(statusNote) && !string.IsNullOrWhiteSpace(batchResult.StatusNote))
                         {
                             statusNote = batchResult.StatusNote;
                         }
                     }
-                    catch (Exception) when (TryGetCachedCategoryDataSet(cacheKey, queryBatch.Label, out var cachedBatchDataSet))
+                    catch (Exception) when (
+                        TryGetCachedDataSet(batchCacheKey, allowStale: true, out var cachedBatchDataSet) ||
+                        TryGetCachedCategoryDataSet(cacheKey, queryBatch.CategoryLabel, out cachedBatchDataSet))
                     {
                         combinedDataSet = MergeDataSets(combinedDataSet, cachedBatchDataSet);
+                        cachedCategories.Add(queryBatch.CategoryLabel);
                     }
                     catch (Exception)
                     {
-                        unavailableCategories.Add(queryBatch.Label);
+                        unavailableCategories.Add(queryBatch.CategoryLabel);
                     }
                 }
 
@@ -94,17 +108,34 @@ namespace RhinoSpatial.Core
 
                 if (unavailableCategories.Count > 0)
                 {
+                    var distinctUnavailableCategories = unavailableCategories
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
                     var unavailableNote =
-                        $"Some OSM context groups were temporarily unavailable and were skipped: {string.Join(", ", unavailableCategories)}.";
+                        $"Some OSM context groups were temporarily unavailable and were skipped: {string.Join(", ", distinctUnavailableCategories)}.";
                     statusNote = string.IsNullOrWhiteSpace(statusNote)
                         ? unavailableNote
                         : $"{statusNote} {unavailableNote}";
+                    unavailableCategories = distinctUnavailableCategories;
+                }
+
+                if (cachedCategories.Count > 0)
+                {
+                    cachedCategories = cachedCategories
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    var cachedNote =
+                        $"Using cached OSM data for: {string.Join(", ", cachedCategories)}.";
+                    statusNote = string.IsNullOrWhiteSpace(statusNote)
+                        ? cachedNote
+                        : $"{statusNote} {cachedNote}";
                 }
 
                 var cleanCachedDataSet = combinedDataSet with
                 {
                     StatusNote = string.Empty,
-                    UnavailableCategories = new List<string>()
+                    UnavailableCategories = new List<string>(),
+                    CachedCategories = new List<string>()
                 };
                 CacheEntriesByKey[cacheKey] = new CacheEntry(cleanCachedDataSet, DateTimeOffset.UtcNow);
 
@@ -113,17 +144,23 @@ namespace RhinoSpatial.Core
                     return combinedDataSet with
                     {
                         StatusNote = statusNote,
-                        UnavailableCategories = unavailableCategories
+                        UnavailableCategories = unavailableCategories,
+                        CachedCategories = cachedCategories
                     };
                 }
 
-                return combinedDataSet with { UnavailableCategories = unavailableCategories };
+                return combinedDataSet with
+                {
+                    UnavailableCategories = unavailableCategories,
+                    CachedCategories = cachedCategories
+                };
             }
             catch (Exception) when (TryGetCachedDataSet(cacheKey, allowStale: true, out var staleCachedDataSet))
             {
                 return staleCachedDataSet with
                 {
-                    StatusNote = "Using cached OSM result because the live OSM service was temporarily unavailable."
+                    StatusNote = "Using cached OSM result because the live OSM service was temporarily unavailable.",
+                    CachedCategories = new List<string>()
                 };
             }
 
@@ -378,7 +415,9 @@ namespace RhinoSpatial.Core
 
             if (options.IncludeBuildings)
             {
-                batches.Add(new QueryBatch(
+                AddCategoryBatches(
+                    batches,
+                    "Buildings",
                     options with
                     {
                         IncludeBuildings = true,
@@ -386,13 +425,14 @@ namespace RhinoSpatial.Core
                         IncludeWater = false,
                         IncludeGreen = false,
                         IncludeRail = false
-                    },
-                    "Buildings"));
+                    });
             }
 
             if (options.IncludeRoads)
             {
-                batches.Add(new QueryBatch(
+                AddCategoryBatches(
+                    batches,
+                    "Roads",
                     options with
                     {
                         IncludeBuildings = false,
@@ -400,13 +440,14 @@ namespace RhinoSpatial.Core
                         IncludeWater = false,
                         IncludeGreen = false,
                         IncludeRail = false
-                    },
-                    "Roads"));
+                    });
             }
 
             if (options.IncludeWater)
             {
-                batches.Add(new QueryBatch(
+                AddCategoryBatches(
+                    batches,
+                    "Water",
                     options with
                     {
                         IncludeBuildings = false,
@@ -414,13 +455,14 @@ namespace RhinoSpatial.Core
                         IncludeWater = true,
                         IncludeGreen = false,
                         IncludeRail = false
-                    },
-                    "Water"));
+                    });
             }
 
             if (options.IncludeGreen)
             {
-                batches.Add(new QueryBatch(
+                AddCategoryBatches(
+                    batches,
+                    "Green",
                     options with
                     {
                         IncludeBuildings = false,
@@ -428,13 +470,14 @@ namespace RhinoSpatial.Core
                         IncludeWater = false,
                         IncludeGreen = true,
                         IncludeRail = false
-                    },
-                    "Green"));
+                    });
             }
 
             if (options.IncludeRail)
             {
-                batches.Add(new QueryBatch(
+                AddCategoryBatches(
+                    batches,
+                    "Rail",
                     options with
                     {
                         IncludeBuildings = false,
@@ -442,26 +485,111 @@ namespace RhinoSpatial.Core
                         IncludeWater = false,
                         IncludeGreen = false,
                         IncludeRail = true
-                    },
-                    "Rail"));
+                    });
             }
 
             return batches;
         }
 
+        private static void AddCategoryBatches(List<QueryBatch> target, string categoryLabel, OsmRequestOptions options)
+        {
+            var tileBoundingBoxes = BuildTileBoundingBoxes(categoryLabel, options.BoundingBox4326);
+            if (tileBoundingBoxes.Count == 1)
+            {
+                target.Add(new QueryBatch(options, categoryLabel, categoryLabel));
+                return;
+            }
+
+            for (var index = 0; index < tileBoundingBoxes.Count; index++)
+            {
+                target.Add(new QueryBatch(
+                    options with { BoundingBox4326 = tileBoundingBoxes[index] },
+                    categoryLabel,
+                    $"{categoryLabel} tile {index + 1}/{tileBoundingBoxes.Count}"));
+            }
+        }
+
+        private static List<BoundingBox2D> BuildTileBoundingBoxes(string categoryLabel, BoundingBox2D boundingBox)
+        {
+            var width = Math.Max(0.0, boundingBox.MaxX - boundingBox.MinX);
+            var height = Math.Max(0.0, boundingBox.MaxY - boundingBox.MinY);
+            var maxTileEdge = ResolveTileEdgeLimit(categoryLabel);
+            if (width <= maxTileEdge && height <= maxTileEdge)
+            {
+                return new List<BoundingBox2D> { boundingBox };
+            }
+
+            var splitX = Math.Max(1, (int)Math.Ceiling(width / maxTileEdge));
+            var splitY = Math.Max(1, (int)Math.Ceiling(height / maxTileEdge));
+            splitX = Math.Min(splitX, 4);
+            splitY = Math.Min(splitY, 4);
+
+            var tileWidth = width / splitX;
+            var tileHeight = height / splitY;
+            var tiles = new List<BoundingBox2D>(splitX * splitY);
+
+            for (var y = 0; y < splitY; y++)
+            {
+                for (var x = 0; x < splitX; x++)
+                {
+                    var minX = boundingBox.MinX + (tileWidth * x);
+                    var minY = boundingBox.MinY + (tileHeight * y);
+                    var maxX = x == splitX - 1 ? boundingBox.MaxX : minX + tileWidth;
+                    var maxY = y == splitY - 1 ? boundingBox.MaxY : minY + tileHeight;
+                    tiles.Add(new BoundingBox2D(minX, minY, maxX, maxY));
+                }
+            }
+
+            return tiles;
+        }
+
+        private static double ResolveTileEdgeLimit(string categoryLabel)
+        {
+            return categoryLabel switch
+            {
+                "Green" => 0.0025,
+                "Buildings" => 0.0045,
+                "Roads" => 0.0045,
+                "Water" => 0.0060,
+                "Rail" => 0.0060,
+                _ => 0.0060
+            };
+        }
+
         private static OsmDataSet MergeDataSets(OsmDataSet left, OsmDataSet right)
         {
             return new OsmDataSet(
-                left.Buildings.Concat(right.Buildings).ToList(),
-                left.Roads.Concat(right.Roads).ToList(),
-                left.WaterAreas.Concat(right.WaterAreas).ToList(),
-                left.GreenAreas.Concat(right.GreenAreas).ToList(),
-                left.Rails.Concat(right.Rails).ToList())
+                MergeById(left.Buildings, right.Buildings),
+                MergeById(left.Roads, right.Roads),
+                MergeById(left.WaterAreas, right.WaterAreas),
+                MergeById(left.GreenAreas, right.GreenAreas),
+                MergeById(left.Rails, right.Rails))
             {
                 StatusNote = string.IsNullOrWhiteSpace(left.StatusNote)
                     ? right.StatusNote
                     : left.StatusNote
             };
+        }
+
+        private static List<TFeature> MergeById<TFeature>(IEnumerable<TFeature> left, IEnumerable<TFeature> right) where TFeature : class
+        {
+            var mergedById = new Dictionary<long, TFeature>();
+
+            foreach (var feature in left.Concat(right))
+            {
+                if (feature is OsmAreaFeature areaFeature)
+                {
+                    mergedById[areaFeature.Id] = (TFeature)(object)areaFeature;
+                    continue;
+                }
+
+                if (feature is OsmLinearFeature linearFeature)
+                {
+                    mergedById[linearFeature.Id] = (TFeature)(object)linearFeature;
+                }
+            }
+
+            return mergedById.Values.ToList();
         }
 
         private static string BuildCacheKey(OsmRequestOptions options)
