@@ -31,6 +31,8 @@ Two internal project docs track that direction more explicitly:
 
 - `docs/PROJECT_SCOPE.md`
 - `docs/ROADMAP.md`
+- `docs/SHOWCASE.md`
+- `docs/RELEASE_READINESS.md`
 
 A small example and regression baseline now lives in:
 
@@ -75,6 +77,11 @@ For example sources and validation checks, see:
 - `examples/README.md`
 - `examples/VALIDATION.md`
 - `examples/sources.json`
+
+For visual planning and release-readiness checks, see:
+
+- `docs/SHOWCASE.md`
+- `docs/RELEASE_READINESS.md`
 
 ## Project Status
 

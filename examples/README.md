@@ -18,6 +18,15 @@ RhinoSpatial is built around one shared `Spatial Context` and multiple aligned s
   Manual regression checklist for the current core source ecosystem
 - `sources.json`
   Curated reference sources and notes for repeatable testing
+- `gh/`
+  Example Grasshopper definitions for the current showcase/regression workflows
+
+Related project docs:
+
+- `docs/SHOWCASE.md`
+  Planned visuals for README, releases, and public-facing presentation
+- `docs/RELEASE_READINESS.md`
+  Practical checklist for future alpha packaging and smoke tests
 
 ## Current Core Workflow Examples
 
@@ -38,17 +47,21 @@ These examples are meant to support:
 - early-stage design workflows
 - alignment checks across multiple sources
 
-## Planned Expansion
+## Current Example Definitions
 
-This folder is intentionally lightweight for now.
+The current `.gh` example set is intentionally small:
 
-The next likely additions are:
+- `gh/01-wfs-wms-basics.gh`
+- `gh/02-lod2-terrain-context.gh`
+- `gh/03-osm-blackplan.gh`
 
-- one or more actual `.gh` example definitions
-- a small set of safe example raster files for `Load GeoTIFF`
-- more provider notes for real-world compatibility checks
+These are meant to support:
 
-Until then, the validation checklist and source manifest are the main regression baseline.
+- quick manual smoke tests
+- screenshot capture for the public project presentation
+- future regression checking against representative RhinoSpatial workflows
+
+The validation checklist and source manifest remain the broader regression baseline.
 
 ## Reference Coverage
 

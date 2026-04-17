@@ -3,6 +3,7 @@ obj/
 **/bin/
 **/obj/
 .DS_Store
+.vscode/
 .tmp/
 .tmp-yak/
 package/staging/
