@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIGURATION="${1:-Debug}"
+CONFIGURATION="${1:-Release}"
 FRAMEWORK="net7.0"
 YAK_BIN="/Applications/Rhino 8.app/Contents/Resources/bin/yak"
 PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoSpatial/bin/$CONFIGURATION/$FRAMEWORK"
