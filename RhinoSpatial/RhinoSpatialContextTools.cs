@@ -138,6 +138,25 @@ namespace RhinoSpatial
 
         public static Mesh CreateBoundingBoxMesh(BoundingBox2D boundingBox, Coordinate2D placementOrigin, bool useAbsoluteCoordinates)
         {
+            return CreateTexturedBoundingBoxMesh(
+                boundingBox,
+                placementOrigin,
+                useAbsoluteCoordinates,
+                0.0f,
+                0.0f,
+                1.0f,
+                1.0f);
+        }
+
+        public static Mesh CreateTexturedBoundingBoxMesh(
+            BoundingBox2D boundingBox,
+            Coordinate2D placementOrigin,
+            bool useAbsoluteCoordinates,
+            float minU,
+            float minV,
+            float maxU,
+            float maxV)
+        {
             var offsetX = useAbsoluteCoordinates ? 0.0 : placementOrigin.X;
             var offsetY = useAbsoluteCoordinates ? 0.0 : placementOrigin.Y;
 
@@ -151,14 +170,28 @@ namespace RhinoSpatial
             // Rhino's texture mapping expects the standard bottom-up UV order here.
             // Using this orientation keeps the downloaded WMS image aligned with the
             // shared spatial context instead of appearing mirrored on the preview quad.
-            mesh.TextureCoordinates.Add(0.0f, 0.0f);
-            mesh.TextureCoordinates.Add(1.0f, 0.0f);
-            mesh.TextureCoordinates.Add(1.0f, 1.0f);
-            mesh.TextureCoordinates.Add(0.0f, 1.0f);
+            mesh.TextureCoordinates.Add(minU, minV);
+            mesh.TextureCoordinates.Add(maxU, minV);
+            mesh.TextureCoordinates.Add(maxU, maxV);
+            mesh.TextureCoordinates.Add(minU, maxV);
 
             mesh.Normals.ComputeNormals();
             mesh.Compact();
             return mesh;
+        }
+
+        public static BoundingBox2D CreatePlacedBoundingBox(BoundingBox2D boundingBox, Coordinate2D placementOrigin, bool useAbsoluteCoordinates)
+        {
+            if (useAbsoluteCoordinates)
+            {
+                return boundingBox;
+            }
+
+            return new BoundingBox2D(
+                boundingBox.MinX - placementOrigin.X,
+                boundingBox.MinY - placementOrigin.Y,
+                boundingBox.MaxX - placementOrigin.X,
+                boundingBox.MaxY - placementOrigin.Y);
         }
 
         public static string CreateSpatialContextKey(SpatialContext2D spatialContext)
@@ -178,6 +211,29 @@ namespace RhinoSpatial
                    left.MaxX >= right.MinX &&
                    left.MinY <= right.MaxY &&
                    left.MaxY >= right.MinY;
+        }
+
+        public static bool TryIntersectBoundingBoxes(BoundingBox2D left, BoundingBox2D right, out BoundingBox2D intersection)
+        {
+            if (!DoBoundingBoxesIntersect(left, right))
+            {
+                intersection = new BoundingBox2D(0.0, 0.0, 0.0, 0.0);
+                return false;
+            }
+
+            intersection = new BoundingBox2D(
+                System.Math.Max(left.MinX, right.MinX),
+                System.Math.Max(left.MinY, right.MinY),
+                System.Math.Min(left.MaxX, right.MaxX),
+                System.Math.Min(left.MaxY, right.MaxY));
+
+            return intersection.MaxX > intersection.MinX && intersection.MaxY > intersection.MinY;
+        }
+
+        public static double CalculateBoundingBoxArea(BoundingBox2D boundingBox)
+        {
+            return System.Math.Max(0.0, boundingBox.MaxX - boundingBox.MinX) *
+                   System.Math.Max(0.0, boundingBox.MaxY - boundingBox.MinY);
         }
 
         public static double ResolveAveragePlacedElevation(

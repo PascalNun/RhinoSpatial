@@ -5,7 +5,6 @@
 # RhinoSpatial
 
 **A simple geospatial toolkit for working with site context directly in Rhino and Grasshopper.**
-what shuld wed
 RhinoSpatial helps bring spatial data directly into Rhino and Grasshopper, so you can work with real site context inside your design environment without first going through a separate GIS workflow.
 
 Built around simple workflows, sensible defaults, and aligned outputs, RhinoSpatial is intended to support contextual modeling, concept work, and early-stage design with official geodata, imagery, terrain, and lightweight urban context.
@@ -32,6 +31,12 @@ Two internal project docs track that direction more explicitly:
 
 - `docs/PROJECT_SCOPE.md`
 - `docs/ROADMAP.md`
+
+A small example and regression baseline now lives in:
+
+- `examples/README.md`
+- `examples/VALIDATION.md`
+- `examples/sources.json`
 
 ## Download
 
@@ -227,7 +232,7 @@ The project is split into small parts:
   The reusable geospatial core for WFS, WMS, terrain, LoD2, OSM, raster handling, and shared coordinate logic
 
 - `RhinoSpatial.Sandbox`  
-  A small console sandbox used for testing core logic outside Grasshopper
+  A small console sandbox used for testing core logic outside Grasshopper, with sample fixtures kept outside the main plugin projects
 
 Internally, the project is centered around the shared spatial context:
 

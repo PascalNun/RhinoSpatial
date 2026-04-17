@@ -8,6 +8,7 @@
     <RootNamespace>RhinoSpatial.Sandbox</RootNamespace>
     <Product>RhinoSpatial</Product>
     <Title>RhinoSpatial Sandbox</Title>
+    <BaseOutputPath>sandbox/bin/</BaseOutputPath>
   </PropertyGroup>
 
   <ItemGroup>

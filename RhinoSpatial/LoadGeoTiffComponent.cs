@@ -16,10 +16,15 @@ namespace RhinoSpatial
 {
     public class LoadGeoTiffComponent : GH_TaskCapableComponent<LoadGeoTiffComponent.SolveResults>
     {
+        private const long LargeRasterFileSizeBytes = 200L * 1024L * 1024L;
+        private const long LargeRasterPixelCount = 40_000_000L;
+
         private Mesh? _previewMesh;
         private DisplayMaterial? _previewMaterial;
         private string? _previewImageFilePath;
         private BoundingBox _previewBox = BoundingBox.Empty;
+        private GH_Material? _outputMaterial;
+        private string? _outputMaterialFilePath;
 
         public class SolveResults
         {
@@ -101,8 +106,8 @@ namespace RhinoSpatial
                     dataAccess.SetData(0, result.ImageMesh);
                 }
 
-                var material = RhinoSpatialRasterDisplayTools.CreateGrasshopperMaterial(result.ImageFilePath);
-                if (material is not null)
+                var material = GetOrCreateOutputMaterial(result.ImageFilePath);
+                if (result.ImageMesh is not null && material is not null)
                 {
                     dataAccess.SetData(1, material);
                 }
@@ -159,9 +164,15 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var rasterInfo = GeoTiffReader.ReadImageInfo(requestData.FilePath);
+            var rasterInfo = GeoTiffInfoCache.GetOrRead(requestData.FilePath);
 
-            if (!TryCreateImageMesh(rasterInfo, requestData.SpatialContext, out var imageMesh, out var transformedBoundingBox))
+            if (!TryCreateImageMesh(
+                    rasterInfo,
+                    requestData.SpatialContext,
+                    out var imageMesh,
+                    out var transformedBoundingBox,
+                    out var clippedToSpatialContext,
+                    out var overlapRatio))
             {
                 return new SolveResults
                 {
@@ -172,14 +183,28 @@ namespace RhinoSpatial
 
             if (!RhinoSpatialContextTools.DoBoundingBoxesIntersect(
                     transformedBoundingBox,
-                    requestData.SpatialContext.PlacementBoundingBox))
+                    RhinoSpatialContextTools.CreatePlacedBoundingBox(
+                        requestData.SpatialContext.PlacementBoundingBox,
+                        requestData.SpatialContext.PlacementOrigin,
+                        requestData.SpatialContext.UseAbsoluteCoordinates)))
+            {
+                return new SolveResults
+                {
+                    ImageFilePath = rasterInfo.LocalFilePath,
+                    Status = $"Loaded GeoTIFF '{Path.GetFileName(rasterInfo.LocalFilePath)}' in {rasterInfo.SrsName}, but it does not overlap the selected Spatial Context area.",
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                };
+            }
+
+            var largeRasterNote = BuildLargeRasterNote(rasterInfo);
+            if (clippedToSpatialContext)
             {
                 return new SolveResults
                 {
                     ImageFilePath = rasterInfo.LocalFilePath,
                     ImageMesh = imageMesh,
-                    Status = $"Loaded GeoTIFF '{Path.GetFileName(rasterInfo.LocalFilePath)}'. The current file does not overlap the selected Spatial Context area, so it may appear outside the active study area.",
-                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                    Status = $"Loaded GeoTIFF '{Path.GetFileName(rasterInfo.LocalFilePath)}' ({rasterInfo.Width}×{rasterInfo.Height}, {rasterInfo.SrsName}) and clipped the preview to the selected Spatial Context. Visible overlap: {overlapRatio:P0}. The source file remains unchanged.{largeRasterNote}",
+                    MessageLevel = GH_RuntimeMessageLevel.Remark
                 };
             }
 
@@ -187,7 +212,8 @@ namespace RhinoSpatial
             {
                 ImageFilePath = rasterInfo.LocalFilePath,
                 ImageMesh = imageMesh,
-                Status = $"Loaded GeoTIFF '{Path.GetFileName(rasterInfo.LocalFilePath)}' in {rasterInfo.SrsName}. The current RhinoSpatial GeoTIFF loader keeps the full georeferenced raster and applies shared placement/localization, but does not crop the file to the Spatial Context yet."
+                Status = $"Loaded GeoTIFF '{Path.GetFileName(rasterInfo.LocalFilePath)}' ({rasterInfo.Width}×{rasterInfo.Height}, {rasterInfo.SrsName}) and aligned it to the current Spatial Context.{largeRasterNote}",
+                MessageLevel = string.IsNullOrWhiteSpace(largeRasterNote) ? null : GH_RuntimeMessageLevel.Remark
             };
         }
 
@@ -211,10 +237,14 @@ namespace RhinoSpatial
             GeoReferencedRasterInfo rasterInfo,
             SpatialContext2D spatialContext,
             out Mesh imageMesh,
-            out BoundingBox2D transformedBoundingBox)
+            out BoundingBox2D transformedBoundingBox,
+            out bool clippedToSpatialContext,
+            out double overlapRatio)
         {
             imageMesh = new Mesh();
             transformedBoundingBox = new BoundingBox2D(0.0, 0.0, 0.0, 0.0);
+            clippedToSpatialContext = false;
+            overlapRatio = 0.0;
 
             var corners = new[]
             {
@@ -246,18 +276,50 @@ namespace RhinoSpatial
             }
 
             transformedBoundingBox = BoundingBox2DFromPoints(transformedCorners);
-            imageMesh = new Mesh();
-            imageMesh.Vertices.Add(transformedCorners[0]);
-            imageMesh.Vertices.Add(transformedCorners[1]);
-            imageMesh.Vertices.Add(transformedCorners[2]);
-            imageMesh.Vertices.Add(transformedCorners[3]);
-            imageMesh.Faces.AddFace(0, 1, 2, 3);
-            imageMesh.TextureCoordinates.Add(0.0f, 0.0f);
-            imageMesh.TextureCoordinates.Add(1.0f, 0.0f);
-            imageMesh.TextureCoordinates.Add(1.0f, 1.0f);
-            imageMesh.TextureCoordinates.Add(0.0f, 1.0f);
-            imageMesh.Normals.ComputeNormals();
-            imageMesh.Compact();
+
+            var placedSpatialContextBoundingBox = RhinoSpatialContextTools.CreatePlacedBoundingBox(
+                spatialContext.PlacementBoundingBox,
+                spatialContext.PlacementOrigin,
+                spatialContext.UseAbsoluteCoordinates);
+
+            var fullArea = RhinoSpatialContextTools.CalculateBoundingBoxArea(transformedBoundingBox);
+            if (fullArea > 0.0 &&
+                RhinoSpatialContextTools.TryIntersectBoundingBoxes(
+                    transformedBoundingBox,
+                    placedSpatialContextBoundingBox,
+                    out var intersectionBoundingBox))
+            {
+                overlapRatio = RhinoSpatialContextTools.CalculateBoundingBoxArea(intersectionBoundingBox) / fullArea;
+                if (overlapRatio > 0.0 && overlapRatio < 0.999)
+                {
+                    clippedToSpatialContext = true;
+
+                    var minU = (float)((intersectionBoundingBox.MinX - transformedBoundingBox.MinX) / (transformedBoundingBox.MaxX - transformedBoundingBox.MinX));
+                    var maxU = (float)((intersectionBoundingBox.MaxX - transformedBoundingBox.MinX) / (transformedBoundingBox.MaxX - transformedBoundingBox.MinX));
+                    var minV = (float)((intersectionBoundingBox.MinY - transformedBoundingBox.MinY) / (transformedBoundingBox.MaxY - transformedBoundingBox.MinY));
+                    var maxV = (float)((intersectionBoundingBox.MaxY - transformedBoundingBox.MinY) / (transformedBoundingBox.MaxY - transformedBoundingBox.MinY));
+
+                    imageMesh = RhinoSpatialContextTools.CreateTexturedBoundingBoxMesh(
+                        intersectionBoundingBox,
+                        new Coordinate2D(0.0, 0.0),
+                        true,
+                        minU,
+                        minV,
+                        maxU,
+                        maxV);
+
+                    return true;
+                }
+            }
+
+            imageMesh = RhinoSpatialContextTools.CreateTexturedBoundingBoxMesh(
+                transformedBoundingBox,
+                new Coordinate2D(0.0, 0.0),
+                true,
+                0.0f,
+                0.0f,
+                1.0f,
+                1.0f);
             return true;
         }
 
@@ -279,10 +341,55 @@ namespace RhinoSpatial
             return new BoundingBox2D(minX, minY, maxX, maxY);
         }
 
+        private static string BuildLargeRasterNote(GeoReferencedRasterInfo rasterInfo)
+        {
+            var pixelCount = (long)rasterInfo.Width * rasterInfo.Height;
+            if (pixelCount <= LargeRasterPixelCount && rasterInfo.FileSizeBytes <= LargeRasterFileSizeBytes)
+            {
+                return string.Empty;
+            }
+
+            return $" Large rasters can take longer to preview and bake ({FormatFileSize(rasterInfo.FileSizeBytes)}).";
+        }
+
+        private static string FormatFileSize(long bytes)
+        {
+            const double kilobyte = 1024.0;
+            const double megabyte = kilobyte * 1024.0;
+            const double gigabyte = megabyte * 1024.0;
+
+            if (bytes >= gigabyte)
+            {
+                return $"{bytes / gigabyte:0.0} GB";
+            }
+
+            if (bytes >= megabyte)
+            {
+                return $"{bytes / megabyte:0.0} MB";
+            }
+
+            if (bytes >= kilobyte)
+            {
+                return $"{bytes / kilobyte:0.0} KB";
+            }
+
+            return $"{bytes} B";
+        }
+
         private void UpdatePreviewState(SolveResults result)
         {
+            if (result.ImageMesh is null || string.IsNullOrWhiteSpace(result.ImageFilePath))
+            {
+                ClearPreviewState();
+                return;
+            }
+
             _previewMesh = result.ImageMesh;
-            _previewMaterial = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(result.ImageFilePath);
+            if (_previewMaterial is null || !string.Equals(_previewImageFilePath, result.ImageFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                _previewMaterial = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(result.ImageFilePath);
+            }
+
             _previewImageFilePath = result.ImageFilePath;
             _previewBox = _previewMesh?.GetBoundingBox(false) ?? BoundingBox.Empty;
         }
@@ -293,6 +400,26 @@ namespace RhinoSpatial
             _previewMaterial = null;
             _previewImageFilePath = null;
             _previewBox = BoundingBox.Empty;
+        }
+
+        private GH_Material? GetOrCreateOutputMaterial(string imageFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(imageFilePath))
+            {
+                _outputMaterial = null;
+                _outputMaterialFilePath = null;
+                return null;
+            }
+
+            if (_outputMaterial is not null &&
+                string.Equals(_outputMaterialFilePath, imageFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return _outputMaterial;
+            }
+
+            _outputMaterial = RhinoSpatialRasterDisplayTools.CreateGrasshopperMaterial(imageFilePath);
+            _outputMaterialFilePath = imageFilePath;
+            return _outputMaterial;
         }
 
         public override BoundingBox ClippingBox => _previewBox.IsValid ? _previewBox : BoundingBox.Empty;
@@ -321,39 +448,9 @@ namespace RhinoSpatial
                 return;
             }
 
-            var meshToBake = _previewMesh.DuplicateMesh();
-            var attributes = att.Duplicate();
-            var material = RhinoSpatialRasterDisplayTools.CreateRhinoMaterial(_previewImageFilePath);
-            RenderMaterial? renderMaterial = null;
-
-            if (material is not null)
-            {
-                material.Name = $"RhinoSpatial {Path.GetFileNameWithoutExtension(_previewImageFilePath)}";
-                material.CommitChanges();
-                var materialIndex = doc.Materials.Add(material);
-                if (materialIndex >= 0)
-                {
-                    attributes.MaterialIndex = materialIndex;
-                    attributes.MaterialSource = ObjectMaterialSource.MaterialFromObject;
-                    renderMaterial = RenderMaterial.CreateBasicMaterial(doc.Materials[materialIndex], doc);
-
-                    if (renderMaterial is not null)
-                    {
-                        renderMaterial.Name = material.Name;
-                        doc.RenderMaterials.Add(renderMaterial);
-                        attributes.RenderMaterial = renderMaterial;
-                    }
-                }
-            }
-
-            var objectId = doc.Objects.AddMesh(meshToBake, attributes);
+            var objectId = RhinoSpatialRasterDisplayTools.BakeTexturedMesh(doc, _previewMesh, _previewImageFilePath, att);
             if (objectId != Guid.Empty)
             {
-                if (renderMaterial is not null)
-                {
-                    doc.Objects.ModifyRenderMaterial(objectId, renderMaterial);
-                }
-
                 objIds.Add(objectId);
             }
         }

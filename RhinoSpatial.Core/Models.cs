@@ -129,7 +129,8 @@ namespace RhinoSpatial.Core
         string SrsName,
         int Width,
         int Height,
-        BoundingBox2D BoundingBox
+        BoundingBox2D BoundingBox,
+        long FileSizeBytes
     );
 
     public record OsmAreaFeature(

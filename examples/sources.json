@@ -1,0 +1,187 @@
+{
+  "notes": {
+    "purpose": "Curated RhinoSpatial example and regression sources",
+    "workflow": "Use one shared Spatial Context and test aligned source loading",
+    "scope": [
+      "Spatial Context",
+      "WFS",
+      "WMS",
+      "LoD2 Buildings",
+      "Terrain",
+      "GeoTIFF",
+      "OSM"
+    ]
+  },
+  "sources": [
+    {
+      "id": "wfs-hessen-reference",
+      "type": "WFS",
+      "purpose": "Official vector context and layer-list testing",
+      "url": "https://inspire-hessen.de/ows/services/org.2.734621f7-1cfb-41c6-8291-67d08f149acb_wfs?",
+      "notes": [
+        "Use with List WFS Layers first",
+        "Good reference for multi-layer branch behavior"
+      ]
+    },
+    {
+      "id": "wms-germany-topplusopen",
+      "type": "WMS",
+      "purpose": "Germany-wide official topographic map context",
+      "url": "https://sgx.geodatenzentrum.de/wms_topplus_open?request=GetCapabilities&service=wms",
+      "notes": [
+        "Official BKG WMS for Germany-wide topographic context",
+        "Useful for broad map-alignment checks and national-scale examples"
+      ]
+    },
+    {
+      "id": "wcs-germany-dgm200",
+      "type": "Terrain",
+      "purpose": "Germany-wide practical terrain fallback reference",
+      "url": "https://sgx.geodatenzentrum.de/wcs_dgm200_inspire?SERVICE=WCS&REQUEST=GetCapabilities",
+      "notes": [
+        "Official BKG nationwide terrain reference at coarser resolution than state-level DGM sources",
+        "Useful as a practical Germany-wide terrain fallback example"
+      ]
+    },
+    {
+      "id": "wfs-germany-vg1000",
+      "type": "WFS",
+      "purpose": "Germany-wide administrative boundaries",
+      "url": "https://sgx.geodatenzentrum.de/wfs_vg1000?service=WFS&request=GetCapabilities",
+      "notes": [
+        "Official BKG administrative-boundary WFS",
+        "Useful for national-scale polygon and boundary testing"
+      ]
+    },
+    {
+      "id": "wfs-germany-poi-open",
+      "type": "WFS",
+      "purpose": "Germany-wide points of interest reference",
+      "url": "https://sgx.geodatenzentrum.de/wfs_poi_open?SERVICE=WFS&REQUEST=GetCapabilities",
+      "notes": [
+        "Official BKG point-feature reference",
+        "Useful for mixed geometry-type checks and nationwide point workflows"
+      ]
+    },
+    {
+      "id": "wms-hessen-imagery",
+      "type": "WMS",
+      "purpose": "Official imagery / orthophoto alignment testing",
+      "url": "https://www.gds-srv.hessen.de/cgi-bin/lika-services/ogc-free-images.ows?language=ger&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities",
+      "notes": [
+        "Use with List WMS Layers first",
+        "Good reference for imagery alignment against WFS and LoD2"
+      ]
+    },
+    {
+      "id": "lod2-sachsen-anhalt",
+      "type": "LoD2 Buildings",
+      "purpose": "Official 3D building context outside Hessen",
+      "url": "https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_LoD2_WFS/guest?request=GetCapabilities&service=WFS&version=2.0.0",
+      "notes": [
+        "Official Sachsen-Anhalt LoD2 WFS",
+        "Good second-state reference for LoD2 testing beyond Hessen"
+      ]
+    },
+    {
+      "id": "terrain-nrw-dgm",
+      "type": "Terrain",
+      "purpose": "Official NRW terrain reference outside Hessen",
+      "url": "https://www.wcs.nrw.de/geobasis/wcs_nw_dgm?REQUEST=GetCapabilities&SERVICE=WCS",
+      "notes": [
+        "Official NRW terrain WCS",
+        "Useful for comparing state-level terrain workflows beyond Hessen"
+      ]
+    },
+    {
+      "id": "lod2-hessen-buildings",
+      "type": "LoD2 Buildings",
+      "purpose": "Official 3D building context",
+      "url": "https://www.geoportal.hessen.de/mapbender/php/wfs.php?FEATURETYPE_ID=5589&INSPIRE=1&REQUEST=GetCapabilities&SERVICE=WFS&VERSION=2.0.0",
+      "notes": [
+        "Good reference for LoD2 face quality and shared Z checks",
+        "Use the same Spatial Context as Terrain and WMS when possible"
+      ]
+    },
+    {
+      "id": "wfs-hessen-building-footprints",
+      "type": "WFS",
+      "purpose": "Official 2D building footprint reference",
+      "url": "https://www.geoportal.hessen.de/mapbender/php/wfs.php?FEATURETYPE_ID=5042&INSPIRE=1&REQUEST=GetCapabilities&SERVICE=WFS&VERSION=2.0.0",
+      "notes": [
+        "Useful for comparing official 2D building footprints against OSM and LoD2",
+        "Good reference for pure vector building-context workflows"
+      ]
+    },
+    {
+      "id": "terrain-hessen-dgm1",
+      "type": "Terrain",
+      "purpose": "Official WCS-backed terrain reference",
+      "url": "https://inspire-hessen.de/raster/dgm1/ows?REQUEST=GetCapabilities&SERVICE=WCS&VERSION=2.1.0",
+      "notes": [
+        "Current first provider-backed terrain source",
+        "Useful for terrain and elevation consistency checks"
+      ]
+    },
+    {
+      "id": "wfs-hessen-parcels",
+      "type": "WFS",
+      "purpose": "Official parcel / cadastral context",
+      "url": "https://www.geoportal.hessen.de/registry/wfs/710?REQUEST=GetCapabilities&SERVICE=WFS&VERSION=2.0.0",
+      "notes": [
+        "Useful for parcel alignment tests against imagery and building context",
+        "Good reference for dense polygon-vector loading"
+      ]
+    },
+    {
+      "id": "wms-hessen-cadastral",
+      "type": "WMS",
+      "purpose": "Official cadastral / map context imagery",
+      "url": "https://www.geoportal.hessen.de/mapbender/php/wms.php?REQUEST=GetCapabilities&SERVICE=WMS&inspire=1&layer_id=54097&withChilds=1",
+      "notes": [
+        "Useful for checking map-style WMS placement against WFS and OSM outputs",
+        "Different from orthophoto imagery and good for linework/context comparisons"
+      ]
+    },
+    {
+      "id": "wfs-hessen-roads",
+      "type": "WFS",
+      "purpose": "Official transport network reference",
+      "url": "https://www.geoportal.hessen.de/registry/wfs/723?REQUEST=GetCapabilities&SERVICE=WFS&VERSION=2.0.0",
+      "notes": [
+        "Useful for comparing official road network geometry against OSM road context",
+        "Good reference for transport-layer and line-feature testing"
+      ]
+    },
+    {
+      "id": "wfs-hessen-addresses",
+      "type": "WFS",
+      "purpose": "Official address / point reference",
+      "url": "https://www.geoportal.hessen.de/registry/wfs/706?REQUEST=GetCapabilities&SERVICE=WFS&VERSION=2.0.0",
+      "notes": [
+        "Useful for point-feature and address-context testing",
+        "Good reference when checking mixed geometry-type loading"
+      ]
+    },
+    {
+      "id": "geotiff-local",
+      "type": "GeoTIFF",
+      "purpose": "Local georeferenced raster placement",
+      "url": null,
+      "notes": [
+        "Bring your own georeferenced raster file",
+        "Use as a file-based raster alignment regression check"
+      ]
+    },
+    {
+      "id": "osm-default",
+      "type": "OSM",
+      "purpose": "Curated contextual urban geometry",
+      "url": null,
+      "notes": [
+        "Uses the built-in Overpass fallback strategy",
+        "Good for Buildings, Road, Water, Green, and Rail regression checks"
+      ]
+    }
+  ]
+}

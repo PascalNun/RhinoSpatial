@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using BitMiracle.LibTiff.Classic;
 
@@ -31,12 +32,14 @@ namespace RhinoSpatial.Core
             }
 
             var boundingBox = ReadBoundingBox(tiff, width, height);
+            var fileSizeBytes = new FileInfo(filePath).Length;
             return new GeoReferencedRasterInfo(
                 filePath,
                 srsName,
                 width,
                 height,
-                boundingBox);
+                boundingBox,
+                fileSizeBytes);
         }
 
         private static BoundingBox2D ReadBoundingBox(Tiff tiff, int width, int height)

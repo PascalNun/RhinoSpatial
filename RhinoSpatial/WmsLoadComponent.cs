@@ -23,6 +23,8 @@ namespace RhinoSpatial
         private DisplayMaterial? _previewMaterial;
         private string? _previewImageFilePath;
         private BoundingBox _previewBox = BoundingBox.Empty;
+        private GH_Material? _outputMaterial;
+        private string? _outputMaterialFilePath;
 
         public class SolveResults
         {
@@ -114,7 +116,7 @@ namespace RhinoSpatial
                 dataAccess.SetData(0, result.ImageMesh);
             }
 
-            var material = RhinoSpatialRasterDisplayTools.CreateGrasshopperMaterial(result.ImageFilePath);
+            var material = GetOrCreateOutputMaterial(result.ImageFilePath);
             if (material is not null)
             {
                 dataAccess.SetData(1, material);
@@ -362,7 +364,11 @@ namespace RhinoSpatial
         private void UpdatePreviewState(SolveResults result)
         {
             _previewMesh = result.ImageMesh;
-            _previewMaterial = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(result.ImageFilePath);
+            if (_previewMaterial is null || !string.Equals(_previewImageFilePath, result.ImageFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                _previewMaterial = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(result.ImageFilePath);
+            }
+
             _previewImageFilePath = result.ImageFilePath;
             _previewBox = _previewMesh?.GetBoundingBox(false) ?? BoundingBox.Empty;
         }
@@ -373,6 +379,26 @@ namespace RhinoSpatial
             _previewMaterial = null;
             _previewImageFilePath = null;
             _previewBox = BoundingBox.Empty;
+        }
+
+        private GH_Material? GetOrCreateOutputMaterial(string imageFilePath)
+        {
+            if (string.IsNullOrWhiteSpace(imageFilePath))
+            {
+                _outputMaterial = null;
+                _outputMaterialFilePath = null;
+                return null;
+            }
+
+            if (_outputMaterial is not null &&
+                string.Equals(_outputMaterialFilePath, imageFilePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return _outputMaterial;
+            }
+
+            _outputMaterial = RhinoSpatialRasterDisplayTools.CreateGrasshopperMaterial(imageFilePath);
+            _outputMaterialFilePath = imageFilePath;
+            return _outputMaterial;
         }
 
         public override BoundingBox ClippingBox => _previewBox.IsValid ? _previewBox : BoundingBox.Empty;
@@ -401,39 +427,9 @@ namespace RhinoSpatial
                 return;
             }
 
-            var meshToBake = _previewMesh.DuplicateMesh();
-            var attributes = att.Duplicate();
-            var material = RhinoSpatialRasterDisplayTools.CreateRhinoMaterial(_previewImageFilePath);
-            RenderMaterial? renderMaterial = null;
-
-            if (material is not null)
-            {
-                material.Name = $"RhinoSpatial {Path.GetFileNameWithoutExtension(_previewImageFilePath)}";
-                material.CommitChanges();
-                var materialIndex = doc.Materials.Add(material);
-                if (materialIndex >= 0)
-                {
-                    attributes.MaterialIndex = materialIndex;
-                    attributes.MaterialSource = ObjectMaterialSource.MaterialFromObject;
-                    renderMaterial = RenderMaterial.CreateBasicMaterial(doc.Materials[materialIndex], doc);
-
-                    if (renderMaterial is not null)
-                    {
-                        renderMaterial.Name = material.Name;
-                        doc.RenderMaterials.Add(renderMaterial);
-                        attributes.RenderMaterial = renderMaterial;
-                    }
-                }
-            }
-
-            var objectId = doc.Objects.AddMesh(meshToBake, attributes);
+            var objectId = RhinoSpatialRasterDisplayTools.BakeTexturedMesh(doc, _previewMesh, _previewImageFilePath, att);
             if (objectId != Guid.Empty)
             {
-                if (renderMaterial is not null)
-                {
-                    doc.Objects.ModifyRenderMaterial(objectId, renderMaterial);
-                }
-
                 objIds.Add(objectId);
             }
         }

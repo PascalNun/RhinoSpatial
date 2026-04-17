@@ -266,51 +266,6 @@ namespace RhinoSpatial
             return tree;
         }
 
-        private static GH_Structure<IGH_GeometricGoo> BuildRibbonTree(
-            IReadOnlyList<OsmLinearFeature> features,
-            SpatialContext2D spatialContext,
-            Func<IReadOnlyDictionary<string, string?>, double> widthResolver)
-        {
-            var tree = new GH_Structure<IGH_GeometricGoo>();
-            AppendRibbonFeatures(tree, features, spatialContext, widthResolver, 0);
-            return tree;
-        }
-
-        private static void AppendRibbonFeatures(
-            GH_Structure<IGH_GeometricGoo> tree,
-            IReadOnlyList<OsmLinearFeature> features,
-            SpatialContext2D spatialContext,
-            Func<IReadOnlyDictionary<string, string?>, double> widthResolver,
-            int pathOffset)
-        {
-            var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
-
-            for (var featureIndex = 0; featureIndex < features.Count; featureIndex++)
-            {
-                var feature = features[featureIndex];
-                var path = new GH_Path(pathOffset + featureIndex);
-                tree.EnsurePath(path);
-
-                if (!TryTransformLine(feature.CenterLine.Points, spatialContext, useTerrainAverage: true, out var centerLine))
-                {
-                    continue;
-                }
-
-                var width = widthResolver(feature.Tags);
-                if (TryCreateRibbonBrep(centerLine, width, tolerance, out var ribbonBrep))
-                {
-                    tree.Append(new GH_Brep(ribbonBrep), path);
-                    continue;
-                }
-
-                var curve = centerLine.ToPolylineCurve();
-                if (curve is not null)
-                {
-                    tree.Append(new GH_Curve(curve), path);
-                }
-            }
-        }
-
         private static bool TryTransformRing(
             IReadOnlyList<Coordinate2D> sourcePoints,
             SpatialContext2D spatialContext,
@@ -424,80 +379,6 @@ namespace RhinoSpatial
         {
             var translatedPolyline = new Polyline(polyline.Select(point => new Point3d(point.X, point.Y, z)));
             return translatedPolyline.ToPolylineCurve();
-        }
-
-        private static bool TryCreateRibbonBrep(Polyline centerLine, double width, double tolerance, out Brep ribbonBrep)
-        {
-            ribbonBrep = null!;
-
-            if (!TryCreateRibbonOutlineCurve(centerLine, width, out var outlineCurve))
-            {
-                return false;
-            }
-
-            var planarBreps = Brep.CreatePlanarBreps(outlineCurve, tolerance);
-            var candidate = planarBreps?.FirstOrDefault(brep => brep is not null && brep.IsValid);
-            if (candidate is null)
-            {
-                return false;
-            }
-
-            ribbonBrep = candidate;
-            return true;
-        }
-
-        private static bool TryCreateRibbonOutlineCurve(Polyline centerLine, double width, out Curve outlineCurve)
-        {
-            outlineCurve = null!;
-
-            if (centerLine.Count < 2 || width <= VertexTolerance)
-            {
-                return false;
-            }
-
-            var preparedCenterLine = ExtendOpenPolyline(centerLine, ResolveRoadOverlapDistance(width));
-            var preparedCurve = preparedCenterLine.ToPolylineCurve();
-            if (preparedCurve is not { IsValid: true })
-            {
-                return TryCreateRibbonOutlineCurveFallback(centerLine, width, out outlineCurve);
-            }
-
-            var halfWidth = width * 0.5;
-            var leftOffset = SelectBestOffsetCurve(
-                preparedCurve.Offset(Plane.WorldXY, halfWidth, VertexTolerance, CurveOffsetCornerStyle.Round));
-            var rightOffset = SelectBestOffsetCurve(
-                preparedCurve.Offset(Plane.WorldXY, -halfWidth, VertexTolerance, CurveOffsetCornerStyle.Round));
-
-            if (leftOffset is null || rightOffset is null)
-            {
-                return TryCreateRibbonOutlineCurveFallback(centerLine, width, out outlineCurve);
-            }
-
-            var reversedRightOffset = rightOffset.DuplicateCurve();
-            reversedRightOffset.Reverse();
-
-            var joinedCurves = Curve.JoinCurves(
-                new Curve[]
-                {
-                    leftOffset,
-                    new LineCurve(leftOffset.PointAtEnd, reversedRightOffset.PointAtStart),
-                    reversedRightOffset,
-                    new LineCurve(reversedRightOffset.PointAtEnd, leftOffset.PointAtStart)
-                },
-                VertexTolerance);
-
-            var closedOutline = joinedCurves
-                .Where(curve => curve is not null && curve.IsClosed && curve.IsValid)
-                .OrderByDescending(GetCurveLengthSafe)
-                .FirstOrDefault();
-
-            if (closedOutline is not null)
-            {
-                outlineCurve = closedOutline;
-                return true;
-            }
-
-            return TryCreateRibbonOutlineCurveFallback(centerLine, width, out outlineCurve);
         }
 
         private static bool TryCreateBufferedLineRegion(Polyline centerLine, double width, double tolerance, out NtsGeometry roadRegion)
@@ -631,61 +512,6 @@ namespace RhinoSpatial
             return restored is null || restored.IsEmpty
                 ? geometry
                 : restored;
-        }
-
-        private static bool TryCreateRibbonOutlineCurveFallback(Polyline centerLine, double width, out Curve outlineCurve)
-        {
-            outlineCurve = null!;
-
-            var halfWidth = width * 0.5;
-            var left = new List<Point3d>(centerLine.Count);
-            var right = new List<Point3d>(centerLine.Count);
-
-            for (var index = 0; index < centerLine.Count; index++)
-            {
-                var point = centerLine[index];
-                var tangent = ResolveTangent(centerLine, index);
-                if (!tangent.Unitize())
-                {
-                    return false;
-                }
-
-                var perpendicular = new Vector3d(-tangent.Y, tangent.X, 0.0);
-                if (!perpendicular.Unitize())
-                {
-                    return false;
-                }
-
-                left.Add(point + perpendicular * halfWidth);
-                right.Add(point - perpendicular * halfWidth);
-            }
-
-            var outline = new Polyline(left);
-            for (var index = right.Count - 1; index >= 0; index--)
-            {
-                outline.Add(right[index]);
-            }
-
-            outline.RemoveNearlyEqualSubsequentPoints(VertexTolerance);
-            outline.DeleteShortSegments(VertexTolerance);
-
-            if (outline.Count < 4)
-            {
-                return false;
-            }
-
-            if (!outline[0].EpsilonEquals(outline[^1], VertexTolerance))
-            {
-                outline.Add(outline[0]);
-            }
-
-            if (!outline.IsClosed)
-            {
-                return false;
-            }
-
-            outlineCurve = outline.ToPolylineCurve();
-            return true;
         }
 
         private static bool TryCreateLineString(Polyline polyline, out NtsLineString lineString)
@@ -831,56 +657,6 @@ namespace RhinoSpatial
             return curve is not null && curve.IsClosed && curve.IsValid;
         }
 
-        private static Polyline ExtendOpenPolyline(Polyline polyline, double distance)
-        {
-            if (polyline.Count < 2 || distance <= VertexTolerance)
-            {
-                return new Polyline(polyline);
-            }
-
-            var extendedPoints = polyline.ToList();
-            var startDirection = extendedPoints[0] - extendedPoints[1];
-            if (startDirection.Unitize())
-            {
-                extendedPoints[0] += startDirection * distance;
-            }
-
-            var endIndex = extendedPoints.Count - 1;
-            var endDirection = extendedPoints[endIndex] - extendedPoints[endIndex - 1];
-            if (endDirection.Unitize())
-            {
-                extendedPoints[endIndex] += endDirection * distance;
-            }
-
-            var extendedPolyline = new Polyline(extendedPoints);
-            extendedPolyline.RemoveNearlyEqualSubsequentPoints(VertexTolerance);
-            extendedPolyline.DeleteShortSegments(VertexTolerance);
-            return extendedPolyline;
-        }
-
-        private static Curve? SelectBestOffsetCurve(IEnumerable<Curve>? candidateCurves)
-        {
-            if (candidateCurves is null)
-            {
-                return null;
-            }
-
-            return candidateCurves
-                .Where(curve => curve is not null && curve.IsValid)
-                .OrderByDescending(GetCurveLengthSafe)
-                .FirstOrDefault();
-        }
-
-        private static double ResolveRoadOverlapDistance(double width)
-        {
-            return Math.Max(width * 0.75, VertexTolerance * 20.0);
-        }
-
-        private static double GetCurveLengthSafe(Curve curve)
-        {
-            return curve.GetLength();
-        }
-
         private static double ResolveRoadCleanupDistance(double representativeWidth, double tolerance)
         {
             var unclampedDistance = representativeWidth * 0.24;
@@ -933,45 +709,6 @@ namespace RhinoSpatial
 
             var holePolygon = new NtsPolygon((NtsLinearRing)linearRing.Copy());
             return !holePolygon.IsEmpty && Math.Abs(holePolygon.Area) >= holeAreaThreshold;
-        }
-
-        private static Vector3d ResolveTangent(Polyline polyline, int index)
-        {
-            if (polyline.Count < 2)
-            {
-                return Vector3d.Unset;
-            }
-
-            if (index <= 0)
-            {
-                return polyline[1] - polyline[0];
-            }
-
-            if (index >= polyline.Count - 1)
-            {
-                return polyline[^1] - polyline[^2];
-            }
-
-            var previous = polyline[index] - polyline[index - 1];
-            var next = polyline[index + 1] - polyline[index];
-
-            if (!previous.Unitize())
-            {
-                return next;
-            }
-
-            if (!next.Unitize())
-            {
-                return previous;
-            }
-
-            var tangent = previous + next;
-            if (tangent.IsTiny())
-            {
-                tangent = next;
-            }
-
-            return tangent;
         }
 
         private static double ResolveBuildingHeight(IReadOnlyDictionary<string, string?> tags)
