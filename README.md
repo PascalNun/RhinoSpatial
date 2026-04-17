@@ -83,6 +83,38 @@ For visual planning and release-readiness checks, see:
 - `docs/SHOWCASE.md`
 - `docs/RELEASE_READINESS.md`
 
+## Workflow Preview
+
+Current example definitions:
+
+- `examples/gh/01-wfs-wms-basics.gh`
+- `examples/gh/02-lod2-terrain-context.gh`
+- `examples/gh/03-osm-blackplan.gh`
+
+### Spatial Context Selection
+
+The shared `Spatial Context` is the starting point for the whole toolkit.
+
+![Spatial Context Selection](docs/images/00-spatial-context-selection.jpg)
+
+### WFS + WMS Basics
+
+A simple official-vector plus imagery workflow using one shared study area.
+
+![WFS + WMS Basics](docs/images/01-wfs-wms-basics.jpg)
+
+### LoD2 + Terrain Context
+
+Official 3D building context and terrain aligned through the same spatial selection.
+
+![LoD2 + Terrain Context](docs/images/02-lod2-terrain-context.jpg)
+
+### OSM Black-Plan Context
+
+Lightweight contextual geometry for quick figure-ground and site-context studies.
+
+![OSM Black-Plan Context](docs/images/03-osm-blackplan.jpg)
+
 ## Project Status
 
 RhinoSpatial is currently still in an early alpha stage.

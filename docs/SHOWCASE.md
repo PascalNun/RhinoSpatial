@@ -1,4 +1,4 @@
-# Showcase Plan
+# Showcase
 
 This file tracks the small set of visuals that best explain RhinoSpatial.
 
@@ -8,6 +8,21 @@ of screenshots that clearly show the intended workflow:
 - one shared `Spatial Context`
 - multiple aligned sources
 - direct use inside Rhino and Grasshopper
+
+## Available Assets
+
+Example definitions:
+
+- `../examples/gh/01-wfs-wms-basics.gh`
+- `../examples/gh/02-lod2-terrain-context.gh`
+- `../examples/gh/03-osm-blackplan.gh`
+
+Available screenshots:
+
+- `images/00-spatial-context-selection.jpg`
+- `images/01-wfs-wms-basics.jpg`
+- `images/02-lod2-terrain-context.jpg`
+- `images/03-osm-blackplan.jpg`
 
 ## Target Visuals
 
@@ -29,6 +44,8 @@ Capture goals:
   - define the area once
   - reuse it across the rest of the toolkit
 
+![Spatial Context Selection](images/00-spatial-context-selection.jpg)
+
 ### 2. WFS + WMS Basics
 
 Purpose:
@@ -43,6 +60,8 @@ Capture goals:
 - `Spatial Context` visible in Grasshopper
 - `Load WMS` raster aligned under `Load WFS` geometry
 - Rhino viewport and Grasshopper definition both visible if practical
+
+![WFS + WMS Basics](images/01-wfs-wms-basics.jpg)
 
 ### 3. LoD2 + Terrain Context
 
@@ -59,6 +78,8 @@ Capture goals:
 - building massing clearly sitting on a terrain base
 - view angle that shows both roof geometry and ground relationship
 
+![LoD2 + Terrain Context](images/02-lod2-terrain-context.jpg)
+
 ### 4. OSM Black-Plan Context
 
 Purpose:
@@ -73,6 +94,8 @@ Capture goals:
 - clean figure-ground / context-plan readability
 - avoid messy or provider-specific edge cases for the public screenshot set
 
+![OSM Black-Plan Context](images/03-osm-blackplan.jpg)
+
 ## Capture Guidance
 
 - Prefer clean, readable scenes over maximal data density.
@@ -83,7 +106,7 @@ Capture goals:
 
 ## File Naming Suggestion
 
-If screenshots are added to the repository later, use a simple naming scheme:
+Use this naming scheme for showcase screenshots:
 
 - `00-spatial-context-selection.jpg`
 - `01-wfs-wms-basics.jpg`
