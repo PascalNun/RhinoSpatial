@@ -301,32 +301,32 @@ namespace RhinoSpatial
 
             if (requestData.IncludeBuildings)
             {
-                summaryParts.Add($"{dataSet.Buildings.Count} building feature(s)");
+                summaryParts.Add(FormatCategoryCount(dataSet.Buildings.Count, "building"));
             }
 
             if (requestData.IncludeRoads)
             {
-                summaryParts.Add($"{dataSet.Roads.Count} road feature(s)");
+                summaryParts.Add(FormatCategoryCount(dataSet.Roads.Count, "road"));
             }
 
             if (requestData.IncludeWater)
             {
-                summaryParts.Add($"{dataSet.WaterAreas.Count} water feature(s)");
+                summaryParts.Add(FormatCategoryCount(dataSet.WaterAreas.Count, "water area"));
             }
 
             if (requestData.IncludeGreen)
             {
-                summaryParts.Add($"{dataSet.GreenAreas.Count} green feature(s)");
+                summaryParts.Add(FormatCategoryCount(dataSet.GreenAreas.Count, "green area"));
             }
 
             if (requestData.IncludeRail)
             {
-                summaryParts.Add($"{dataSet.Rails.Count} rail feature(s)");
+                summaryParts.Add(FormatCategoryCount(dataSet.Rails.Count, "rail line"));
             }
 
             var summary = summaryParts.Count == 0
                 ? "No OSM context groups were enabled."
-                : $"Loaded {string.Join(", ", summaryParts)}.";
+                : $"Loaded OSM context: {string.Join(", ", summaryParts)}.";
 
             return string.IsNullOrWhiteSpace(dataSet.StatusNote)
                 ? summary
@@ -383,6 +383,17 @@ namespace RhinoSpatial
             }
 
             return bool.TryParse(text.Trim(), out value);
+        }
+
+        private static string FormatCategoryCount(int count, string singularLabel)
+        {
+            var pluralLabel = singularLabel.EndsWith("s", StringComparison.OrdinalIgnoreCase)
+                ? singularLabel
+                : $"{singularLabel}s";
+
+            return count == 1
+                ? $"1 {singularLabel}"
+                : $"{count} {pluralLabel}";
         }
 
         private static string ResolveBaseUrl(string? baseUrl)

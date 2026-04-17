@@ -764,8 +764,8 @@ namespace RhinoSpatial.Core
                 : "The OSM service did not return data.";
 
             return
-                "The public OSM service was temporarily unavailable after retrying the built-in endpoints. " +
-                $"Last error: {lastMessage}";
+                "RhinoSpatial could not reach the public OSM service after retrying the built-in endpoints. " +
+                $"Try again in a moment or use a smaller Spatial Context. Last error: {lastMessage}";
         }
 
         private static Dictionary<string, string?> ReadTags(JsonElement element)

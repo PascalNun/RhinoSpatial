@@ -27,6 +27,13 @@ The goal is to keep geospatial workflows practical, lightweight, and directly us
 
 RhinoSpatial grew out of a practical need: bringing official geodata and site context directly into Rhino and Grasshopper in a way that feels usable for design work. It is intended to keep that process simple, lightweight, and useful, with aligned outputs and minimal setup.
 
+Typical workflow:
+
+1. define the area once with `Spatial Context`
+2. inspect layers when needed
+3. load one or more aligned sources
+4. work directly with the combined site context in Rhino and Grasshopper
+
 ## Early Stage Note
 
 RhinoSpatial is currently still in an early alpha stage.

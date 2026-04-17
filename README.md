@@ -48,6 +48,34 @@ On the release page, open the latest release and download the attached `.zip` fi
 
 Release packages include a small number of third-party libraries used for raster handling, topology operations, and coordinate transforms. See `THIRD-PARTY-NOTICES.md` in the repository or release archive for bundled dependency notices.
 
+## Getting Started
+
+The quickest way to try RhinoSpatial is:
+
+1. Download the latest release package
+2. Install the plugin files into the Grasshopper Libraries folder
+3. Open Grasshopper and place `Spatial Context`
+4. Define an area once
+5. Connect that same `Spatial Context` to one or more source components such as:
+   - `Load WFS`
+   - `Load WMS`
+   - `Load LoD2 Buildings`
+   - `Load Terrain`
+   - `Load GeoTIFF`
+   - `Load OSM`
+
+The toolkit works best when one selected area drives multiple aligned sources.
+
+For installation notes, see:
+
+- `package/food4rhino/INSTALL.md`
+
+For example sources and validation checks, see:
+
+- `examples/README.md`
+- `examples/VALIDATION.md`
+- `examples/sources.json`
+
 ## Project Status
 
 RhinoSpatial is currently still in an early alpha stage.
@@ -109,6 +137,13 @@ The intended workflow is:
 2. Inspect available layers where needed
 3. Load one or more aligned sources
 4. Work with the combined result directly in Rhino / Grasshopper
+
+In practice, a simple first session often looks like:
+
+1. Use `Spatial Context` to define the study area
+2. Add `Load WMS` or `Load GeoTIFF` for raster context
+3. Add `Load WFS`, `Load OSM`, or `Load LoD2 Buildings` for geometry
+4. Add `Load Terrain` if you want ground context in the same aligned space
 
 ## Components
 
