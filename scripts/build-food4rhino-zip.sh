@@ -7,7 +7,7 @@ CONFIGURATION="${1:-Release}"
 FRAMEWORK="net7.0"
 PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoSpatial/bin/$CONFIGURATION/$FRAMEWORK"
 STAGING_DIR="$ROOT_DIR/package/staging/food4rhino"
-VERSION="0.2.1-alpha"
+VERSION="0.2.2-alpha"
 ZIP_NAME="RhinoSpatial-${VERSION}.zip"
 
 dotnet build "$ROOT_DIR/RhinoSpatial.sln" -c "$CONFIGURATION"

@@ -18,6 +18,6 @@ namespace RhinoSpatial
 
         public override string AuthorContact => "https://github.com/PascalNun/RhinoSpatial";
 
-        public override string AssemblyVersion => GetType().Assembly.GetName().Version?.ToString() ?? "0.2.1";
+        public override string AssemblyVersion => GetType().Assembly.GetName().Version?.ToString() ?? "0.2.2";
     }
 }

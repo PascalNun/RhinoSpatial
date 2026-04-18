@@ -46,7 +46,7 @@ Feedback, edge cases, and additional test links are very welcome.
 
 Current release package:
 
-- `RhinoSpatial-0.2.1-alpha.zip` 
+- `RhinoSpatial-0.2.2-alpha.zip` 
 
 ## Repository
 
