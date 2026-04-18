@@ -321,10 +321,15 @@ namespace RhinoSpatial
 
             if (innerPolylines.Count > 0)
             {
-                var planarBrepsWithHoles = TryCreatePlanarBreps(outerPolyline, innerPolylines, tolerance);
+                var planarBrepsWithHoles = TryCreatePlanarBreps(outerPolyline, innerPolylines, tolerance, out var usableInnerLoopCount);
                 if (planarBrepsWithHoles.Count > 0)
                 {
                     return planarBrepsWithHoles;
+                }
+
+                if (usableInnerLoopCount > 0)
+                {
+                    return new List<Brep>();
                 }
 
                 return TryCreatePlanarBreps(outerPolyline, new List<Polyline>(), tolerance);
@@ -387,6 +392,12 @@ namespace RhinoSpatial
 
         private static List<Brep> TryCreatePlanarBreps(Polyline outerPolyline, IReadOnlyList<Polyline> innerPolylines, double tolerance)
         {
+            return TryCreatePlanarBreps(outerPolyline, innerPolylines, tolerance, out _);
+        }
+
+        private static List<Brep> TryCreatePlanarBreps(Polyline outerPolyline, IReadOnlyList<Polyline> innerPolylines, double tolerance, out int usableInnerLoopCount)
+        {
+            usableInnerLoopCount = 0;
             var allPoints = outerPolyline.ToList();
             foreach (var inner in innerPolylines)
             {
@@ -399,7 +410,7 @@ namespace RhinoSpatial
                 fittedPlane = new Plane(outerPolyline[0], outerPolyline[1], outerPolyline[2]);
             }
 
-            if (!TryCreateProjectedBoundaryCurves(outerPolyline, innerPolylines, fittedPlane, tolerance, out var curves))
+            if (!TryCreateProjectedBoundaryCurves(outerPolyline, innerPolylines, fittedPlane, tolerance, out var curves, out usableInnerLoopCount))
             {
                 return new List<Brep>();
             }
@@ -420,9 +431,11 @@ namespace RhinoSpatial
             IReadOnlyList<Polyline> innerPolylines,
             Plane plane,
             double tolerance,
-            out List<Curve> curves)
+            out List<Curve> curves,
+            out int usableInnerLoopCount)
         {
             curves = new List<Curve>();
+            usableInnerLoopCount = 0;
 
             if (!TryCreateProjectedClosedCurve(outerPolyline, plane, tolerance, out var outerCurve, out var outerAreaProperties))
             {
@@ -465,6 +478,7 @@ namespace RhinoSpatial
                 }
 
                 curves.Add(innerCurve);
+                usableInnerLoopCount++;
             }
 
             return curves.Count > 0;
@@ -712,7 +726,7 @@ namespace RhinoSpatial
 
         private static bool IsFaceRepresented(Brep sourceFace, IEnumerable<Brep> candidates, double tolerance)
         {
-            if (!TryGetRepresentativeNormal(sourceFace, out var sourceCentroid, out var sourceNormal))
+            if (!TryGetFaceRepresentation(sourceFace, tolerance, out var sourceRepresentation))
             {
                 return false;
             }
@@ -726,43 +740,196 @@ namespace RhinoSpatial
 
                 foreach (var face in candidate.Faces)
                 {
-                    if (!face.ClosestPoint(sourceCentroid, out var u, out var v))
+                    if (!TryFaceMatchesRepresentation(face, sourceRepresentation, tolerance))
                     {
                         continue;
                     }
 
-                    var pointOnFace = face.PointAt(u, v);
-                    if (pointOnFace.DistanceTo(sourceCentroid) > System.Math.Max(tolerance * 2.0, VertexTolerance * 10.0))
-                    {
-                        continue;
-                    }
-
-                    var pointRelation = face.IsPointOnFace(u, v, System.Math.Max(tolerance, VertexTolerance));
-                    if (pointRelation == PointFaceRelation.Exterior)
-                    {
-                        continue;
-                    }
-
-                    var faceNormal = face.NormalAt(u, v);
-                    if (face.OrientationIsReversed)
-                    {
-                        faceNormal.Reverse();
-                    }
-
-                    if (faceNormal.IsTiny())
-                    {
-                        continue;
-                    }
-
-                    faceNormal.Unitize();
-                    if (System.Math.Abs(faceNormal * sourceNormal) >= 0.95)
-                    {
-                        return true;
-                    }
+                    return true;
                 }
             }
 
             return false;
+        }
+
+        private static bool TryGetFaceRepresentation(Brep brep, double tolerance, out FaceRepresentation representation)
+        {
+            representation = default!;
+
+            if (!TryGetRepresentativeNormal(brep, out var representativePoint, out var normal))
+            {
+                return false;
+            }
+
+            if (brep.Faces.Count == 0)
+            {
+                return false;
+            }
+
+            var primaryFace = brep.Faces[0];
+            var outerBoundarySamples = new List<Point3d>();
+            var innerBoundarySamples = new List<Point3d>();
+
+            foreach (var loop in primaryFace.Loops)
+            {
+                if (!TryGetLoopSamplePoint(loop, tolerance, out var samplePoint))
+                {
+                    continue;
+                }
+
+                if (loop.LoopType == BrepLoopType.Inner)
+                {
+                    innerBoundarySamples.Add(samplePoint);
+                }
+                else if (loop.LoopType == BrepLoopType.Outer)
+                {
+                    outerBoundarySamples.Add(samplePoint);
+                }
+            }
+
+            if (outerBoundarySamples.Count == 0 && representativePoint.IsValid)
+            {
+                outerBoundarySamples.Add(representativePoint);
+            }
+
+            representation = new FaceRepresentation(representativePoint, normal, outerBoundarySamples, innerBoundarySamples);
+            return true;
+        }
+
+        private static bool TryFaceMatchesRepresentation(BrepFace candidateFace, FaceRepresentation sourceRepresentation, double tolerance)
+        {
+            if (!TryGetFaceNormalAtPoint(candidateFace, sourceRepresentation.RepresentativePoint, tolerance, out var candidateNormal))
+            {
+                return false;
+            }
+
+            if (System.Math.Abs(candidateNormal * sourceRepresentation.Normal) < 0.95)
+            {
+                return false;
+            }
+
+            foreach (var outerSample in sourceRepresentation.OuterBoundarySamples)
+            {
+                if (!TryGetPointRelation(candidateFace, outerSample, tolerance, out var relation) ||
+                    relation == PointFaceRelation.Exterior)
+                {
+                    return false;
+                }
+            }
+
+            if (sourceRepresentation.InnerBoundarySamples.Count == 0)
+            {
+                return true;
+            }
+
+            var candidateInnerLoopCount = candidateFace.Loops.Count(loop => loop.LoopType == BrepLoopType.Inner);
+            if (candidateInnerLoopCount < sourceRepresentation.InnerBoundarySamples.Count)
+            {
+                return false;
+            }
+
+            foreach (var innerSample in sourceRepresentation.InnerBoundarySamples)
+            {
+                if (!TryGetPointRelation(candidateFace, innerSample, tolerance, out var relation) ||
+                    relation != PointFaceRelation.Boundary)
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool TryGetPointRelation(BrepFace face, Point3d point, double tolerance, out PointFaceRelation relation)
+        {
+            relation = PointFaceRelation.Exterior;
+            if (!face.ClosestPoint(point, out var u, out var v))
+            {
+                return false;
+            }
+
+            var pointOnFace = face.PointAt(u, v);
+            if (pointOnFace.DistanceTo(point) > System.Math.Max(tolerance * 2.0, VertexTolerance * 10.0))
+            {
+                return false;
+            }
+
+            relation = face.IsPointOnFace(u, v, System.Math.Max(tolerance, VertexTolerance));
+            return true;
+        }
+
+        private static bool TryGetFaceNormalAtPoint(BrepFace face, Point3d point, double tolerance, out Vector3d normal)
+        {
+            normal = Vector3d.Unset;
+            if (!face.ClosestPoint(point, out var u, out var v))
+            {
+                return false;
+            }
+
+            var pointOnFace = face.PointAt(u, v);
+            if (pointOnFace.DistanceTo(point) > System.Math.Max(tolerance * 2.0, VertexTolerance * 10.0))
+            {
+                return false;
+            }
+
+            normal = face.NormalAt(u, v);
+            if (face.OrientationIsReversed)
+            {
+                normal.Reverse();
+            }
+
+            if (normal.IsTiny())
+            {
+                return false;
+            }
+
+            normal.Unitize();
+            return true;
+        }
+
+        private static bool TryGetLoopSamplePoint(BrepLoop loop, double tolerance, out Point3d samplePoint)
+        {
+            samplePoint = Point3d.Unset;
+
+            Curve? longestTrimCurve = null;
+            double longestLength = 0.0;
+
+            foreach (var trim in loop.Trims)
+            {
+                var trimCurve = trim.Edge?.DuplicateCurve() ?? trim.TrimCurve?.DuplicateCurve();
+                if (trimCurve is null || !trimCurve.IsValid)
+                {
+                    continue;
+                }
+
+                var trimLength = trimCurve.GetLength();
+                if (trimLength <= longestLength)
+                {
+                    trimCurve.Dispose();
+                    continue;
+                }
+
+                longestTrimCurve?.Dispose();
+                longestTrimCurve = trimCurve;
+                longestLength = trimLength;
+            }
+
+            if (longestTrimCurve is null)
+            {
+                return false;
+            }
+
+            using (longestTrimCurve)
+            {
+                if (!longestTrimCurve.LengthParameter(longestLength * 0.5, out var sampleParameter))
+                {
+                    sampleParameter = longestTrimCurve.Domain.Mid;
+                }
+
+                samplePoint = longestTrimCurve.PointAt(sampleParameter);
+            }
+
+            return samplePoint.IsValid;
         }
 
         private static Brep TryRepairBuildingShell(Brep brep, double tolerance)
@@ -1096,5 +1263,10 @@ RestartJoinScan:
         }
 
         private sealed record SurfaceLoops(Polyline Outer, List<Polyline> Inners);
+        private sealed record FaceRepresentation(
+            Point3d RepresentativePoint,
+            Vector3d Normal,
+            List<Point3d> OuterBoundarySamples,
+            List<Point3d> InnerBoundarySamples);
     }
 }
