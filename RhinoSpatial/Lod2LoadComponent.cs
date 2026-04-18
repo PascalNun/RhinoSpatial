@@ -202,11 +202,17 @@ namespace RhinoSpatial
                 BrepTree = brepTree,
                 BuildingCount = buildings.Count,
                 Status = buildings.Count == 0
-                    ? "No LoD2 buildings were returned inside the current Spatial Context."
+                    ? string.IsNullOrWhiteSpace(response.StatusNote)
+                        ? "No LoD2 buildings were returned inside the current Spatial Context."
+                        : $"No LoD2 buildings were returned inside the current Spatial Context. {response.StatusNote}"
                     : requestData.SpatialContext.UseAbsoluteCoordinates
-                        ? $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' with absolute elevation."
-                        : $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' and aligned them to the shared local terrain/building elevation baseline.",
-                MessageLevel = buildings.Count == 0 ? GH_RuntimeMessageLevel.Warning : null
+                        ? $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' with absolute elevation.{BuildStatusSuffix(response.StatusNote)}"
+                        : $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' and aligned them to the shared local terrain/building elevation baseline.{BuildStatusSuffix(response.StatusNote)}",
+                MessageLevel = buildings.Count == 0
+                    ? GH_RuntimeMessageLevel.Warning
+                    : string.IsNullOrWhiteSpace(response.StatusNote)
+                        ? null
+                        : GH_RuntimeMessageLevel.Remark
             };
         }
 
@@ -224,6 +230,13 @@ namespace RhinoSpatial
                     MessageLevel = GH_RuntimeMessageLevel.Error
                 };
             }
+        }
+
+        private static string BuildStatusSuffix(string statusNote)
+        {
+            return string.IsNullOrWhiteSpace(statusNote)
+                ? string.Empty
+                : $" {statusNote}";
         }
 
         private static ResolvedLayer ResolveLayer(WfsCapabilitiesInfo capabilities, string? requestedLayerName)

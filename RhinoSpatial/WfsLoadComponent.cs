@@ -26,6 +26,8 @@ namespace RhinoSpatial
             public string Status { get; init; } = string.Empty;
 
             public GH_RuntimeMessageLevel? MessageLevel { get; init; }
+
+            public bool UsedCachedFallback { get; init; }
         }
 
         private class RequestData
@@ -184,6 +186,7 @@ namespace RhinoSpatial
         {
             var resolvedSrsName = requestData.SpatialContext.ResolvedSrs;
             var features = new List<WfsFeature>();
+            var statusNotes = new List<string>();
 
             foreach (var requestedLayerName in requestData.RequestedLayerNames)
             {
@@ -196,8 +199,13 @@ namespace RhinoSpatial
                     BoundingBox = requestData.SpatialContext.RequestBoundingBox
                 };
 
-                var layerFeatures = _wfsClient.LoadFeaturesAsync(layerRequestOptions).GetAwaiter().GetResult();
-                features.AddRange(layerFeatures);
+                var layerResult = _wfsClient.LoadFeaturesWithStatusAsync(layerRequestOptions).GetAwaiter().GetResult();
+                features.AddRange(layerResult.Features);
+
+                if (!string.IsNullOrWhiteSpace(layerResult.StatusNote))
+                {
+                    statusNotes.Add(layerResult.StatusNote);
+                }
             }
 
             var appliedOffset = RhinoSpatialContextTools.ResolvePlacementOrigin(
@@ -215,8 +223,15 @@ namespace RhinoSpatial
                 GeometryTree = geometryTree,
                 FeatureCount = features.Count,
                 GeometryItemCount = geometryItemCount,
-                Status = BuildStatusMessage(requestData, features.Count, geometryItemCount, maxFeaturesText, resolvedSrsText),
-                MessageLevel = ResolveMessageLevel(features.Count)
+                Status = BuildStatusMessage(
+                    requestData,
+                    features.Count,
+                    geometryItemCount,
+                    maxFeaturesText,
+                    resolvedSrsText,
+                    statusNotes),
+                MessageLevel = ResolveMessageLevel(features.Count, statusNotes.Count > 0),
+                UsedCachedFallback = statusNotes.Count > 0
             };
         }
 
@@ -239,25 +254,40 @@ namespace RhinoSpatial
             }
         }
 
-        private static string BuildStatusMessage(RequestData requestData, int featureCount, int geometryItemCount, string maxFeaturesText, string resolvedSrsText)
+        private static string BuildStatusMessage(
+            RequestData requestData,
+            int featureCount,
+            int geometryItemCount,
+            string maxFeaturesText,
+            string resolvedSrsText,
+            IReadOnlyList<string> statusNotes)
         {
             var coordinateText = requestData.SpatialContext.UseAbsoluteCoordinates
                 ? "using absolute coordinates."
                 : "then localized the geometry near the Rhino origin.";
 
+            var statusSuffix = statusNotes.Count == 0
+                ? string.Empty
+                : $" {string.Join(" ", statusNotes.Distinct(StringComparer.Ordinal))}";
+
             if (featureCount == 0)
             {
-                return $"No features were found for the selected layer selection inside the current Spatial Context using shared-context SRS '{resolvedSrsText}'.";
+                return $"No features were found for the selected layer selection inside the current Spatial Context using shared-context SRS '{resolvedSrsText}'.{statusSuffix}";
             }
 
-            return $"Loaded {featureCount} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and shared-context SRS '{resolvedSrsText}', {coordinateText}";
+            return $"Loaded {featureCount} feature(s) and {geometryItemCount} geometry item(s) from {requestData.RequestedLayerNames.Count} layer(s) with {maxFeaturesText} features and shared-context SRS '{resolvedSrsText}', {coordinateText}{statusSuffix}";
         }
 
-        private static GH_RuntimeMessageLevel? ResolveMessageLevel(int featureCount)
+        private static GH_RuntimeMessageLevel? ResolveMessageLevel(int featureCount, bool usedCachedFallback)
         {
             if (featureCount == 0)
             {
                 return GH_RuntimeMessageLevel.Warning;
+            }
+
+            if (usedCachedFallback)
+            {
+                return GH_RuntimeMessageLevel.Remark;
             }
 
             return null;

@@ -44,11 +44,17 @@ namespace RhinoSpatial.Core
 
         public async Task<List<WfsFeature>> LoadFeaturesAsync(WfsRequestOptions options)
         {
+            var result = await LoadFeaturesWithStatusAsync(options);
+            return result.Features;
+        }
+
+        public async Task<WfsFeatureLoadResult> LoadFeaturesWithStatusAsync(WfsRequestOptions options)
+        {
             var featureResponse = await LoadFeatureResponseAsync(options);
 
             if (TryReadFeatures(featureResponse.ResponseText, featureResponse.AppliedOptions.TypeName, out var features))
             {
-                return features;
+                return new WfsFeatureLoadResult(features, featureResponse.StatusNote);
             }
 
             throw CreateUnsupportedFeatureResponseException(featureResponse.ResponseText);
@@ -75,7 +81,10 @@ namespace RhinoSpatial.Core
             catch (Exception ex) when (IsTransientFailure(ex) &&
                                        TryGetCachedFeatureResponse(cacheKey, allowStale: true, out var staleCachedResponse))
             {
-                return staleCachedResponse;
+                return staleCachedResponse with
+                {
+                    StatusNote = "Using cached WFS result because the live WFS service was temporarily unavailable."
+                };
             }
             finally
             {

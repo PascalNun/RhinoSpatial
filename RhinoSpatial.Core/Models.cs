@@ -49,7 +49,13 @@ namespace RhinoSpatial.Core
 
     public record WfsFeatureResponse(
         string ResponseText,
-        WfsRequestOptions AppliedOptions
+        WfsRequestOptions AppliedOptions,
+        string StatusNote = ""
+    );
+
+    public record WfsFeatureLoadResult(
+        List<WfsFeature> Features,
+        string StatusNote
     );
 
     public record SpatialContext2D(
