@@ -399,19 +399,9 @@ namespace RhinoSpatial
                 fittedPlane = new Plane(outerPolyline[0], outerPolyline[1], outerPolyline[2]);
             }
 
-            var curves = new List<Curve>
+            if (!TryCreateProjectedBoundaryCurves(outerPolyline, innerPolylines, fittedPlane, tolerance, out var curves))
             {
-                ProjectPolylineToPlane(outerPolyline, fittedPlane).ToNurbsCurve()
-            };
-
-            foreach (var innerPolyline in innerPolylines)
-            {
-                if (innerPolyline.Count < 4)
-                {
-                    continue;
-                }
-
-                curves.Add(ProjectPolylineToPlane(innerPolyline, fittedPlane).ToNurbsCurve());
+                return new List<Brep>();
             }
 
             var breps = Brep.CreatePlanarBreps(curves, tolerance);
@@ -423,6 +413,95 @@ namespace RhinoSpatial
             return breps
                 .Where(candidate => candidate is not null && IsUsableBrep(candidate, tolerance))
                 .ToList()!;
+        }
+
+        private static bool TryCreateProjectedBoundaryCurves(
+            Polyline outerPolyline,
+            IReadOnlyList<Polyline> innerPolylines,
+            Plane plane,
+            double tolerance,
+            out List<Curve> curves)
+        {
+            curves = new List<Curve>();
+
+            if (!TryCreateProjectedClosedCurve(outerPolyline, plane, tolerance, out var outerCurve, out var outerAreaProperties))
+            {
+                return false;
+            }
+
+            var outerOrientation = outerCurve.ClosedCurveOrientation(plane);
+            if (outerOrientation == CurveOrientation.Clockwise)
+            {
+                outerCurve.Reverse();
+                outerOrientation = CurveOrientation.CounterClockwise;
+            }
+
+            curves.Add(outerCurve);
+
+            var minimumHoleArea = System.Math.Max(tolerance * tolerance * 16.0, VertexTolerance * VertexTolerance * 4.0);
+            foreach (var innerPolyline in innerPolylines)
+            {
+                if (!TryCreateProjectedClosedCurve(innerPolyline, plane, tolerance, out var innerCurve, out var innerAreaProperties))
+                {
+                    continue;
+                }
+
+                if (innerAreaProperties is null || System.Math.Abs(innerAreaProperties.Area) <= minimumHoleArea)
+                {
+                    continue;
+                }
+
+                var probePoint = innerAreaProperties.Centroid;
+                var containment = outerCurve.Contains(probePoint, plane, System.Math.Max(tolerance, VertexTolerance));
+                if (containment == PointContainment.Outside)
+                {
+                    continue;
+                }
+
+                var innerOrientation = innerCurve.ClosedCurveOrientation(plane);
+                if (innerOrientation == outerOrientation)
+                {
+                    innerCurve.Reverse();
+                }
+
+                curves.Add(innerCurve);
+            }
+
+            return curves.Count > 0;
+        }
+
+        private static bool TryCreateProjectedClosedCurve(
+            Polyline polyline,
+            Plane plane,
+            double tolerance,
+            out Curve curve,
+            out AreaMassProperties? areaProperties)
+        {
+            curve = null!;
+            areaProperties = null;
+
+            if (polyline.Count < 4)
+            {
+                return false;
+            }
+
+            var projected = ProjectPolylineToPlane(polyline, plane);
+            projected.RemoveNearlyEqualSubsequentPoints(System.Math.Max(tolerance, VertexTolerance));
+            projected.DeleteShortSegments(System.Math.Max(tolerance, VertexTolerance));
+
+            if (projected.Count > 0 && !projected[0].EpsilonEquals(projected[^1], System.Math.Max(tolerance, VertexTolerance)))
+            {
+                projected.Add(projected[0]);
+            }
+
+            if (!projected.IsClosed || projected.Count < 4)
+            {
+                return false;
+            }
+
+            curve = projected.ToNurbsCurve();
+            areaProperties = AreaMassProperties.Compute(curve);
+            return areaProperties is not null && System.Math.Abs(areaProperties.Area) > tolerance * tolerance;
         }
 
         private static Polyline ProjectPolylineToPlane(Polyline polyline, Plane plane)
