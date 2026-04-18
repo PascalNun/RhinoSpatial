@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 using GH_IO.Serialization;
@@ -25,6 +26,8 @@ namespace RhinoSpatial
         private BoundingBox _previewBox = BoundingBox.Empty;
         private GH_Material? _outputMaterial;
         private string? _outputMaterialFilePath;
+        private string? _cachedRequestSignature;
+        private SolveResults? _cachedResult;
 
         public class SolveResults
         {
@@ -38,6 +41,7 @@ namespace RhinoSpatial
         {
             public string FilePath { get; init; } = string.Empty;
             public SpatialContext2D SpatialContext { get; init; } = null!;
+            public string RequestSignature { get; init; } = string.Empty;
         }
 
         public LoadGeoTiffComponent()
@@ -82,6 +86,12 @@ namespace RhinoSpatial
                     return;
                 }
 
+                if (TryGetCachedSolveResult(requestData, out var cachedResult))
+                {
+                    ApplySolveResults(dataAccess, cachedResult);
+                    return;
+                }
+
                 if (InPreSolve)
                 {
                     Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData), CancelToken);
@@ -94,30 +104,8 @@ namespace RhinoSpatial
                     result = ComputeSafe(requestData);
                 }
 
-                if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
-                {
-                    AddRuntimeMessage(result.MessageLevel.Value, result.Status);
-                }
-
-                UpdatePreviewState(result);
-
-                if (result.ImageMesh is not null)
-                {
-                    dataAccess.SetData(0, result.ImageMesh);
-                }
-
-                var material = GetOrCreateOutputMaterial(result.ImageFilePath);
-                if (result.ImageMesh is not null && material is not null)
-                {
-                    dataAccess.SetData(1, material);
-                }
-
-                if (!string.IsNullOrWhiteSpace(result.ImageFilePath))
-                {
-                    dataAccess.SetData(2, result.ImageFilePath);
-                }
-
-                dataAccess.SetData(3, result.Status);
+                CacheSolveResult(requestData, result);
+                ApplySolveResults(dataAccess, result);
             }
             catch (Exception ex)
             {
@@ -156,7 +144,8 @@ namespace RhinoSpatial
             requestData = new RequestData
             {
                 FilePath = filePath.Trim(),
-                SpatialContext = spatialContext
+                SpatialContext = spatialContext,
+                RequestSignature = BuildRequestSignature(filePath.Trim(), spatialContext)
             };
 
             return true;
@@ -231,6 +220,56 @@ namespace RhinoSpatial
                     MessageLevel = GH_RuntimeMessageLevel.Error
                 };
             }
+        }
+
+        private bool TryGetCachedSolveResult(RequestData requestData, out SolveResults result)
+        {
+            result = default!;
+
+            if (string.IsNullOrWhiteSpace(requestData.RequestSignature) ||
+                string.IsNullOrWhiteSpace(_cachedRequestSignature) ||
+                _cachedResult is null ||
+                !string.Equals(_cachedRequestSignature, requestData.RequestSignature, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            result = _cachedResult;
+            return true;
+        }
+
+        private void CacheSolveResult(RequestData requestData, SolveResults result)
+        {
+            _cachedRequestSignature = requestData.RequestSignature;
+            _cachedResult = result;
+        }
+
+        private void ApplySolveResults(IGH_DataAccess dataAccess, SolveResults result)
+        {
+            if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
+            {
+                AddRuntimeMessage(result.MessageLevel.Value, result.Status);
+            }
+
+            UpdatePreviewState(result);
+
+            if (result.ImageMesh is not null)
+            {
+                dataAccess.SetData(0, result.ImageMesh);
+            }
+
+            var material = GetOrCreateOutputMaterial(result.ImageFilePath);
+            if (result.ImageMesh is not null && material is not null)
+            {
+                dataAccess.SetData(1, material);
+            }
+
+            if (!string.IsNullOrWhiteSpace(result.ImageFilePath))
+            {
+                dataAccess.SetData(2, result.ImageFilePath);
+            }
+
+            dataAccess.SetData(3, result.Status);
         }
 
         private static bool TryCreateImageMesh(
@@ -400,6 +439,8 @@ namespace RhinoSpatial
             _previewMaterial = null;
             _previewImageFilePath = null;
             _previewBox = BoundingBox.Empty;
+            _cachedRequestSignature = null;
+            _cachedResult = null;
         }
 
         private GH_Material? GetOrCreateOutputMaterial(string imageFilePath)
@@ -453,6 +494,30 @@ namespace RhinoSpatial
             {
                 objIds.Add(objectId);
             }
+        }
+
+        private static string BuildRequestSignature(string filePath, SpatialContext2D spatialContext)
+        {
+            var fileInfo = new FileInfo(filePath);
+
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{fileInfo.FullName}|{fileInfo.Length}|{fileInfo.LastWriteTimeUtc.Ticks}|" +
+                $"{spatialContext.ResolvedSrs}|{spatialContext.UseAbsoluteCoordinates}|" +
+                $"{FormatBoundingBox(spatialContext.PlacementBoundingBox)}|" +
+                $"{FormatCoordinate(spatialContext.PlacementOrigin)}");
+        }
+
+        private static string FormatBoundingBox(BoundingBox2D boundingBox)
+        {
+            return string.Create(
+                CultureInfo.InvariantCulture,
+                $"{boundingBox.MinX:F6},{boundingBox.MinY:F6},{boundingBox.MaxX:F6},{boundingBox.MaxY:F6}");
+        }
+
+        private static string FormatCoordinate(Coordinate2D coordinate)
+        {
+            return string.Create(CultureInfo.InvariantCulture, $"{coordinate.X:F6},{coordinate.Y:F6}");
         }
 
         public override Guid ComponentGuid => new Guid("5cf2c75a-1f04-458d-bb6f-f8ab7af59bfb");
