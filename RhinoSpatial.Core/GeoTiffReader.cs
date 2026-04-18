@@ -12,6 +12,7 @@ namespace RhinoSpatial.Core
 
         public static GeoReferencedRasterInfo ReadImageInfo(string filePath)
         {
+            TiffWarningSuppression.EnsureInstalled();
             using var tiff = Tiff.Open(filePath, "r");
             if (tiff is null)
             {

@@ -7,6 +7,7 @@ namespace RhinoSpatial.Core
     {
         public static TerrainRasterData ReadRaster(string filePath, string coverageId, string srsName)
         {
+            TiffWarningSuppression.EnsureInstalled();
             using var tiff = Tiff.Open(filePath, "r");
             if (tiff is null)
             {
