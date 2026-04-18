@@ -27,18 +27,17 @@ RhinoSpatial grew out of a simple practical need: loading official geodata such 
 
 What started as a WFS-focused workflow has gradually grown into a broader contextual geospatial toolkit built around one shared spatial context and multiple aligned data sources.
 
-Two internal project docs track that direction more explicitly:
+Project direction notes:
 
 - `docs/PROJECT_SCOPE.md`
 - `docs/ROADMAP.md`
-- `docs/SHOWCASE.md`
-- `docs/RELEASE_READINESS.md`
 
 A small example and regression baseline now lives in:
 
 - `examples/README.md`
 - `examples/VALIDATION.md`
 - `examples/sources.json`
+- `docs/SHOWCASE.md`
 
 ## Download
 
@@ -78,10 +77,9 @@ For example sources and validation checks, see:
 - `examples/VALIDATION.md`
 - `examples/sources.json`
 
-For visual planning and release-readiness checks, see:
+For screenshots and example workflows, see:
 
 - `docs/SHOWCASE.md`
-- `docs/RELEASE_READINESS.md`
 
 ## Workflow Preview
 

@@ -24,9 +24,7 @@ RhinoSpatial is built around one shared `Spatial Context` and multiple aligned s
 Related project docs:
 
 - `docs/SHOWCASE.md`
-  Planned visuals for README, releases, and public-facing presentation
-- `docs/RELEASE_READINESS.md`
-  Practical checklist for future alpha packaging and smoke tests
+  Public-facing screenshots and example workflow previews
 
 ## Current Core Workflow Examples
 
