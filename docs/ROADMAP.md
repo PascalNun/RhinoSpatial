@@ -7,6 +7,8 @@ RhinoSpatial has moved beyond its original starting point as a WFS-focused loade
 At this stage, the core source scope is considered defined at the category level.  
 The main focus is no longer to constantly add new categories of sources, but to strengthen, refine, simplify, and polish the current system.
 
+No additional core source categories are currently planned.
+
 The core direction remains:
 
 - one shared spatial context
@@ -48,7 +50,16 @@ This includes:
 - better output quality
 - more polished workflows
 
-### 2. Improve OSM as a contextual fallback
+### 2. Continue a real-use stabilization phase
+The toolkit is now in a good enough state that future improvements should come more from real use than from speculative expansion.
+
+This includes:
+- using RhinoSpatial on real projects
+- collecting recurring friction points
+- fixing the highest-value annoyances rather than inventing new work
+- keeping the issue list short and grounded in actual workflow problems
+
+### 3. Improve OSM as a contextual fallback
 Load OSM is already part of the core scope, but it is expected to continue evolving.
 
 The goal is not to turn OSM into a full query editor.
@@ -67,7 +78,7 @@ OSM refinement may include:
 - stronger black-plan usefulness
 - selected additional contextual outputs, if they remain lightweight and clearly useful
 
-### 3. Improve reliability and persistence
+### 4. Improve reliability and persistence
 The toolkit should feel dependable in day-to-day use.
 
 Near-term reliability improvements may include:
@@ -78,7 +89,7 @@ Near-term reliability improvements may include:
 - better timeout / failure handling
 - fewer fragile edge cases
 
-### 4. Improve raster and imagery workflows
+### 5. Improve raster and imagery workflows
 Raster handling is now part of the project through WMS and GeoTIFF.
 
 This area should continue to improve, including:
@@ -88,7 +99,7 @@ This area should continue to improve, including:
 - more consistent image/material behavior
 - stronger GeoTIFF integration in the shared spatial workflow
 
-### 5. Keep the project lightweight and efficient
+### 6. Keep the project lightweight and efficient
 As the toolkit grows, an ongoing goal is to keep it:
 
 - lightweight
@@ -209,23 +220,31 @@ The long-term goal is a system that works well with rich official data where pos
 
 ---
 
-## Later Optional Goal
+## Later Optional Extension Policy
 
-### Google 3D Tiles reference importer
-A Google 3D Tiles importer is considered a legitimate later goal.
+### Google Photorealistic 3D Tiles
+Google Photorealistic 3D Tiles remain a legitimate later extension goal, but only in a tightly limited form.
 
-However, it should be understood as:
+If explored later, they should be treated as:
 
 - optional
 - advanced
-- later
 - user-managed through the user's own API key and billing setup
-- reference-oriented rather than part of the core modeling logic
+- reference-only
+- runtime-streamed
+- clearly separate from the core editable modeling workflow
 
-This is a real future goal, but it is not part of the current core functionality.
+They should not be treated as:
 
-It should not redefine the identity of RhinoSpatial.
-If added later, it should remain clearly separate from the core source system and should act as an advanced visual reference layer.
+- editable Rhino geometry
+- bakeable content
+- exportable mesh content
+- offline cached geometry
+- a source for derived or extracted geometry
+
+This means that a Google 3D Tiles feature, if it ever exists in RhinoSpatial, should act only as a visual reference or contextual preview layer.
+
+It is not the current major milestone for RhinoSpatial, and it should not redefine the identity of the project.
 
 ---
 
@@ -238,7 +257,7 @@ To keep the project focused, the following are **not** current priorities:
 - turning Load OSM into a full OSM query editor
 - endlessly expanding the number of source categories
 - building a giant in-plugin resource finder before the core toolkit is polished
-- prioritizing photorealistic streaming sources over the core contextual workflow
+- prioritizing streamed 3D reference viewers over the core contextual workflow
 
 ---
 

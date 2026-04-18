@@ -111,7 +111,7 @@ Official 3D building context and terrain aligned through the same spatial select
 
 Lightweight contextual geometry for quick figure-ground and site-context studies.
 
-![OSM Black-Plan Context](docs/images/03-osm-blackplan.jpg)
+![OSM Context](docs/images/03-osm-blackplan.jpg)
 
 ## Project Status
 
@@ -321,7 +321,7 @@ This shared spatial logic is the core architectural rule for:
 - georeferenced raster data
 - OSM context
 
-Later extension goals may exist, but they should not redefine the current product identity. For example, a Google 3D Tiles reference importer may still be considered later, optional, and advanced rather than part of the core system.
+Later optional extensions may exist, but they should not redefine the current product identity. For example, Google Photorealistic 3D Tiles may only make sense later as an advanced, user-managed, runtime-streamed visual reference layer rather than as a normal RhinoSpatial import source.
 
 ## Notes
 

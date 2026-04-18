@@ -269,25 +269,40 @@ At this point, the project should focus more on:
 
 rather than continuously expanding the number of fundamental source categories.
 
-## Later Goal: Google 3D Tiles
+No additional core source categories are currently planned.
 
-A Google 3D Tiles reference importer is considered a legitimate **later goal**, but **not part of the current core functionality**.
+The current priority is to make the existing system feel more complete, dependable, and polished inside its present scope.
 
-It should be understood as:
+## Policy Note: Google 3D Tiles
+
+Google Photorealistic 3D Tiles are considered a legitimate later extension goal for RhinoSpatial, but they are not part of the core functionality.
+
+If this feature is added later, it should be treated as:
 
 - optional
-- later
 - advanced
-- user-managed via the user's own API key / billing setup
-- reference-oriented rather than core modeling logic
+- user-managed through the user's own API key and billing setup
+- reference-only
+- runtime-streamed
+- clearly separate from the core editable modeling workflow
 
-Google 3D Tiles should not redefine the identity of RhinoSpatial.
+Important:
+Google 3D Tiles should not be treated as a normal import source.
 
-If added later, it should remain:
-- clearly separated from the core source model
-- explicit in its dependencies
-- optional in use
-- secondary to the core contextual workflow
+RhinoSpatial should not use Google Photorealistic 3D Tiles as:
+- editable Rhino geometry
+- bakeable scene content
+- exportable mesh content
+- offline cached geometry
+- a source for derived or extracted geometry
+
+The intended role of Google 3D Tiles in RhinoSpatial is only:
+- visual reference
+- contextual preview
+- optional advanced background layer
+
+This feature should not redefine the identity of RhinoSpatial.
+The core identity remains a lightweight, study-oriented geospatial toolkit built around Spatial Context, WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, and OSM.
 
 ## Current Planning Position
 
@@ -298,6 +313,7 @@ Future work should primarily focus on:
 - refining and strengthening the existing source types
 - improving robustness and consistency
 - improving documentation and communication
+- improving service resilience and day-to-day usability
 - keeping the toolkit lightweight and design-friendly
 - polishing the current workflow rather than continuously expanding it
 
