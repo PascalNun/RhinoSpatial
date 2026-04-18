@@ -12,7 +12,7 @@ namespace RhinoSpatial.Core
 {
     public class OsmClient
     {
-        private const string CacheSchemaVersion = "osm-v4";
+        private const string CacheSchemaVersion = "osm-v5";
         private static readonly string[] DefaultOverpassUrls =
         {
             "https://overpass-api.de/api/interpreter",
@@ -253,13 +253,12 @@ namespace RhinoSpatial.Core
             {
                 AppendAreaQuery(builder, "way", "\"natural\"=\"water\"", bbox);
                 AppendAreaQuery(builder, "relation", "\"natural\"=\"water\"", bbox);
-                AppendAreaQuery(builder, "way", "\"water\"", bbox);
-                AppendAreaQuery(builder, "relation", "\"water\"", bbox);
+                AppendAreaQuery(builder, "way", "\"water\"~\"^(river|canal|lake|pond|reservoir)$\"", bbox);
+                AppendAreaQuery(builder, "relation", "\"water\"~\"^(river|canal|lake|pond|reservoir)$\"", bbox);
                 AppendAreaQuery(builder, "way", "\"landuse\"=\"reservoir\"", bbox);
                 AppendAreaQuery(builder, "relation", "\"landuse\"=\"reservoir\"", bbox);
                 AppendAreaQuery(builder, "way", "\"waterway\"=\"riverbank\"", bbox);
                 AppendAreaQuery(builder, "relation", "\"waterway\"=\"riverbank\"", bbox);
-
             }
 
             if (options.IncludeGreen)
@@ -411,6 +410,14 @@ namespace RhinoSpatial.Core
 
         private static List<QueryBatch> BuildQueryBatches(OsmRequestOptions options)
         {
+            if (ShouldUseCombinedBatch(options))
+            {
+                return new List<QueryBatch>
+                {
+                    new(options, "Combined", "Combined")
+                };
+            }
+
             var batches = new List<QueryBatch>();
 
             if (options.IncludeBuildings)
@@ -491,6 +498,60 @@ namespace RhinoSpatial.Core
             return batches;
         }
 
+        private static bool ShouldUseCombinedBatch(OsmRequestOptions options)
+        {
+            if (options.IncludeWater)
+            {
+                return false;
+            }
+
+            var requestedCategoryCount = CountRequestedCategories(options);
+            if (requestedCategoryCount <= 1)
+            {
+                return false;
+            }
+
+            var width = Math.Max(0.0, options.BoundingBox4326.MaxX - options.BoundingBox4326.MinX);
+            var height = Math.Max(0.0, options.BoundingBox4326.MaxY - options.BoundingBox4326.MinY);
+
+            // Typical site-scale contexts are faster and usually stable as one
+            // combined Overpass query. Larger areas still use the safer split
+            // category batching and tiling path.
+            return width <= 0.0045 && height <= 0.0045;
+        }
+
+        private static int CountRequestedCategories(OsmRequestOptions options)
+        {
+            var count = 0;
+
+            if (options.IncludeBuildings)
+            {
+                count++;
+            }
+
+            if (options.IncludeRoads)
+            {
+                count++;
+            }
+
+            if (options.IncludeWater)
+            {
+                count++;
+            }
+
+            if (options.IncludeGreen)
+            {
+                count++;
+            }
+
+            if (options.IncludeRail)
+            {
+                count++;
+            }
+
+            return count;
+        }
+
         private static void AddCategoryBatches(List<QueryBatch> target, string categoryLabel, OsmRequestOptions options)
         {
             var tileBoundingBoxes = BuildTileBoundingBoxes(categoryLabel, options.BoundingBox4326);
@@ -550,7 +611,7 @@ namespace RhinoSpatial.Core
                 "Green" => 0.0025,
                 "Buildings" => 0.0045,
                 "Roads" => 0.0045,
-                "Water" => 0.0060,
+                "Water" => 0.0035,
                 "Rail" => 0.0060,
                 _ => 0.0060
             };
