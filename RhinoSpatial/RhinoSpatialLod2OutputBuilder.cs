@@ -76,7 +76,7 @@ namespace RhinoSpatial
 
             foreach (var surface in building.Surfaces)
             {
-                if (!TryCreateTransformedClosedPolyline(
+                if (!TryCreateTransformedClosedLoops(
                         surface,
                         sourceSrs,
                         targetSrs,
@@ -87,18 +87,18 @@ namespace RhinoSpatial
                         elevationBase,
                         snappedPoints,
                         snapTolerance,
-                        out var polyline))
+                        out var loops))
                 {
                     continue;
                 }
 
-                var surfaceKey = CreateSurfaceKey(polyline, VertexTolerance);
+                var surfaceKey = CreateSurfaceKey(loops.Outer, loops.Inners, VertexTolerance);
                 if (!surfaceKeys.Add(surfaceKey))
                 {
                     continue;
                 }
 
-                var surfaceBreps = CreateSurfaceBrepsFromPolyline(polyline, tolerance);
+                var surfaceBreps = CreateSurfaceBrepsFromLoops(loops.Outer, loops.Inners, tolerance);
                 if (surfaceBreps.Count == 0)
                 {
                     continue;
@@ -126,8 +126,65 @@ namespace RhinoSpatial
             return buildingBreps;
         }
 
+        private static bool TryCreateTransformedClosedLoops(
+            SurfacePolygon3D surface,
+            string sourceSrs,
+            string targetSrs,
+            BoundingBox2D sourceBoundingBox,
+            BoundingBox2D targetBoundingBox,
+            double offsetX,
+            double offsetY,
+            double elevationBase,
+            Dictionary<string, Point3d> snappedPoints,
+            double snapTolerance,
+            out SurfaceLoops loops)
+        {
+            loops = default!;
+
+            if (!TryCreateTransformedClosedPolyline(
+                    surface.OuterPoints,
+                    sourceSrs,
+                    targetSrs,
+                    sourceBoundingBox,
+                    targetBoundingBox,
+                    offsetX,
+                    offsetY,
+                    elevationBase,
+                    snappedPoints,
+                    snapTolerance,
+                    out var outerPolyline))
+            {
+                return false;
+            }
+
+            var innerPolylines = new List<Polyline>();
+            foreach (var innerRing in surface.InnerRings)
+            {
+                if (!TryCreateTransformedClosedPolyline(
+                        innerRing,
+                        sourceSrs,
+                        targetSrs,
+                        sourceBoundingBox,
+                        targetBoundingBox,
+                        offsetX,
+                        offsetY,
+                        elevationBase,
+                        snappedPoints,
+                        snapTolerance,
+                        out var innerPolyline))
+                {
+                    continue;
+                }
+
+                innerPolylines.Add(innerPolyline);
+            }
+
+            loops = new SurfaceLoops(outerPolyline, innerPolylines);
+            return true;
+        }
+
         private static bool TryCreateTransformedClosedPolyline(
-            SurfaceRing3D surface,
+            IReadOnlyList<Coordinate3D> points,
             string sourceSrs,
             string targetSrs,
             BoundingBox2D sourceBoundingBox,
@@ -141,14 +198,14 @@ namespace RhinoSpatial
         {
             polyline = new Polyline();
 
-            if (surface.Points.Count < 4)
+            if (points.Count < 4)
             {
                 return false;
             }
 
-            polyline = new Polyline(surface.Points.Count);
+            polyline = new Polyline(points.Count);
 
-            foreach (var point in surface.Points)
+            foreach (var point in points)
             {
                 var mappedPoint = TransformPoint(point, sourceSrs, targetSrs, sourceBoundingBox, targetBoundingBox);
                 var candidatePoint = new Point3d(mappedPoint.X - offsetX, mappedPoint.Y - offsetY, mappedPoint.Z - elevationBase);
@@ -255,14 +312,25 @@ namespace RhinoSpatial
             return point;
         }
 
-        private static List<Brep> CreateSurfaceBrepsFromPolyline(Polyline polyline, double tolerance)
+        private static List<Brep> CreateSurfaceBrepsFromLoops(Polyline outerPolyline, IReadOnlyList<Polyline> innerPolylines, double tolerance)
         {
-            if (polyline.Count < 4)
+            if (outerPolyline.Count < 4)
             {
                 return new List<Brep>();
             }
 
-            var cornerPoints = GetCornerPoints(polyline);
+            if (innerPolylines.Count > 0)
+            {
+                var planarBrepsWithHoles = TryCreatePlanarBreps(outerPolyline, innerPolylines, tolerance);
+                if (planarBrepsWithHoles.Count > 0)
+                {
+                    return planarBrepsWithHoles;
+                }
+
+                return TryCreatePlanarBreps(outerPolyline, new List<Polyline>(), tolerance);
+            }
+
+            var cornerPoints = GetCornerPoints(outerPolyline);
 
             if (cornerPoints.Count == 3)
             {
@@ -283,23 +351,23 @@ namespace RhinoSpatial
                 }
             }
 
-            var directBreps = TryCreatePlanarBreps(polyline, tolerance);
+            var directBreps = TryCreatePlanarBreps(outerPolyline, innerPolylines, tolerance);
             if (directBreps.Count > 0)
             {
                 return directBreps;
             }
 
-            var simplifiedPolyline = SimplifyClosedPolyline(polyline, tolerance);
+            var simplifiedPolyline = SimplifyClosedPolyline(outerPolyline, tolerance);
             if (simplifiedPolyline.Count >= 4)
             {
-                var simplifiedBreps = TryCreatePlanarBreps(simplifiedPolyline, tolerance);
+                var simplifiedBreps = TryCreatePlanarBreps(simplifiedPolyline, innerPolylines, tolerance);
                 if (simplifiedBreps.Count > 0)
                 {
                     return simplifiedBreps;
                 }
             }
 
-            var fallbackBreps = TryCreateTriangulatedBreps(polyline, tolerance);
+            var fallbackBreps = TryCreateTriangulatedBreps(outerPolyline, tolerance);
             if (fallbackBreps.Count > 0)
             {
                 return fallbackBreps;
@@ -317,22 +385,36 @@ namespace RhinoSpatial
             return new List<Brep>();
         }
 
-        private static List<Brep> TryCreatePlanarBreps(Polyline polyline, double tolerance)
+        private static List<Brep> TryCreatePlanarBreps(Polyline outerPolyline, IReadOnlyList<Polyline> innerPolylines, double tolerance)
         {
-            var fitResult = Plane.FitPlaneToPoints(polyline, out var fittedPlane);
+            var allPoints = outerPolyline.ToList();
+            foreach (var inner in innerPolylines)
+            {
+                allPoints.AddRange(inner);
+            }
+
+            var fitResult = Plane.FitPlaneToPoints(allPoints, out var fittedPlane);
             if (fitResult != PlaneFitResult.Success)
             {
-                fittedPlane = new Plane(polyline[0], polyline[1], polyline[2]);
+                fittedPlane = new Plane(outerPolyline[0], outerPolyline[1], outerPolyline[2]);
             }
 
-            var projected = new Polyline(polyline.Count);
-            foreach (var point in polyline)
+            var curves = new List<Curve>
             {
-                projected.Add(fittedPlane.ClosestPoint(point));
+                ProjectPolylineToPlane(outerPolyline, fittedPlane).ToNurbsCurve()
+            };
+
+            foreach (var innerPolyline in innerPolylines)
+            {
+                if (innerPolyline.Count < 4)
+                {
+                    continue;
+                }
+
+                curves.Add(ProjectPolylineToPlane(innerPolyline, fittedPlane).ToNurbsCurve());
             }
 
-            var curve = projected.ToNurbsCurve();
-            var breps = Brep.CreatePlanarBreps(curve, tolerance);
+            var breps = Brep.CreatePlanarBreps(curves, tolerance);
             if (breps is null || breps.Length == 0)
             {
                 return new List<Brep>();
@@ -341,6 +423,17 @@ namespace RhinoSpatial
             return breps
                 .Where(candidate => candidate is not null && IsUsableBrep(candidate, tolerance))
                 .ToList()!;
+        }
+
+        private static Polyline ProjectPolylineToPlane(Polyline polyline, Plane plane)
+        {
+            var projected = new Polyline(polyline.Count);
+            foreach (var point in polyline)
+            {
+                projected.Add(plane.ClosestPoint(point));
+            }
+
+            return projected;
         }
 
         private static List<Brep> TryCreateTriangulatedBreps(Polyline polyline, double tolerance)
@@ -817,7 +910,7 @@ RestartJoinScan:
 
             foreach (var point in buildings
                          .SelectMany(building => building.Surfaces)
-                         .SelectMany(surface => surface.Points))
+                         .SelectMany(surface => surface.OuterPoints.Concat(surface.InnerRings.SelectMany(ring => ring))))
             {
                 if (point.Z < minZ)
                 {
@@ -845,7 +938,26 @@ RestartJoinScan:
             return areaProperties is not null && areaProperties.Area > tolerance * tolerance;
         }
 
-        private static string CreateSurfaceKey(Polyline polyline, double tolerance)
+        private static string CreateSurfaceKey(Polyline outerPolyline, IReadOnlyList<Polyline> innerPolylines, double tolerance)
+        {
+            var outerKey = CreateRingKey(outerPolyline, tolerance);
+            if (string.IsNullOrEmpty(outerKey))
+            {
+                return string.Empty;
+            }
+
+            var innerKeys = innerPolylines
+                .Select(innerPolyline => CreateRingKey(innerPolyline, tolerance))
+                .Where(key => !string.IsNullOrEmpty(key))
+                .OrderBy(key => key, System.StringComparer.Ordinal)
+                .ToList();
+
+            return innerKeys.Count == 0
+                ? outerKey
+                : string.Join("||", new[] { outerKey }.Concat(innerKeys));
+        }
+
+        private static string CreateRingKey(Polyline polyline, double tolerance)
         {
             var cornerPoints = GetCornerPoints(polyline);
             if (cornerPoints.Count == 0)
@@ -903,5 +1015,7 @@ RestartJoinScan:
         {
             return (long)System.Math.Round(value / tolerance);
         }
+
+        private sealed record SurfaceLoops(Polyline Outer, List<Polyline> Inners);
     }
 }

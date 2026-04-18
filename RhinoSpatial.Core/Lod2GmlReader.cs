@@ -68,9 +68,9 @@ namespace RhinoSpatial.Core
                 Attributes: attributes);
         }
 
-        private static List<SurfaceRing3D> ReadSurfaces(XElement featureElement)
+        private static List<SurfacePolygon3D> ReadSurfaces(XElement featureElement)
         {
-            var surfaces = new List<SurfaceRing3D>();
+            var surfaces = new List<SurfacePolygon3D>();
 
             var lod2GeometryContainers = featureElement
                 .Descendants()
@@ -89,7 +89,7 @@ namespace RhinoSpatial.Core
                 foreach (var polygonElement in EnumerateSupportedPolygonElements(container))
                 {
                     var surface = ReadSurface(polygonElement);
-                    if (surface.Points.Count >= 4)
+                    if (surface.OuterPoints.Count >= 4)
                     {
                         surfaces.Add(surface);
                     }
@@ -118,17 +118,49 @@ namespace RhinoSpatial.Core
             }
         }
 
-        private static SurfaceRing3D ReadSurface(XElement polygonElement)
+        private static SurfacePolygon3D ReadSurface(XElement polygonElement)
         {
-            var linearRingElement = polygonElement
+            var outerRingElement = polygonElement
                 .Descendants()
+                .FirstOrDefault(element =>
+                    string.Equals(element.Name.LocalName, "exterior", StringComparison.OrdinalIgnoreCase))
+                ?.Descendants()
                 .FirstOrDefault(element => string.Equals(element.Name.LocalName, "LinearRing", StringComparison.OrdinalIgnoreCase));
 
-            if (linearRingElement is null)
+            var innerRingElements = polygonElement
+                .Descendants()
+                .Where(element => string.Equals(element.Name.LocalName, "interior", StringComparison.OrdinalIgnoreCase))
+                .SelectMany(element => element.Descendants()
+                    .Where(candidate => string.Equals(candidate.Name.LocalName, "LinearRing", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (outerRingElement is null)
             {
-                return new SurfaceRing3D(new List<Coordinate3D>());
+                var allLinearRings = polygonElement
+                    .Descendants()
+                    .Where(element => string.Equals(element.Name.LocalName, "LinearRing", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+
+                outerRingElement = allLinearRings.FirstOrDefault();
+                innerRingElements = allLinearRings.Skip(1).ToList();
             }
 
+            if (outerRingElement is null)
+            {
+                return new SurfacePolygon3D(new List<Coordinate3D>(), new List<List<Coordinate3D>>());
+            }
+
+            var outerPoints = ReadRing(outerRingElement);
+            var innerRings = innerRingElements
+                .Select(ReadRing)
+                .Where(points => points.Count >= 4)
+                .ToList();
+
+            return new SurfacePolygon3D(outerPoints, innerRings);
+        }
+
+        private static List<Coordinate3D> ReadRing(XElement linearRingElement)
+        {
             var srsName = FindSrsName(linearRingElement);
             var posListElement = linearRingElement
                 .Elements()
@@ -136,7 +168,7 @@ namespace RhinoSpatial.Core
 
             if (posListElement is not null)
             {
-                return ReadSurfaceFromPosList(posListElement, srsName);
+                return ReadRingFromPosList(posListElement, srsName);
             }
 
             var posElements = linearRingElement
@@ -144,10 +176,10 @@ namespace RhinoSpatial.Core
                 .Where(element => string.Equals(element.Name.LocalName, "pos", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
-            return ReadSurfaceFromPosElements(posElements, srsName);
+            return ReadRingFromPosElements(posElements, srsName);
         }
 
-        private static SurfaceRing3D ReadSurfaceFromPosList(XElement posListElement, string srsName)
+        private static List<Coordinate3D> ReadRingFromPosList(XElement posListElement, string srsName)
         {
             var rawValues = posListElement.Value.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             var dimension = GetCoordinateDimension(posListElement, srsName, rawValues.Length);
@@ -170,10 +202,10 @@ namespace RhinoSpatial.Core
                 points.Add(CreateCoordinate(firstValue, secondValue, thirdValue, srsName));
             }
 
-            return new SurfaceRing3D(points);
+            return points;
         }
 
-        private static SurfaceRing3D ReadSurfaceFromPosElements(List<XElement> posElements, string srsName)
+        private static List<Coordinate3D> ReadRingFromPosElements(List<XElement> posElements, string srsName)
         {
             var points = new List<Coordinate3D>();
 
@@ -200,7 +232,7 @@ namespace RhinoSpatial.Core
                 points.Add(CreateCoordinate(firstValue, secondValue, thirdValue, srsName));
             }
 
-            return new SurfaceRing3D(points);
+            return points;
         }
 
         private static Coordinate3D CreateCoordinate(double firstValue, double secondValue, double thirdValue, string srsName)

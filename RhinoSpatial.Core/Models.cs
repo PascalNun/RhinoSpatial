@@ -15,7 +15,10 @@ namespace RhinoSpatial.Core
 
     public record LinearRing(List<Coordinate2D> Points);
 
-    public record SurfaceRing3D(List<Coordinate3D> Points);
+    public record SurfacePolygon3D(
+        List<Coordinate3D> OuterPoints,
+        List<List<Coordinate3D>> InnerRings
+    );
 
     public record LineString(List<Coordinate2D> Points);
 
@@ -164,7 +167,7 @@ namespace RhinoSpatial.Core
     public record Lod2Building(
         string Id,
         string SourceLayerName,
-        List<SurfaceRing3D> Surfaces,
+        List<SurfacePolygon3D> Surfaces,
         Dictionary<string, string?> Attributes
     );
 

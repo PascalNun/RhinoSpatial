@@ -80,7 +80,8 @@ namespace RhinoSpatial.Sandbox
                     Console.WriteLine($"Building {i + 1}");
                     Console.WriteLine($"Id: {building.Id}");
                     Console.WriteLine($"Surface count: {building.Surfaces.Count}");
-                    Console.WriteLine($"First surface point count: {(building.Surfaces.Count > 0 ? building.Surfaces[0].Points.Count : 0)}");
+                    Console.WriteLine($"First surface outer point count: {(building.Surfaces.Count > 0 ? building.Surfaces[0].OuterPoints.Count : 0)}");
+                    Console.WriteLine($"First surface inner ring count: {(building.Surfaces.Count > 0 ? building.Surfaces[0].InnerRings.Count : 0)}");
 
                     if (building.Attributes.TryGetValue("HeightAboveGround", out var height))
                     {
