@@ -348,6 +348,19 @@ namespace RhinoSpatial
             if (cornerPoints.Count == 4)
             {
                 var quadBrep = Brep.CreateFromCornerPoints(cornerPoints[0], cornerPoints[1], cornerPoints[2], cornerPoints[3], tolerance);
+                if (quadBrep is not null && IsQuadNearlyPlanar(cornerPoints, tolerance))
+                {
+                    return IsUsableBrep(quadBrep, tolerance)
+                        ? new List<Brep> { quadBrep }
+                        : new List<Brep>();
+                }
+
+                var quadTriangleBreps = TryCreateTriangulatedQuadBreps(cornerPoints, tolerance);
+                if (quadTriangleBreps.Count > 0)
+                {
+                    return quadTriangleBreps;
+                }
+
                 if (quadBrep is not null)
                 {
                     return IsUsableBrep(quadBrep, tolerance)
@@ -580,6 +593,67 @@ namespace RhinoSpatial
             }
 
             return projected;
+        }
+
+        private static bool IsQuadNearlyPlanar(IReadOnlyList<Point3d> points, double tolerance)
+        {
+            if (points.Count != 4)
+            {
+                return false;
+            }
+
+            var fitResult = Plane.FitPlaneToPoints(points, out var fittedPlane);
+            if (fitResult != PlaneFitResult.Success)
+            {
+                return false;
+            }
+
+            var maxDistance = points.Max(point => System.Math.Abs(fittedPlane.DistanceTo(point)));
+            return maxDistance <= System.Math.Max(tolerance * 2.0, VertexTolerance * 5.0);
+        }
+
+        private static List<Brep> TryCreateTriangulatedQuadBreps(IReadOnlyList<Point3d> cornerPoints, double tolerance)
+        {
+            if (cornerPoints.Count != 4)
+            {
+                return new List<Brep>();
+            }
+
+            var diagonal02Length = cornerPoints[0].DistanceTo(cornerPoints[2]);
+            var diagonal13Length = cornerPoints[1].DistanceTo(cornerPoints[3]);
+
+            var preferred = diagonal02Length <= diagonal13Length
+                ? TryCreateTrianglePair(cornerPoints[0], cornerPoints[1], cornerPoints[2], cornerPoints[0], cornerPoints[2], cornerPoints[3], tolerance)
+                : TryCreateTrianglePair(cornerPoints[0], cornerPoints[1], cornerPoints[3], cornerPoints[1], cornerPoints[2], cornerPoints[3], tolerance);
+
+            if (preferred.Count > 0)
+            {
+                return preferred;
+            }
+
+            return diagonal02Length <= diagonal13Length
+                ? TryCreateTrianglePair(cornerPoints[0], cornerPoints[1], cornerPoints[3], cornerPoints[1], cornerPoints[2], cornerPoints[3], tolerance)
+                : TryCreateTrianglePair(cornerPoints[0], cornerPoints[1], cornerPoints[2], cornerPoints[0], cornerPoints[2], cornerPoints[3], tolerance);
+        }
+
+        private static List<Brep> TryCreateTrianglePair(
+            Point3d firstA,
+            Point3d firstB,
+            Point3d firstC,
+            Point3d secondA,
+            Point3d secondB,
+            Point3d secondC,
+            double tolerance)
+        {
+            var firstTriangle = Brep.CreateFromCornerPoints(firstA, firstB, firstC, tolerance);
+            var secondTriangle = Brep.CreateFromCornerPoints(secondA, secondB, secondC, tolerance);
+
+            if (!IsUsableBrep(firstTriangle, tolerance) || !IsUsableBrep(secondTriangle, tolerance))
+            {
+                return new List<Brep>();
+            }
+
+            return new List<Brep> { firstTriangle!, secondTriangle! };
         }
 
         private static Coordinate3D TransformPoint(
