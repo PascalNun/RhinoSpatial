@@ -340,9 +340,15 @@ namespace RhinoSpatial
                 ImageFilePath = imageResult.LocalFilePath,
                 ImageMesh = imageMesh,
                 GetMapUrl = imageResult.RequestUrl,
-                Status = $"{statusPrefix}Downloaded WMS image to '{imageResult.LocalFilePath}'.",
+                Status = BuildStatusMessage(statusPrefix, imageResult),
                 MessageLevel = requestData.Source.UsesFallback ? GH_RuntimeMessageLevel.Remark : null
             };
+        }
+
+        private static string BuildStatusMessage(string statusPrefix, WmsImageResult imageResult)
+        {
+            var action = imageResult.UsedCachedFile ? "Using cached WMS image" : "Downloaded WMS image";
+            return $"{statusPrefix}{action} at '{imageResult.LocalFilePath}'.";
         }
 
         private SolveResults ComputeSafe(RequestData requestData)

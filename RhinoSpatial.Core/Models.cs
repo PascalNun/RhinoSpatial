@@ -71,7 +71,8 @@ namespace RhinoSpatial.Core
     public record WmsImageResult(
         string RequestUrl,
         string LocalFilePath,
-        string ContentType
+        string ContentType,
+        bool UsedCachedFile = false
     );
 
     public record WmsCapabilitiesInfo(

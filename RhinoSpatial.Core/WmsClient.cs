@@ -172,6 +172,13 @@ namespace RhinoSpatial.Core
             while (true)
             {
                 requestUrl = BuildGetMapRequestUrl(currentOptions);
+                var requestHash = ComputeRequestHash(requestUrl);
+                if (TryGetCachedImageFile(requestHash, out var cachedFilePath, out var cachedContentType))
+                {
+                    response?.Dispose();
+                    return new WmsImageResult(requestUrl, cachedFilePath, cachedContentType, UsedCachedFile: true);
+                }
+
                 response?.Dispose();
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
@@ -323,6 +330,40 @@ namespace RhinoSpatial.Core
         {
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl));
             return Convert.ToHexString(bytes).ToLowerInvariant();
+        }
+
+        private static bool TryGetCachedImageFile(string requestHash, out string localFilePath, out string contentType)
+        {
+            foreach (var candidateFile in Directory.EnumerateFiles(ImageCacheDirectory, $"{requestHash}.*"))
+            {
+                var fileInfo = new FileInfo(candidateFile);
+                if (!fileInfo.Exists || fileInfo.Length == 0)
+                {
+                    continue;
+                }
+
+                localFilePath = candidateFile;
+                contentType = ResolveContentTypeFromExtension(Path.GetExtension(candidateFile));
+                return true;
+            }
+
+            localFilePath = string.Empty;
+            contentType = string.Empty;
+            return false;
+        }
+
+        private static string ResolveContentTypeFromExtension(string extension)
+        {
+            return extension.ToLowerInvariant() switch
+            {
+                ".png" => "image/png",
+                ".jpg" => "image/jpeg",
+                ".jpeg" => "image/jpeg",
+                ".tif" => "image/tiff",
+                ".tiff" => "image/tiff",
+                ".gif" => "image/gif",
+                _ => "application/octet-stream"
+            };
         }
 
         private static string? TryExtractServiceExceptionMessage(string responseText)
