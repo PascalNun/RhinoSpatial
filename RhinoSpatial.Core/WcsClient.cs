@@ -17,6 +17,7 @@ namespace RhinoSpatial.Core
         };
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<WcsCapabilitiesInfo>> CapabilitiesCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<WcsCoverageDescription>> CoverageDescriptionCache = new(StringComparer.OrdinalIgnoreCase);
 
         private static readonly HashSet<string> ReservedQueryKeys = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -57,20 +58,18 @@ namespace RhinoSpatial.Core
 
         public async Task<WcsCoverageDescription> LoadCoverageDescriptionAsync(WcsRequestOptions options)
         {
-            var requestUrl = BuildDescribeCoverageRequestUrl(options);
-            using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-            using var response = await SharedHttpClient.SendAsync(request);
+            var cacheKey = BuildCoverageDescriptionCacheKey(options);
+            var loadTask = CoverageDescriptionCache.GetOrAdd(cacheKey, _ => LoadCoverageDescriptionUncachedAsync(options));
 
-            if (!response.IsSuccessStatusCode)
+            try
             {
-                throw new HttpRequestException(
-                    $"The WCS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}",
-                    null,
-                    response.StatusCode);
+                return await loadTask;
             }
-
-            var xml = await response.Content.ReadAsStringAsync();
-            return WcsCapabilitiesReader.ReadCoverageDescription(xml);
+            catch
+            {
+                CoverageDescriptionCache.TryRemove(cacheKey, out _);
+                throw;
+            }
         }
 
         public async Task<WcsCoverageResult> DownloadCoverageAsync(WcsRequestOptions options)
@@ -222,6 +221,24 @@ namespace RhinoSpatial.Core
             return WcsCapabilitiesReader.ReadCapabilities(xml);
         }
 
+        private static async Task<WcsCoverageDescription> LoadCoverageDescriptionUncachedAsync(WcsRequestOptions options)
+        {
+            var requestUrl = BuildDescribeCoverageRequestUrl(options);
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            using var response = await SharedHttpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException(
+                    $"The WCS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}",
+                    null,
+                    response.StatusCode);
+            }
+
+            var xml = await response.Content.ReadAsStringAsync();
+            return WcsCapabilitiesReader.ReadCoverageDescription(xml);
+        }
+
         private static string ResolveFileExtension(string format)
         {
             if (format.Contains("tiff", StringComparison.OrdinalIgnoreCase) || format.Contains("tif", StringComparison.OrdinalIgnoreCase))
@@ -244,6 +261,13 @@ namespace RhinoSpatial.Core
             }
 
             return builder.ToString();
+        }
+
+        private static string BuildCoverageDescriptionCacheKey(WcsRequestOptions options)
+        {
+            var requestBaseUrl = string.IsNullOrWhiteSpace(options.DescribeCoverageBaseUrl) ? options.BaseUrl : options.DescribeCoverageBaseUrl;
+            var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(requestBaseUrl, ReservedQueryKeys);
+            return $"{normalizedBaseUrl}|{options.Version}|{options.CoverageId}";
         }
     }
 }

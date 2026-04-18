@@ -10,11 +10,15 @@ namespace RhinoSpatial.Core
 {
     public class WfsClient
     {
+        private static readonly TimeSpan FeatureResponseCacheLifetime = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan FeatureResponseStaleLifetime = TimeSpan.FromMinutes(15);
         private static readonly HttpClient SharedHttpClient = new()
         {
             Timeout = TimeSpan.FromSeconds(30)
         };
         private static readonly ConcurrentDictionary<string, Task<WfsCapabilitiesInfo>> CapabilitiesCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, FeatureResponseCacheEntry> FeatureResponseCache = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, Task<WfsFeatureResponse>> FeatureResponseTaskCache = new(StringComparer.Ordinal);
         private static readonly HashSet<string> ReservedQueryKeys = new(StringComparer.OrdinalIgnoreCase)
         {
             "SERVICE",
@@ -36,40 +40,50 @@ namespace RhinoSpatial.Core
             SharedHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         }
 
+        private sealed record FeatureResponseCacheEntry(WfsFeatureResponse Response, DateTimeOffset StoredAtUtc);
+
         public async Task<List<WfsFeature>> LoadFeaturesAsync(WfsRequestOptions options)
         {
-            options = await PrepareRequestOptionsAsync(options);
+            var featureResponse = await LoadFeatureResponseAsync(options);
 
-            Exception? lastReadException = null;
-
-            foreach (var candidateOptions in CreateRequestSequence(options))
+            if (TryReadFeatures(featureResponse.ResponseText, featureResponse.AppliedOptions.TypeName, out var features))
             {
-                var requestUrl = BuildGetFeatureRequestUrl(candidateOptions);
-                var response = await GetStringAsync(requestUrl);
-
-                if (TryReadFeatures(response, options.TypeName, out var features))
-                {
-                    return features;
-                }
-
-                lastReadException = CreateUnsupportedFeatureResponseException(response);
+                return features;
             }
 
-            throw lastReadException ?? new InvalidOperationException("The WFS service returned a feature response that RhinoSpatial could not read.");
+            throw CreateUnsupportedFeatureResponseException(featureResponse.ResponseText);
         }
 
         public async Task<WfsFeatureResponse> LoadFeatureResponseAsync(WfsRequestOptions options)
         {
             options = await PrepareRequestOptionsAsync(options);
+            var cacheKey = BuildFeatureResponseCacheKey(options);
 
-            foreach (var candidateOptions in CreateRequestSequence(options))
+            if (TryGetCachedFeatureResponse(cacheKey, allowStale: false, out var cachedResponse))
             {
-                var requestUrl = BuildGetFeatureRequestUrl(candidateOptions);
-                var response = await GetStringAsync(requestUrl);
-                return new WfsFeatureResponse(response, candidateOptions);
+                return cachedResponse;
             }
 
-            throw new InvalidOperationException("The WFS service request sequence did not produce a feature response.");
+            var loadTask = FeatureResponseTaskCache.GetOrAdd(cacheKey, _ => LoadFeatureResponseUncachedAsync(options));
+
+            try
+            {
+                var response = await loadTask;
+                FeatureResponseCache[cacheKey] = new FeatureResponseCacheEntry(response, DateTimeOffset.UtcNow);
+                return response;
+            }
+            catch (Exception ex) when (IsTransientFailure(ex) &&
+                                       TryGetCachedFeatureResponse(cacheKey, allowStale: true, out var staleCachedResponse))
+            {
+                return staleCachedResponse;
+            }
+            finally
+            {
+                if (loadTask.IsCompleted)
+                {
+                    FeatureResponseTaskCache.TryRemove(cacheKey, out _);
+                }
+            }
         }
 
         public async Task<List<WfsLayerInfo>> LoadLayersAsync(string baseUrl)
@@ -172,6 +186,18 @@ namespace RhinoSpatial.Core
             var requestUrl = BuildGetCapabilitiesRequestUrl(normalizedBaseUrl);
             var response = await GetStringAsync(requestUrl);
             return WfsCapabilitiesReader.ReadCapabilities(response);
+        }
+
+        private async Task<WfsFeatureResponse> LoadFeatureResponseUncachedAsync(WfsRequestOptions options)
+        {
+            foreach (var candidateOptions in CreateRequestSequence(options))
+            {
+                var requestUrl = BuildGetFeatureRequestUrl(candidateOptions);
+                var response = await GetStringAsync(requestUrl);
+                return new WfsFeatureResponse(response, candidateOptions);
+            }
+
+            throw new InvalidOperationException("The WFS service request sequence did not produce a feature response.");
         }
 
         private async Task<WfsRequestOptions> PrepareRequestOptionsAsync(WfsRequestOptions options)
@@ -308,6 +334,78 @@ namespace RhinoSpatial.Core
             }
 
             return new InvalidOperationException("The WFS service returned a feature response that RhinoSpatial could not read as GeoJSON or GML.");
+        }
+
+        private static string BuildFeatureResponseCacheKey(WfsRequestOptions options)
+        {
+            var builder = new StringBuilder();
+            builder.Append(OgcUrlUtilities.NormalizeBaseUrl(options.BaseUrl, ReservedQueryKeys));
+            builder.Append('|');
+            builder.Append(options.GetFeatureBaseUrl is null
+                ? string.Empty
+                : OgcUrlUtilities.NormalizeBaseUrl(options.GetFeatureBaseUrl, ReservedQueryKeys));
+            builder.Append('|');
+            builder.Append(options.TypeName);
+            builder.Append('|');
+            builder.Append(options.MaxFeatures);
+            builder.Append('|');
+            builder.Append(options.Version);
+            builder.Append('|');
+            builder.Append(options.SrsName);
+            builder.Append('|');
+            builder.Append(options.OutputFormat);
+            builder.Append('|');
+            builder.Append(options.BoundingBox is null
+                ? string.Empty
+                : OgcUrlUtilities.FormatBoundingBox(options.BoundingBox, options.SrsName));
+            return builder.ToString();
+        }
+
+        private static bool TryGetCachedFeatureResponse(string cacheKey, bool allowStale, out WfsFeatureResponse response)
+        {
+            response = default!;
+
+            if (!FeatureResponseCache.TryGetValue(cacheKey, out var entry))
+            {
+                return false;
+            }
+
+            var age = DateTimeOffset.UtcNow - entry.StoredAtUtc;
+            if (!allowStale && age > FeatureResponseCacheLifetime)
+            {
+                return false;
+            }
+
+            if (allowStale && age > FeatureResponseStaleLifetime)
+            {
+                return false;
+            }
+
+            response = entry.Response;
+            return true;
+        }
+
+        private static bool IsTransientFailure(Exception ex)
+        {
+            return ex switch
+            {
+                TimeoutException => true,
+                TaskCanceledException => true,
+                HttpRequestException httpRequestException when !httpRequestException.StatusCode.HasValue => true,
+                HttpRequestException httpRequestException
+                    when httpRequestException.StatusCode is var statusCode &&
+                         statusCode.HasValue &&
+                         (int)statusCode.Value >= 500 => true,
+                HttpRequestException httpRequestException
+                    when httpRequestException.StatusCode is var statusCode &&
+                         statusCode.HasValue &&
+                         (int)statusCode.Value == 408 => true,
+                HttpRequestException httpRequestException
+                    when httpRequestException.StatusCode is var statusCode &&
+                         statusCode.HasValue &&
+                         (int)statusCode.Value == 429 => true,
+                _ => false
+            };
         }
 
         private async Task<string> GetStringAsync(string requestUrl)
