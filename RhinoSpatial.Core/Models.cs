@@ -131,7 +131,8 @@ namespace RhinoSpatial.Core
         string RequestUrl,
         string LocalFilePath,
         string ContentType,
-        TerrainRasterData Raster
+        TerrainRasterData Raster,
+        bool UsedCachedFile = false
     );
 
     public record GeoReferencedRasterInfo(

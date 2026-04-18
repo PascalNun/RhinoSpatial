@@ -18,6 +18,7 @@ namespace RhinoSpatial.Core
 
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<WcsCapabilitiesInfo>> CapabilitiesCache = new(StringComparer.OrdinalIgnoreCase);
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<WcsCoverageDescription>> CoverageDescriptionCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<CoverageDownloadResult>> CoverageDownloadCache = new(StringComparer.Ordinal);
 
         private static readonly HashSet<string> ReservedQueryKeys = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -80,32 +81,15 @@ namespace RhinoSpatial.Core
             var fileExtension = ResolveFileExtension(options.Format);
             var fileName = $"{ComputeRequestHash(requestUrl)}{fileExtension}";
             var localFilePath = Path.Combine(TerrainCacheDirectory, fileName);
-
-            if (!File.Exists(localFilePath) || new FileInfo(localFilePath).Length == 0)
-            {
-                using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-                using var response = await SharedHttpClient.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    throw new HttpRequestException(
-                        $"The WCS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}",
-                        null,
-                        response.StatusCode);
-                }
-
-                await using var responseStream = await response.Content.ReadAsStreamAsync();
-                await using var fileStream = File.Create(localFilePath);
-                await responseStream.CopyToAsync(fileStream);
-            }
-
+            var downloadResult = await DownloadCoverageFileAsync(requestUrl, localFilePath, options.Format);
             var raster = TerrainRasterReader.ReadRaster(localFilePath, options.CoverageId, options.SrsName);
 
             return new WcsCoverageResult(
                 requestUrl,
                 localFilePath,
-                options.Format,
-                raster);
+                downloadResult.ContentType,
+                raster,
+                downloadResult.UsedCachedFile);
         }
 
         public static string BuildGetCapabilitiesRequestUrl(string baseUrl)
@@ -239,6 +223,71 @@ namespace RhinoSpatial.Core
             return WcsCapabilitiesReader.ReadCoverageDescription(xml);
         }
 
+        private async Task<CoverageDownloadResult> DownloadCoverageFileAsync(string requestUrl, string localFilePath, string format)
+        {
+            if (TryGetCachedCoverageFile(localFilePath, format, out var cachedResult))
+            {
+                return cachedResult;
+            }
+
+            var loadTask = CoverageDownloadCache.GetOrAdd(
+                requestUrl,
+                _ => DownloadCoverageFileUncachedAsync(requestUrl, localFilePath, format));
+
+            try
+            {
+                return await loadTask;
+            }
+            finally
+            {
+                if (loadTask.IsCompleted)
+                {
+                    CoverageDownloadCache.TryRemove(requestUrl, out _);
+                }
+            }
+        }
+
+        private static async Task<CoverageDownloadResult> DownloadCoverageFileUncachedAsync(string requestUrl, string localFilePath, string format)
+        {
+            if (TryGetCachedCoverageFile(localFilePath, format, out var cachedResult))
+            {
+                return cachedResult;
+            }
+
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            using var response = await SharedHttpClient.SendAsync(request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException(
+                    $"The WCS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}",
+                    null,
+                    response.StatusCode);
+            }
+
+            await using var responseStream = await response.Content.ReadAsStreamAsync();
+            await using var fileStream = File.Create(localFilePath);
+            await responseStream.CopyToAsync(fileStream);
+
+            return new CoverageDownloadResult(
+                localFilePath,
+                response.Content.Headers.ContentType?.MediaType ?? format,
+                UsedCachedFile: false);
+        }
+
+        private static bool TryGetCachedCoverageFile(string localFilePath, string format, out CoverageDownloadResult result)
+        {
+            var fileInfo = new FileInfo(localFilePath);
+            if (fileInfo.Exists && fileInfo.Length > 0)
+            {
+                result = new CoverageDownloadResult(localFilePath, format, UsedCachedFile: true);
+                return true;
+            }
+
+            result = default!;
+            return false;
+        }
+
         private static string ResolveFileExtension(string format)
         {
             if (format.Contains("tiff", StringComparison.OrdinalIgnoreCase) || format.Contains("tif", StringComparison.OrdinalIgnoreCase))
@@ -269,5 +318,10 @@ namespace RhinoSpatial.Core
             var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(requestBaseUrl, ReservedQueryKeys);
             return $"{normalizedBaseUrl}|{options.Version}|{options.CoverageId}";
         }
+
+        private sealed record CoverageDownloadResult(
+            string LocalFilePath,
+            string ContentType,
+            bool UsedCachedFile);
     }
 }

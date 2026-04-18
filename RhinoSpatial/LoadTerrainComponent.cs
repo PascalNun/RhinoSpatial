@@ -171,11 +171,7 @@ namespace RhinoSpatial
                     placementOrigin,
                     spatialContext.UseAbsoluteCoordinates,
                     elevationBase);
-                var status = string.IsNullOrWhiteSpace(coverageId)
-                    ? string.Empty
-                    : spatialContext.UseAbsoluteCoordinates
-                        ? $"Terrain coverage: {coverageId} with absolute elevation."
-                        : $"Terrain coverage: {coverageId} aligned to the shared local terrain/building elevation baseline.";
+                var status = BuildStatusMessage(coverageId, spatialContext.UseAbsoluteCoordinates, coverage.UsedCachedFile);
 
                 return new SolveResults
                 {
@@ -192,6 +188,21 @@ namespace RhinoSpatial
                     MessageLevel = GH_RuntimeMessageLevel.Error
                 };
             }
+        }
+
+        private static string BuildStatusMessage(string coverageId, bool useAbsoluteCoordinates, bool usedCachedFile)
+        {
+            var actionPrefix = usedCachedFile ? "Using cached terrain raster" : "Loaded terrain coverage";
+            if (string.IsNullOrWhiteSpace(coverageId))
+            {
+                return actionPrefix + ".";
+            }
+
+            var alignmentNote = useAbsoluteCoordinates
+                ? "with absolute elevation."
+                : "aligned to the shared local terrain/building elevation baseline.";
+
+            return $"{actionPrefix}: {coverageId} {alignmentNote}";
         }
 
         private static BoundingBox2D ResolveRequestedBoundingBox(
