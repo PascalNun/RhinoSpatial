@@ -9,3 +9,4 @@ obj/
 package/staging/
 package/yak/*.yak
 package/food4rhino/*.zip
+RhinoSpatial/Resources/wfs_icons.psd
