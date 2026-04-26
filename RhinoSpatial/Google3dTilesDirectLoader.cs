@@ -27,10 +27,11 @@ namespace RhinoSpatial
 
     internal static class Google3dTilesDirectLoader
     {
-        private const int MaxVisitedTiles = 1800;
-        private const int MaxExternalTilesets = 18;
+        private const int MaxVisitedTiles = 12000;
+        private const int MaxExternalTilesets = 120;
         private const int MaxContentTiles = 12;
-        private const int MaxQueueSize = 3000;
+        private const int MaxDecodeCandidateTiles = 96;
+        private const int MaxQueueSize = 20000;
 
         private static readonly HttpClient HttpClient = new()
         {
@@ -49,7 +50,7 @@ namespace RhinoSpatial
                 return Google3dTilesDirectLoadResult.Failed("Google 3D Tiles direct loader needs a user-managed Google Maps API key.");
             }
 
-            var rootUri = BuildGoogleTilesUri("/v1/3dtiles/root.json", apiKey, null);
+            var rootUri = BuildGoogleTilesUri("/v1/3dtiles/root.json", apiKey, null, null);
             reportProgress?.Invoke("Google 3D Tiles direct loader is requesting the root tileset from Google...");
             using var rootDocument = await LoadJsonDocumentAsync(rootUri, cancellationToken).ConfigureAwait(false);
             reportProgress?.Invoke("Google 3D Tiles root tileset received. Traversing intersecting tile nodes...");
@@ -67,7 +68,6 @@ namespace RhinoSpatial
             var loadedExternalTilesets = 0;
 
             while (queue.Count > 0 &&
-                   descriptors.Count < MaxContentTiles &&
                    visitedTiles < MaxVisitedTiles)
             {
                 var visit = queue.Dequeue();
@@ -77,12 +77,15 @@ namespace RhinoSpatial
                     visit.Transform,
                     TryReadTransform(visit.Tile, out var localTransform) ? localTransform : IdentityMatrix());
 
-                if (!TileIntersectsStudyArea(visit.Tile, boundingBox4326))
+                if (!TileIntersectsStudyArea(visit.Tile, boundingBox4326, tileTransform))
                 {
                     continue;
                 }
 
-                foreach (var contentUriText in ReadContentUris(visit.Tile))
+                var contentUriTexts = ReadContentUris(visit.Tile).ToList();
+                var hasIntersectingRefinement = false;
+
+                foreach (var contentUriText in contentUriTexts)
                 {
                     var contentUri = BuildContentUri(contentUriText, visit.BaseUri, apiKey, session);
                     var contentPath = contentUri.AbsolutePath;
@@ -91,6 +94,7 @@ namespace RhinoSpatial
                         loadedExternalTilesets < MaxExternalTilesets)
                     {
                         loadedExternalTilesets++;
+                        hasIntersectingRefinement = true;
                         try
                         {
                             reportProgress?.Invoke($"Google 3D Tiles direct loader is resolving child tileset {loadedExternalTilesets}...");
@@ -99,7 +103,16 @@ namespace RhinoSpatial
                             session ??= TryGetSessionFromJson(externalRootElement);
                             if (TryGetProperty(externalRootElement, "root", out var externalRoot))
                             {
-                                queue.Enqueue(new TileVisit(externalRoot.Clone(), contentUri, tileTransform, visit.Depth + 1));
+                                var externalTransform = CombineMatrices(
+                                    tileTransform,
+                                    TryReadTransform(externalRoot, out var externalLocalTransform)
+                                        ? externalLocalTransform
+                                        : IdentityMatrix());
+                                if (TileIntersectsStudyArea(externalRoot, boundingBox4326, externalTransform) &&
+                                    queue.Count < MaxQueueSize)
+                                {
+                                    queue.Enqueue(new TileVisit(externalRoot.Clone(), contentUri, tileTransform, visit.Depth + 1));
+                                }
                             }
                         }
                         catch
@@ -109,28 +122,6 @@ namespace RhinoSpatial
 
                         continue;
                     }
-
-                    if (!contentPath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    descriptors.Add(new Google3dTilesTileDescriptor
-                    {
-                        Url = contentUri.ToString(),
-                        Transform = tileTransform
-                    });
-                    reportProgress?.Invoke($"Google 3D Tiles direct loader found {descriptors.Count} candidate GLB tile content URL(s)...");
-
-                    if (descriptors.Count >= MaxContentTiles)
-                    {
-                        break;
-                    }
-                }
-
-                if (descriptors.Count >= MaxContentTiles)
-                {
-                    break;
                 }
 
                 if (TryGetProperty(visit.Tile, "children", out var children) &&
@@ -143,7 +134,47 @@ namespace RhinoSpatial
                             break;
                         }
 
+                        var childTransform = CombineMatrices(
+                            tileTransform,
+                            TryReadTransform(child, out var childLocalTransform)
+                                ? childLocalTransform
+                                : IdentityMatrix());
+                        if (!TileIntersectsStudyArea(child, boundingBox4326, childTransform))
+                        {
+                            continue;
+                        }
+
+                        hasIntersectingRefinement = true;
                         queue.Enqueue(new TileVisit(child.Clone(), visit.BaseUri, tileTransform, visit.Depth + 1));
+                    }
+                }
+
+                if (hasIntersectingRefinement)
+                {
+                    continue;
+                }
+
+                foreach (var contentUriText in contentUriTexts)
+                {
+                    var contentUri = BuildContentUri(contentUriText, visit.BaseUri, apiKey, session);
+                    var contentPath = contentUri.AbsolutePath;
+
+                    if (!contentPath.EndsWith(".glb", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    descriptors.Add(new Google3dTilesTileDescriptor
+                    {
+                        Url = contentUri.ToString(),
+                        Transform = tileTransform,
+                        Depth = visit.Depth,
+                        GeometricError = TryReadGeometricError(visit.Tile)
+                    });
+                    if (descriptors.Count <= MaxContentTiles ||
+                        descriptors.Count % 25 == 0)
+                    {
+                        reportProgress?.Invoke($"Google 3D Tiles direct loader found {descriptors.Count} candidate GLB tile content URL(s)...");
                     }
                 }
             }
@@ -154,19 +185,143 @@ namespace RhinoSpatial
                     $"Google 3D Tiles direct loader did not find GLB tile content intersecting the selected area after visiting {visitedTiles} tile node(s).");
             }
 
-            reportProgress?.Invoke($"Google 3D Tiles direct loader is decoding {descriptors.Count} tile content URL(s) for Rhino preview...");
-            var primitives = await Google3dTilesTileContentLoader
-                .LoadDisplayPrimitivesAsync(descriptors, spatialContext, cancellationToken)
-                .ConfigureAwait(false);
+            var selectedDescriptors = SelectBestContentDescriptors(descriptors, MaxDecodeCandidateTiles).ToList();
+            var decodedPrimitives = new List<Google3dTilesReferenceSession.DisplayPrimitive>();
+            var aggregateContentResult = new Google3dTilesContentLoadResult();
+            var decodedDescriptorCount = 0;
+
+            foreach (var descriptorBatch in selectedDescriptors.Chunk(MaxContentTiles))
+            {
+                var batch = descriptorBatch.ToList();
+                decodedDescriptorCount += batch.Count;
+                reportProgress?.Invoke($"Google 3D Tiles direct loader is decoding tile content URL(s) {decodedDescriptorCount - batch.Count + 1}-{decodedDescriptorCount} from {selectedDescriptors.Count} selected fine candidate(s)...");
+                var contentResult = await Google3dTilesTileContentLoader
+                    .LoadDisplayPrimitivesAsync(batch, spatialContext, cancellationToken)
+                    .ConfigureAwait(false);
+                aggregateContentResult = CombineContentResults(aggregateContentResult, contentResult);
+                decodedPrimitives.AddRange(contentResult.Primitives);
+            }
+
+            var primitives = decodedPrimitives
+                .Where(static primitive => !primitive.IsClippedFallback)
+                .ToList();
+            var suppressedFallbackCount = decodedPrimitives.Count - primitives.Count;
             var triangleCount = primitives.Sum(static primitive => primitive.Mesh.Faces.TriangleCount);
 
             return new Google3dTilesDirectLoadResult
             {
                 Primitives = primitives,
                 Status = primitives.Count > 0
-                    ? $"Google 3D Tiles direct loader decoded {primitives.Count} reference mesh(es) from {descriptors.Count} tile content URL(s), {triangleCount} triangles."
-                    : $"Google 3D Tiles direct loader found {descriptors.Count} tile content URL(s), but none produced viewport geometry inside the selected area."
+                    ? BuildSuccessStatus(primitives.Count, triangleCount, decodedDescriptorCount, descriptors.Count, suppressedFallbackCount, aggregateContentResult)
+                    : BuildEmptyContentStatus(decodedDescriptorCount, descriptors.Count, aggregateContentResult, suppressedFallbackCount)
             };
+        }
+
+        private static string BuildSuccessStatus(
+            int primitiveCount,
+            int triangleCount,
+            int decodedDescriptorCount,
+            int totalCandidateCount,
+            int suppressedFallbackCount,
+            Google3dTilesContentLoadResult contentResult)
+        {
+            var fallbackNote = suppressedFallbackCount > 0
+                ? $" Suppressed {suppressedFallbackCount} coarse clipped fallback mesh(es)."
+                : string.Empty;
+            var validityNote = contentResult.InvalidMeshCount > 0 || contentResult.DegenerateTriangleCount > 0
+                ? $" Dropped {contentResult.InvalidMeshCount} invalid mesh(es) and {contentResult.DegenerateTriangleCount} degenerate triangle(s)."
+                : string.Empty;
+
+            return $"Google 3D Tiles direct loader decoded {primitiveCount} reference mesh(es) from {decodedDescriptorCount} selected tile content URL(s) ({totalCandidateCount} candidate URL(s)), {triangleCount} triangles.{fallbackNote}{validityNote}";
+        }
+
+        private static Google3dTilesContentLoadResult CombineContentResults(
+            Google3dTilesContentLoadResult left,
+            Google3dTilesContentLoadResult right)
+        {
+            var primitives = new List<Google3dTilesReferenceSession.DisplayPrimitive>(left.Primitives.Count + right.Primitives.Count);
+            primitives.AddRange(left.Primitives);
+            primitives.AddRange(right.Primitives);
+
+            return new Google3dTilesContentLoadResult
+            {
+                Primitives = primitives,
+                AttemptedTileCount = left.AttemptedTileCount + right.AttemptedTileCount,
+                DecodeFailureCount = left.DecodeFailureCount + right.DecodeFailureCount,
+                DecodedPrimitiveCount = left.DecodedPrimitiveCount + right.DecodedPrimitiveCount,
+                EmptyPrimitiveCount = left.EmptyPrimitiveCount + right.EmptyPrimitiveCount,
+                EmptyTileCount = left.EmptyTileCount + right.EmptyTileCount,
+                DracoCompressedTileCount = left.DracoCompressedTileCount + right.DracoCompressedTileCount,
+                DracoRequiredTileCount = left.DracoRequiredTileCount + right.DracoRequiredTileCount,
+                SkippedDecodedPrimitiveCount = left.SkippedDecodedPrimitiveCount + right.SkippedDecodedPrimitiveCount,
+                TotalDecodedTriangleCount = left.TotalDecodedTriangleCount + right.TotalDecodedTriangleCount,
+                RejectedOutOfBoundsTriangleCount = left.RejectedOutOfBoundsTriangleCount + right.RejectedOutOfBoundsTriangleCount,
+                RejectedOversizedTriangleCount = left.RejectedOversizedTriangleCount + right.RejectedOversizedTriangleCount,
+                ClippedOversizedTriangleCount = left.ClippedOversizedTriangleCount + right.ClippedOversizedTriangleCount,
+                FallbackPrimitiveCount = left.FallbackPrimitiveCount + right.FallbackPrimitiveCount,
+                DegenerateTriangleCount = left.DegenerateTriangleCount + right.DegenerateTriangleCount,
+                InvalidMeshCount = left.InvalidMeshCount + right.InvalidMeshCount,
+                LastError = string.IsNullOrWhiteSpace(right.LastError) ? left.LastError : right.LastError
+            };
+        }
+
+        private static IEnumerable<Google3dTilesTileDescriptor> SelectBestContentDescriptors(
+            IEnumerable<Google3dTilesTileDescriptor> descriptors,
+            int maxCount)
+        {
+            return descriptors
+                .Where(static descriptor => !string.IsNullOrWhiteSpace(descriptor.Url))
+                .GroupBy(static descriptor => descriptor.Url, StringComparer.Ordinal)
+                .Select(static group => group
+                    .OrderBy(static descriptor => NormalizeGeometricError(descriptor.GeometricError))
+                    .ThenByDescending(static descriptor => descriptor.Depth)
+                    .First())
+                .OrderBy(static descriptor => NormalizeGeometricError(descriptor.GeometricError))
+                .ThenByDescending(static descriptor => descriptor.Depth)
+                .Take(maxCount);
+        }
+
+        private static double NormalizeGeometricError(double value)
+        {
+            return double.IsNaN(value) || double.IsInfinity(value)
+                ? double.MaxValue
+                : Math.Max(0.0, value);
+        }
+
+        private static string BuildEmptyContentStatus(
+            int decodedDescriptorCount,
+            int totalCandidateCount,
+            Google3dTilesContentLoadResult contentResult,
+            int suppressedFallbackCount)
+        {
+            if (contentResult.DecodeFailureCount > 0 && contentResult.DecodeFailureCount == contentResult.AttemptedTileCount)
+            {
+                var suffix = string.IsNullOrWhiteSpace(contentResult.LastError)
+                    ? string.Empty
+                    : $" Last decode error: {contentResult.LastError}";
+                return $"Google 3D Tiles direct loader found {totalCandidateCount} candidate tile content URL(s), but all {contentResult.DecodeFailureCount} attempted GLB decode(s) failed.{suffix}";
+            }
+
+            var dracoNote = contentResult.DracoCompressedTileCount > 0
+                ? $" {contentResult.DracoCompressedTileCount} attempted GLB(s) use Draco compression ({contentResult.DracoRequiredTileCount} required)."
+                : string.Empty;
+            var skippedNote = contentResult.SkippedDecodedPrimitiveCount > 0
+                ? $" Skipped {contentResult.SkippedDecodedPrimitiveCount} primitive(s) without directly readable POSITION/index data."
+                : string.Empty;
+            var rejectedNote = contentResult.TotalDecodedTriangleCount > 0
+                ? $" Clipped {contentResult.ClippedOversizedTriangleCount} oversized triangle(s); rejected {contentResult.RejectedOversizedTriangleCount} oversized and {contentResult.RejectedOutOfBoundsTriangleCount} out-of-context triangle(s) from {contentResult.TotalDecodedTriangleCount} decoded triangle(s)."
+                : string.Empty;
+            var fallbackNote = suppressedFallbackCount > 0 || contentResult.FallbackPrimitiveCount > 0
+                ? $" Suppressed {Math.Max(suppressedFallbackCount, contentResult.FallbackPrimitiveCount)} coarse clipped fallback mesh(es) because they are not usable local 3D tile geometry."
+                : string.Empty;
+            var validityNote = contentResult.InvalidMeshCount > 0 || contentResult.DegenerateTriangleCount > 0
+                ? $" Dropped {contentResult.InvalidMeshCount} invalid mesh(es) and {contentResult.DegenerateTriangleCount} degenerate triangle(s)."
+                : string.Empty;
+            var errorNote = string.IsNullOrWhiteSpace(contentResult.LastError)
+                ? string.Empty
+                : $" Last decode/build error: {contentResult.LastError}";
+
+            return $"Google 3D Tiles direct loader found {totalCandidateCount} candidate tile content URL(s), attempted {contentResult.AttemptedTileCount} GLB load(s) from {decodedDescriptorCount} selected candidate(s), decoded {contentResult.DecodedPrimitiveCount} primitive(s), but produced no usable mesh faces.{dracoNote}{skippedNote}{rejectedNote}{fallbackNote}{validityNote}{errorNote}";
         }
 
         private static async Task<JsonDocument> LoadJsonDocumentAsync(Uri uri, CancellationToken cancellationToken)
@@ -187,9 +342,14 @@ namespace RhinoSpatial
 
         private static Uri BuildContentUri(string contentUriText, Uri baseUri, string apiKey, string? session)
         {
+            var inheritedQuery = ParseQuery(baseUri.Query);
             if (contentUriText.StartsWith("/v1/3dtiles/", StringComparison.OrdinalIgnoreCase))
             {
-                return BuildGoogleTilesUri(contentUriText, apiKey, session);
+                return BuildGoogleTilesUri(
+                    contentUriText,
+                    apiKey,
+                    session ?? TryGetSession(baseUri),
+                    inheritedQuery);
             }
 
             var uri = Uri.TryCreate(contentUriText, UriKind.Absolute, out var absoluteUri)
@@ -201,16 +361,35 @@ namespace RhinoSpatial
                 return uri;
             }
 
-            return BuildGoogleTilesUri(uri.PathAndQuery, apiKey, session);
+            return BuildGoogleTilesUri(
+                uri.PathAndQuery,
+                apiKey,
+                session ?? TryGetSession(uri) ?? TryGetSession(baseUri),
+                inheritedQuery);
         }
 
-        private static Uri BuildGoogleTilesUri(string pathAndQuery, string apiKey, string? session)
+        private static Uri BuildGoogleTilesUri(
+            string pathAndQuery,
+            string apiKey,
+            string? session,
+            IReadOnlyDictionary<string, string>? inheritedQuery)
         {
             var builder = new UriBuilder(
                 pathAndQuery.StartsWith("http", StringComparison.OrdinalIgnoreCase)
                     ? new Uri(pathAndQuery)
                     : new Uri(new Uri("https://tile.googleapis.com"), pathAndQuery));
             var query = ParseQuery(builder.Query);
+
+            if (inheritedQuery is not null)
+            {
+                foreach (var entry in inheritedQuery)
+                {
+                    if (!query.ContainsKey(entry.Key))
+                    {
+                        query[entry.Key] = entry.Value;
+                    }
+                }
+            }
 
             if (!query.ContainsKey("key"))
             {
@@ -292,7 +471,7 @@ namespace RhinoSpatial
             return false;
         }
 
-        private static bool TileIntersectsStudyArea(JsonElement tile, BoundingBox2D studyArea4326)
+        private static bool TileIntersectsStudyArea(JsonElement tile, BoundingBox2D studyArea4326, IReadOnlyList<double> tileTransform)
         {
             if (!TryGetProperty(tile, "boundingVolume", out var boundingVolume))
             {
@@ -322,16 +501,21 @@ namespace RhinoSpatial
                 var values = sphere.EnumerateArray()
                     .Select(static value => value.GetDouble())
                     .ToArray();
-                if (values.Length >= 4 &&
-                    Google3dTilesCoordinateConverter.TryConvertEcefToGeodetic(
-                        values[0],
-                        values[1],
-                        values[2],
+                if (values.Length >= 4)
+                {
+                    var center = ApplyMatrixToPoint(values[0], values[1], values[2], tileTransform);
+                    if (!Google3dTilesCoordinateConverter.TryConvertEcefToGeodetic(
+                        center.X,
+                        center.Y,
+                        center.Z,
                         out var latitude,
                         out var longitude,
                         out _))
-                {
-                    var radiusDegrees = Math.Max(values[3] / 111_000.0, 0.00001);
+                    {
+                        return true;
+                    }
+
+                    var radiusDegrees = Math.Max((values[3] / 111_000.0) * 1.5, 0.00001);
                     var tileBox = new BoundingBox2D(
                         longitude - radiusDegrees,
                         latitude - radiusDegrees,
@@ -347,21 +531,77 @@ namespace RhinoSpatial
                 var values = box.EnumerateArray()
                     .Select(static value => value.GetDouble())
                     .ToArray();
-                if (values.Length >= 3 &&
-                    Google3dTilesCoordinateConverter.TryConvertEcefToGeodetic(
-                        values[0],
-                        values[1],
-                        values[2],
+                if (values.Length >= 3)
+                {
+                    var center = ApplyMatrixToPoint(values[0], values[1], values[2], tileTransform);
+                    if (!Google3dTilesCoordinateConverter.TryConvertEcefToGeodetic(
+                        center.X,
+                        center.Y,
+                        center.Z,
                         out var latitude,
                         out var longitude,
                         out _))
-                {
-                    var tileBox = new BoundingBox2D(longitude - 0.05, latitude - 0.05, longitude + 0.05, latitude + 0.05);
+                    {
+                        return true;
+                    }
+
+                    var radiusDegrees = values.Length >= 12
+                        ? EstimateBoxRadiusDegrees(values)
+                        : 0.05;
+                    var tileBox = new BoundingBox2D(
+                        longitude - radiusDegrees,
+                        latitude - radiusDegrees,
+                        longitude + radiusDegrees,
+                        latitude + radiusDegrees);
                     return RhinoSpatialContextTools.DoBoundingBoxesIntersect(tileBox, studyArea4326);
                 }
             }
 
             return true;
+        }
+
+        private static (double X, double Y, double Z) ApplyMatrixToPoint(
+            double x,
+            double y,
+            double z,
+            IReadOnlyList<double> matrixValues)
+        {
+            if (matrixValues.Count != 16)
+            {
+                return (x, y, z);
+            }
+
+            var transformedX = (matrixValues[0] * x) + (matrixValues[4] * y) + (matrixValues[8] * z) + matrixValues[12];
+            var transformedY = (matrixValues[1] * x) + (matrixValues[5] * y) + (matrixValues[9] * z) + matrixValues[13];
+            var transformedZ = (matrixValues[2] * x) + (matrixValues[6] * y) + (matrixValues[10] * z) + matrixValues[14];
+            var transformedW = (matrixValues[3] * x) + (matrixValues[7] * y) + (matrixValues[11] * z) + matrixValues[15];
+
+            if (Math.Abs(transformedW) > 1e-9 && Math.Abs(transformedW - 1.0) > 1e-9)
+            {
+                transformedX /= transformedW;
+                transformedY /= transformedW;
+                transformedZ /= transformedW;
+            }
+
+            return (transformedX, transformedY, transformedZ);
+        }
+
+        private static double EstimateBoxRadiusDegrees(IReadOnlyList<double> boxValues)
+        {
+            var halfAxisX = VectorLength(boxValues[3], boxValues[4], boxValues[5]);
+            var halfAxisY = VectorLength(boxValues[6], boxValues[7], boxValues[8]);
+            var halfAxisZ = VectorLength(boxValues[9], boxValues[10], boxValues[11]);
+            var radiusMeters = Math.Sqrt(
+                (halfAxisX * halfAxisX) +
+                (halfAxisY * halfAxisY) +
+                (halfAxisZ * halfAxisZ));
+
+            return Math.Max((radiusMeters / 111_000.0) * 1.5, 0.00001);
+        }
+
+        private static double VectorLength(double x, double y, double z)
+        {
+            return Math.Sqrt((x * x) + (y * y) + (z * z));
         }
 
         private static bool TryReadTransform(JsonElement tile, out List<double> transform)
@@ -377,6 +617,18 @@ namespace RhinoSpatial
                 .Select(static value => value.GetDouble())
                 .ToList();
             return transform.Count == 16;
+        }
+
+        private static double TryReadGeometricError(JsonElement tile)
+        {
+            if (TryGetProperty(tile, "geometricError", out var geometricError) &&
+                geometricError.ValueKind == JsonValueKind.Number &&
+                geometricError.TryGetDouble(out var value))
+            {
+                return value;
+            }
+
+            return double.PositiveInfinity;
         }
 
         private static List<double> IdentityMatrix()

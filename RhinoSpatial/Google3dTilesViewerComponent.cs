@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using GH_IO.Serialization;
 using Grasshopper.Kernel;
+using Grasshopper.Kernel.Types;
 using Rhino.Display;
 using Rhino.Geometry;
 using Rhino;
@@ -13,8 +15,8 @@ namespace RhinoSpatial
 {
     public class Google3dTilesViewerComponent : GH_TaskCapableComponent<Google3dTilesViewerComponent.SolveResults>
     {
-        private const string DisabledStatus = "Google 3D Tiles viewer is disabled. Connect a Boolean Toggle set to True to Enable when you want RhinoSpatial to request the bounded reference-only viewport layer.";
-        private const string PolicyStatus = "Google Photorealistic 3D Tiles are reference-only. RhinoSpatial loads a bounded transient viewport layer and keeps it outside the editable Rhino workflow: no bake, no export, no offline geometry cache.";
+        private const string DisabledStatus = "Google 3D Tiles loader is disabled. Connect a Boolean Toggle set to True to Enable when you want RhinoSpatial to request bounded mesh content.";
+        private const string PolicyStatus = "Google 3D Tiles loader is enabled. RhinoSpatial requests bounded tile content directly and outputs decoded Grasshopper meshes with aligned materials.";
         private static readonly TimeSpan DirectLoadTimeout = TimeSpan.FromSeconds(45);
 
         private readonly List<Google3dTilesReferenceSession.DisplayPrimitive> _previewPrimitives = new();
@@ -44,16 +46,16 @@ namespace RhinoSpatial
 
             public Curve AreaFrame { get; init; } = null!;
 
-            public bool EnableReference { get; init; }
+            public bool EnableLoader { get; init; }
         }
 
         public Google3dTilesViewerComponent()
             : base(
-                "3D Tiles Viewer (Google)",
-                "3D Tiles View",
-                "Enable a direct, reference-only Google Photorealistic 3D Tiles viewport layer for the selected Spatial Context. This feature does not create bakeable Rhino geometry.",
+                "3D Tiles Loader (Google)",
+                "3D Tiles",
+                "Load bounded Google Photorealistic 3D Tiles directly as Grasshopper meshes aligned to the selected Spatial Context.",
                 "RhinoSpatial",
-                "Viewers")
+                "Google")
         {
             NormalizeComponentLayout();
         }
@@ -66,13 +68,15 @@ namespace RhinoSpatial
         {
             pManager.AddTextParameter("API Key", "API Key", "User-managed Google Maps API key for the Map Tiles API. RhinoSpatial uses it only for direct tile requests from this component.", GH_ParamAccess.item);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
-            pManager.AddBooleanParameter("Enable Viewer", "Enable", "Enable the transient Google 3D Tiles viewer in the Rhino viewport. This layer is reference-only and is not bakeable or exportable.", GH_ParamAccess.item, false);
+            pManager.AddBooleanParameter("Enable Loader", "Enable", "Request and decode Google 3D Tiles meshes for the selected Spatial Context.", GH_ParamAccess.item, false);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
-            pManager.AddTextParameter("Status", "Status", "Status text for the Google 3D Tiles viewer.", GH_ParamAccess.item);
-            pManager.AddBooleanParameter("Viewer Active", "Active", "True when the transient Google 3D Tiles viewer is enabled in the Rhino viewport.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Status", "Status", "Status text for the Google 3D Tiles loader.", GH_ParamAccess.item);
+            pManager.AddBooleanParameter("Loader Active", "Active", "True when the Google 3D Tiles loader is enabled.", GH_ParamAccess.item);
+            pManager.AddMeshParameter("Meshes", "Meshes", "Decoded Google 3D Tiles meshes clipped to the Spatial Context.", GH_ParamAccess.list);
+            pManager.AddGenericParameter("Materials", "Materials", "Materials for the decoded Google 3D Tiles meshes, aligned by list index.", GH_ParamAccess.list);
         }
 
         public override void AddedToDocument(GH_Document document)
@@ -84,7 +88,6 @@ namespace RhinoSpatial
         public override bool Read(GH_IReader reader)
         {
             var result = base.Read(reader);
-            NormalizeComponentLayout();
             return result;
         }
 
@@ -98,7 +101,7 @@ namespace RhinoSpatial
                 return;
             }
 
-            if (!requestData.EnableReference)
+            if (!requestData.EnableLoader)
             {
                 ClearLivePreviewState();
                 dataAccess.SetData(0, DisabledStatus);
@@ -121,6 +124,8 @@ namespace RhinoSpatial
             ApplySolveResults(result);
             dataAccess.SetData(0, result.Status);
             dataAccess.SetData(1, result.Active);
+            dataAccess.SetDataList(2, result.Primitives.Select(static primitive => primitive.Mesh));
+            dataAccess.SetDataList(3, BuildOutputMaterials(result.Primitives));
 
             if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
             {
@@ -191,11 +196,11 @@ namespace RhinoSpatial
 
             string? apiKey = null;
             string? spatialContextText = null;
-            var enableReference = false;
+            var enableLoader = false;
 
             dataAccess.GetData(0, ref apiKey);
             dataAccess.GetData(1, ref spatialContextText);
-            dataAccess.GetData(2, ref enableReference);
+            dataAccess.GetData(2, ref enableLoader);
 
             dataAccess.SetData(1, false);
 
@@ -210,7 +215,7 @@ namespace RhinoSpatial
 
             if (string.IsNullOrWhiteSpace(normalizedApiKey))
             {
-                const string missingKeyMessage = "API Key is required. This reference layer is user-managed. RhinoSpatial does not ship or store a shared Google Maps API key.";
+                const string missingKeyMessage = "API Key is required. Google 3D Tiles loading is user-managed. RhinoSpatial does not ship or store a shared Google Maps API key.";
                 dataAccess.SetData(0, missingKeyMessage);
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, missingKeyMessage);
                 return false;
@@ -218,7 +223,7 @@ namespace RhinoSpatial
 
             if (!TryResolveWgs84BoundingBox(spatialContext, out var boundingBox4326))
             {
-                const string missingBoundingBoxMessage = "The Spatial Context could not provide a usable EPSG:4326 bounding box for the 3D Tiles viewer.";
+                const string missingBoundingBoxMessage = "The Spatial Context could not provide a usable EPSG:4326 bounding box for the 3D Tiles loader.";
                 dataAccess.SetData(0, missingBoundingBoxMessage);
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, missingBoundingBoxMessage);
                 return false;
@@ -230,7 +235,7 @@ namespace RhinoSpatial
                 SpatialContext = spatialContext,
                 BoundingBox4326 = boundingBox4326,
                 AreaFrame = CreateAreaFrame(spatialContext),
-                EnableReference = enableReference
+                EnableLoader = enableLoader
             };
             return true;
         }
@@ -254,7 +259,9 @@ namespace RhinoSpatial
             {
                 Primitives = loadResult.Primitives,
                 AreaFrame = requestData.AreaFrame.DuplicateCurve(),
-                Status = string.IsNullOrWhiteSpace(loadResult.Status) ? PolicyStatus : loadResult.Status,
+                Status = BuildStatusWithBounds(
+                    string.IsNullOrWhiteSpace(loadResult.Status) ? PolicyStatus : loadResult.Status,
+                    loadResult.Primitives),
                 Active = true,
                 MessageLevel = loadResult.Primitives.Count == 0 ? GH_RuntimeMessageLevel.Warning : null
             };
@@ -313,6 +320,7 @@ namespace RhinoSpatial
 
         private void NormalizeComponentLayout()
         {
+            var changed = false;
             for (var index = Params.Input.Count - 1; index >= 0; index--)
             {
                 var input = Params.Input[index];
@@ -320,7 +328,17 @@ namespace RhinoSpatial
                     input.NickName.Equals("Open", StringComparison.OrdinalIgnoreCase))
                 {
                     Params.UnregisterInputParameter(input, true);
+                    changed = true;
                 }
+            }
+
+            if (Params.Input.Count > 2)
+            {
+                changed |= SetParameterMetadata(
+                    Params.Input[2],
+                    "Enable Loader",
+                    "Enable",
+                    "Request and decode Google 3D Tiles meshes for the selected Spatial Context.");
             }
 
             for (var index = Params.Output.Count - 1; index >= 0; index--)
@@ -330,24 +348,130 @@ namespace RhinoSpatial
                     output.NickName.Equals("Viewer URL", StringComparison.OrdinalIgnoreCase))
                 {
                     Params.UnregisterOutputParameter(output, true);
+                    changed = true;
                 }
             }
 
             if (Params.Output.Count > 0)
             {
-                Params.Output[0].Name = "Status";
-                Params.Output[0].NickName = "Status";
-                Params.Output[0].Description = "Status text for the Google 3D Tiles viewer.";
+                changed |= SetParameterMetadata(
+                    Params.Output[0],
+                    "Status",
+                    "Status",
+                    "Status text for the Google 3D Tiles loader.");
             }
 
             if (Params.Output.Count > 1)
             {
-                Params.Output[1].Name = "Viewer Active";
-                Params.Output[1].NickName = "Active";
-                Params.Output[1].Description = "True when the transient Google 3D Tiles viewer is enabled in the Rhino viewport.";
+                changed |= SetParameterMetadata(
+                    Params.Output[1],
+                    "Loader Active",
+                    "Active",
+                    "True when the Google 3D Tiles loader is enabled.");
             }
 
-            Params.OnParametersChanged();
+            if (Params.Output.Count < 3)
+            {
+                Params.RegisterOutputParam(new Grasshopper.Kernel.Parameters.Param_Mesh
+                {
+                    Name = "Meshes",
+                    NickName = "Meshes",
+                    Description = "Decoded Google 3D Tiles meshes clipped to the Spatial Context.",
+                    Access = GH_ParamAccess.list
+                });
+                changed = true;
+            }
+
+            if (Params.Output.Count < 4)
+            {
+                Params.RegisterOutputParam(new Grasshopper.Kernel.Parameters.Param_GenericObject
+                {
+                    Name = "Materials",
+                    NickName = "Materials",
+                    Description = "Materials for the decoded Google 3D Tiles meshes, aligned by list index.",
+                    Access = GH_ParamAccess.list
+                });
+                changed = true;
+            }
+
+            if (changed)
+            {
+                Params.OnParametersChanged();
+            }
+        }
+
+        private static bool SetParameterMetadata(IGH_Param parameter, string name, string nickName, string description)
+        {
+            var changed = false;
+            if (!string.Equals(parameter.Name, name, StringComparison.Ordinal))
+            {
+                parameter.Name = name;
+                changed = true;
+            }
+
+            if (!string.Equals(parameter.NickName, nickName, StringComparison.Ordinal))
+            {
+                parameter.NickName = nickName;
+                changed = true;
+            }
+
+            if (!string.Equals(parameter.Description, description, StringComparison.Ordinal))
+            {
+                parameter.Description = description;
+                changed = true;
+            }
+
+            return changed;
+        }
+
+        private static List<object> BuildOutputMaterials(IEnumerable<Google3dTilesReferenceSession.DisplayPrimitive> primitives)
+        {
+            var materials = new List<object>();
+            foreach (var primitive in primitives)
+            {
+                if (!string.IsNullOrWhiteSpace(primitive.TextureFilePath))
+                {
+                    var grasshopperMaterial = RhinoSpatialRasterDisplayTools.CreateGrasshopperMaterial(primitive.TextureFilePath);
+                    if (grasshopperMaterial is not null)
+                    {
+                        materials.Add(grasshopperMaterial);
+                        continue;
+                    }
+                }
+
+                if (primitive.Material is not null)
+                {
+                    materials.Add(new GH_Material(primitive.Material));
+                }
+            }
+
+            return materials;
+        }
+
+        private static string BuildStatusWithBounds(
+            string status,
+            IReadOnlyCollection<Google3dTilesReferenceSession.DisplayPrimitive> primitives)
+        {
+            if (primitives.Count == 0)
+            {
+                return status;
+            }
+
+            var bounds = BoundingBox.Empty;
+            foreach (var primitive in primitives)
+            {
+                bounds.Union(primitive.Mesh.GetBoundingBox(accurate: false));
+            }
+
+            if (!bounds.IsValid)
+            {
+                return status;
+            }
+
+            var diagonal = bounds.Diagonal.Length;
+            return string.Create(
+                System.Globalization.CultureInfo.InvariantCulture,
+                $"{status} Local mesh bounds: X {bounds.Min.X:0.##}..{bounds.Max.X:0.##}, Y {bounds.Min.Y:0.##}..{bounds.Max.Y:0.##}, Z {bounds.Min.Z:0.##}..{bounds.Max.Z:0.##}, diagonal {diagonal:0.##}.");
         }
 
         private static bool TryResolveWgs84BoundingBox(SpatialContext2D spatialContext, out BoundingBox2D boundingBox4326)

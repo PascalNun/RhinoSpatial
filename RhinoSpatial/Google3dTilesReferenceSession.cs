@@ -14,7 +14,11 @@ namespace RhinoSpatial
 
             public DisplayMaterial? Material { get; init; }
 
+            public string TextureFilePath { get; init; } = string.Empty;
+
             public string SourceUrl { get; init; } = string.Empty;
+
+            public bool IsClippedFallback { get; init; }
         }
 
         public Guid OwnerId { get; set; }

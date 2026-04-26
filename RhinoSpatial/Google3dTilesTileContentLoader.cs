@@ -13,22 +13,86 @@ using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
+    internal sealed class Google3dTilesContentLoadResult
+    {
+        public List<Google3dTilesReferenceSession.DisplayPrimitive> Primitives { get; init; } = new();
+
+        public int AttemptedTileCount { get; init; }
+
+        public int DecodeFailureCount { get; init; }
+
+        public int DecodedPrimitiveCount { get; init; }
+
+        public int EmptyPrimitiveCount { get; init; }
+
+        public int EmptyTileCount { get; init; }
+
+        public int DracoCompressedTileCount { get; init; }
+
+        public int DracoRequiredTileCount { get; init; }
+
+        public int SkippedDecodedPrimitiveCount { get; init; }
+
+        public int TotalDecodedTriangleCount { get; init; }
+
+        public int RejectedOutOfBoundsTriangleCount { get; init; }
+
+        public int RejectedOversizedTriangleCount { get; init; }
+
+        public int ClippedOversizedTriangleCount { get; init; }
+
+        public int FallbackPrimitiveCount { get; init; }
+
+        public int DegenerateTriangleCount { get; init; }
+
+        public int InvalidMeshCount { get; init; }
+
+        public string LastError { get; init; } = string.Empty;
+    }
+
     internal static class Google3dTilesTileContentLoader
     {
+        private enum ProjectionMode
+        {
+            TileTransform,
+            YUpToZUpThenTileTransform,
+            InverseYUpToZUpThenTileTransform,
+            RawEcef
+        }
+
         private static readonly HttpClient HttpClient = new()
         {
             Timeout = TimeSpan.FromSeconds(12)
         };
         private static readonly object CacheSyncRoot = new();
-        private static readonly Dictionary<string, List<Google3dTilesDecodedPrimitive>> DecodedTileCache = new(StringComparer.Ordinal);
+        private static readonly Dictionary<string, Google3dTilesDecodedTile> DecodedTileCache = new(StringComparer.Ordinal);
         private static readonly string TextureCacheDirectory = Path.Combine(Path.GetTempPath(), "RhinoSpatial", "google-3d-tiles");
+        private const double TriangleEdgeLimitMultiplier = 12.0;
+        private const double MinimumTriangleEdgeLimit = 5000.0;
+        private const double MeshPointTolerance = 1e-6;
 
-        public static async Task<List<Google3dTilesReferenceSession.DisplayPrimitive>> LoadDisplayPrimitivesAsync(
+        public static async Task<Google3dTilesContentLoadResult> LoadDisplayPrimitivesAsync(
             IEnumerable<Google3dTilesTileDescriptor> tiles,
             SpatialContext2D spatialContext,
             CancellationToken cancellationToken = default)
         {
             var displayPrimitives = new List<Google3dTilesReferenceSession.DisplayPrimitive>();
+            var attemptedTileCount = 0;
+            var decodeFailureCount = 0;
+            var decodedPrimitiveCount = 0;
+            var emptyPrimitiveCount = 0;
+            var emptyTileCount = 0;
+            var dracoCompressedTileCount = 0;
+            var dracoRequiredTileCount = 0;
+            var skippedDecodedPrimitiveCount = 0;
+            var totalDecodedTriangleCount = 0;
+            var rejectedOutOfBoundsTriangleCount = 0;
+            var rejectedOversizedTriangleCount = 0;
+            var clippedOversizedTriangleCount = 0;
+            var fallbackPrimitiveCount = 0;
+            var degenerateTriangleCount = 0;
+            var invalidMeshCount = 0;
+            var lastError = string.Empty;
             const int maxTilesToDecode = 12;
 
             foreach (var tile in tiles
@@ -43,30 +107,90 @@ namespace RhinoSpatial
                     continue;
                 }
 
-                List<Google3dTilesDecodedPrimitive> decodedPrimitives;
+                attemptedTileCount++;
+                Google3dTilesDecodedTile decodedTile;
                 try
                 {
-                    decodedPrimitives = await GetOrLoadDecodedTileAsync(tileUrl, cancellationToken).ConfigureAwait(false);
+                    decodedTile = await GetOrLoadDecodedTileAsync(tileUrl, cancellationToken).ConfigureAwait(false);
                 }
-                catch
+                catch (Exception exception)
                 {
+                    decodeFailureCount++;
+                    lastError = exception.Message;
                     continue;
                 }
 
+                if (decodedTile.UsesDracoCompression)
+                {
+                    dracoCompressedTileCount++;
+                }
+
+                if (decodedTile.RequiresDracoCompression)
+                {
+                    dracoRequiredTileCount++;
+                }
+
+                if (decodedTile.Primitives.Count == 0)
+                {
+                    emptyTileCount++;
+                }
+
+                skippedDecodedPrimitiveCount += decodedTile.SkippedPrimitiveCount;
+                if (!string.IsNullOrWhiteSpace(decodedTile.LastError))
+                {
+                    lastError = decodedTile.LastError;
+                }
+
+                var decodedPrimitives = decodedTile.Primitives;
+                decodedPrimitiveCount += decodedPrimitives.Count;
                 foreach (var decodedPrimitive in decodedPrimitives)
                 {
-                    var displayPrimitive = CreateDisplayPrimitive(tile, decodedPrimitive, spatialContext);
+                    var displayPrimitive = CreateDisplayPrimitive(tile, decodedPrimitive, spatialContext, out var buildReport);
+                    totalDecodedTriangleCount += buildReport.TotalTriangleCount;
+                    rejectedOutOfBoundsTriangleCount += buildReport.RejectedOutOfBoundsTriangleCount;
+                    rejectedOversizedTriangleCount += buildReport.RejectedOversizedTriangleCount;
+                    clippedOversizedTriangleCount += buildReport.ClippedOversizedTriangleCount;
+                    degenerateTriangleCount += buildReport.DegenerateTriangleCount;
+                    invalidMeshCount += buildReport.InvalidMeshCount;
+                    if (displayPrimitive?.IsClippedFallback == true)
+                    {
+                        fallbackPrimitiveCount++;
+                    }
+
                     if (displayPrimitive is not null)
                     {
                         displayPrimitives.Add(displayPrimitive);
                     }
+                    else
+                    {
+                        emptyPrimitiveCount++;
+                    }
                 }
             }
 
-            return displayPrimitives;
+            return new Google3dTilesContentLoadResult
+            {
+                Primitives = displayPrimitives,
+                AttemptedTileCount = attemptedTileCount,
+                DecodeFailureCount = decodeFailureCount,
+                DecodedPrimitiveCount = decodedPrimitiveCount,
+                EmptyPrimitiveCount = emptyPrimitiveCount,
+                EmptyTileCount = emptyTileCount,
+                DracoCompressedTileCount = dracoCompressedTileCount,
+                DracoRequiredTileCount = dracoRequiredTileCount,
+                SkippedDecodedPrimitiveCount = skippedDecodedPrimitiveCount,
+                TotalDecodedTriangleCount = totalDecodedTriangleCount,
+                RejectedOutOfBoundsTriangleCount = rejectedOutOfBoundsTriangleCount,
+                RejectedOversizedTriangleCount = rejectedOversizedTriangleCount,
+                ClippedOversizedTriangleCount = clippedOversizedTriangleCount,
+                FallbackPrimitiveCount = fallbackPrimitiveCount,
+                DegenerateTriangleCount = degenerateTriangleCount,
+                InvalidMeshCount = invalidMeshCount,
+                LastError = lastError
+            };
         }
 
-        private static async Task<List<Google3dTilesDecodedPrimitive>> GetOrLoadDecodedTileAsync(string tileUrl, CancellationToken cancellationToken)
+        private static async Task<Google3dTilesDecodedTile> GetOrLoadDecodedTileAsync(string tileUrl, CancellationToken cancellationToken)
         {
             lock (CacheSyncRoot)
             {
@@ -76,89 +200,61 @@ namespace RhinoSpatial
                 }
             }
 
-            var glbBytes = await HttpClient.GetByteArrayAsync(tileUrl, cancellationToken).ConfigureAwait(false);
-            var decodedPrimitives = Google3dTilesGlbDecoder.Decode(glbBytes);
+            var glbBytes = await GetTileBytesAsync(tileUrl, cancellationToken).ConfigureAwait(false);
+            var decodedTile = Google3dTilesGlbDecoder.Decode(glbBytes);
 
             lock (CacheSyncRoot)
             {
-                DecodedTileCache[tileUrl] = decodedPrimitives;
+                DecodedTileCache[tileUrl] = decodedTile;
             }
 
-            return decodedPrimitives;
+            return decodedTile;
+        }
+
+        private static async Task<byte[]> GetTileBytesAsync(string tileUrl, CancellationToken cancellationToken)
+        {
+            using var response = await HttpClient
+                .GetAsync(tileUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException(
+                $"Google 3D Tiles GLB request failed ({(int)response.StatusCode}) for {TrimUrlForStatus(tileUrl)}: {TrimStatusBody(body)}");
         }
 
         private static Google3dTilesReferenceSession.DisplayPrimitive? CreateDisplayPrimitive(
             Google3dTilesTileDescriptor tile,
             Google3dTilesDecodedPrimitive decodedPrimitive,
-            SpatialContext2D spatialContext)
+            SpatialContext2D spatialContext,
+            out PrimitiveBuildReport buildReport)
         {
-            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
-            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
-            var placedBounds = RhinoSpatialContextTools.CreatePlacedBoundingBox(
-                spatialContext.PlacementBoundingBox,
-                spatialContext.PlacementOrigin,
-                spatialContext.UseAbsoluteCoordinates);
-            var boundsWidth = Math.Max(1.0, placedBounds.MaxX - placedBounds.MinX);
-            var boundsHeight = Math.Max(1.0, placedBounds.MaxY - placedBounds.MinY);
-            var boundsDiagonal = Math.Sqrt((boundsWidth * boundsWidth) + (boundsHeight * boundsHeight));
-            var expandedBounds = new BoundingBox2D(
-                placedBounds.MinX - (boundsWidth * 0.45),
-                placedBounds.MinY - (boundsHeight * 0.45),
-                placedBounds.MaxX + (boundsWidth * 0.45),
-                placedBounds.MaxY + (boundsHeight * 0.45));
-
-            var projectedVertices = new List<Point3d>(decodedPrimitive.EcefVertices.Count);
-            var minimumHeight = double.PositiveInfinity;
-
-            foreach (var vertex in decodedPrimitive.EcefVertices)
+            buildReport = new PrimitiveBuildReport
             {
-                var transformedVertex = ApplyTileTransform(vertex, tile.Transform);
+                TotalTriangleCount = decodedPrimitive.TriangleIndices.Count / 3
+            };
 
-                if (!TryConvertEcefToProjected(transformedVertex, spatialContext, out var projectedPoint))
-                {
-                    return null;
-                }
-
-                projectedVertices.Add(new Point3d(
-                    projectedPoint.X - offsetX,
-                    projectedPoint.Y - offsetY,
-                    projectedPoint.Z));
-                minimumHeight = Math.Min(minimumHeight, projectedPoint.Z);
-            }
-
-            if (projectedVertices.Count == 0)
+            if (!TryChooseProjectedVertices(tile, decodedPrimitive, spatialContext, out var projectedVertices, out var minimumHeight, out var clipBounds, out var maxTriangleEdgeLength))
             {
                 return null;
             }
 
             var mesh = new Mesh();
-            var usedVertexMap = new Dictionary<int, int>();
+            var minimumTriangleArea = Math.Max(1e-8, Math.Pow(MeasureBoundsDiagonal(clipBounds), 2.0) * 1e-12);
 
-            int GetOrCreateVertexIndex(int sourceIndex)
+            int AddMeshVertex(ProjectedMeshVertex sourceVertex)
             {
-                if (usedVertexMap.TryGetValue(sourceIndex, out var existingIndex))
-                {
-                    return existingIndex;
-                }
-
-                var sourcePoint = projectedVertices[sourceIndex];
                 var newIndex = mesh.Vertices.Count;
                 mesh.Vertices.Add(
-                    sourcePoint.X,
-                    sourcePoint.Y,
-                    spatialContext.UseAbsoluteCoordinates ? sourcePoint.Z : sourcePoint.Z - minimumHeight);
+                    sourceVertex.Point.X,
+                    sourceVertex.Point.Y,
+                    spatialContext.UseAbsoluteCoordinates ? sourceVertex.Point.Z : sourceVertex.Point.Z - minimumHeight);
 
-                if (decodedPrimitive.TextureCoordinates.Count > sourceIndex)
-                {
-                    var uv = decodedPrimitive.TextureCoordinates[sourceIndex];
-                    mesh.TextureCoordinates.Add(uv.X, 1.0f - uv.Y);
-                }
-                else
-                {
-                    mesh.TextureCoordinates.Add(0.0f, 0.0f);
-                }
-
-                usedVertexMap[sourceIndex] = newIndex;
+                mesh.TextureCoordinates.Add(sourceVertex.TextureCoordinate.X, 1.0f - sourceVertex.TextureCoordinate.Y);
                 return newIndex;
             }
 
@@ -183,21 +279,69 @@ namespace RhinoSpatial
                     continue;
                 }
 
-                if (!ShouldKeepTriangle(
-                        projectedVertices[a],
-                        projectedVertices[b],
-                        projectedVertices[c],
-                        placedBounds,
-                        expandedBounds,
-                        boundsDiagonal))
+                var pa = projectedVertices[a];
+                var pb = projectedVertices[b];
+                var pc = projectedVertices[c];
+                if (!TriangleBoundingBoxTouchesBounds(pa, pb, pc, clipBounds))
+                {
+                    buildReport.RejectedOutOfBoundsTriangleCount++;
+                    continue;
+                }
+
+                var oversized = IsOversizedTriangle(pa, pb, pc, maxTriangleEdgeLength);
+                var clippedTriangle = ClipTriangleToBounds(
+                    CreateProjectedMeshVertex(pa, decodedPrimitive, a),
+                    CreateProjectedMeshVertex(pb, decodedPrimitive, b),
+                    CreateProjectedMeshVertex(pc, decodedPrimitive, c),
+                    clipBounds);
+
+                clippedTriangle = RemoveDuplicatePolygonVertices(clippedTriangle, MeshPointTolerance);
+                if (clippedTriangle.Count < 3)
+                {
+                    if (oversized)
+                    {
+                        buildReport.RejectedOversizedTriangleCount++;
+                    }
+                    else
+                    {
+                        buildReport.RejectedOutOfBoundsTriangleCount++;
+                    }
+
+                    continue;
+                }
+
+                var addedFaceCount = 0;
+                var firstVertex = clippedTriangle[0];
+                for (var clippedIndex = 1; clippedIndex + 1 < clippedTriangle.Count; clippedIndex++)
+                {
+                    var secondVertex = clippedTriangle[clippedIndex];
+                    var thirdVertex = clippedTriangle[clippedIndex + 1];
+                    if (!IsUsableTriangle(firstVertex.Point, secondVertex.Point, thirdVertex.Point, minimumTriangleArea))
+                    {
+                        buildReport.DegenerateTriangleCount++;
+                        continue;
+                    }
+
+                    mesh.Faces.AddFace(
+                        AddMeshVertex(firstVertex),
+                        AddMeshVertex(secondVertex),
+                        AddMeshVertex(thirdVertex));
+                    addedFaceCount++;
+                }
+
+                if (addedFaceCount == 0)
                 {
                     continue;
                 }
 
-                mesh.Faces.AddFace(
-                    GetOrCreateVertexIndex(a),
-                    GetOrCreateVertexIndex(b),
-                    GetOrCreateVertexIndex(c));
+                if (oversized)
+                {
+                    buildReport.ClippedOversizedTriangleCount++;
+                }
+                else
+                {
+                    buildReport.UnclippedTriangleCount++;
+                }
             }
 
             if (mesh.Faces.Count == 0)
@@ -207,6 +351,11 @@ namespace RhinoSpatial
 
             mesh.Normals.ComputeNormals();
             mesh.Compact();
+            if (!mesh.IsValid)
+            {
+                buildReport.InvalidMeshCount++;
+                return null;
+            }
 
             DisplayMaterial? material = null;
             if (decodedPrimitive.BaseColorTextureBytes is not null &&
@@ -214,6 +363,14 @@ namespace RhinoSpatial
             {
                 var texturePath = EnsureTextureFile(decodedPrimitive.BaseColorTextureBytes, decodedPrimitive.BaseColorTextureMimeType);
                 material = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(texturePath);
+                return new Google3dTilesReferenceSession.DisplayPrimitive
+                {
+                    Mesh = mesh,
+                    Material = material,
+                    TextureFilePath = texturePath,
+                    SourceUrl = tile.Url,
+                    IsClippedFallback = buildReport.UnclippedTriangleCount == 0 && buildReport.ClippedOversizedTriangleCount > 0
+                };
             }
 
             material ??= new DisplayMaterial(System.Drawing.Color.White)
@@ -226,8 +383,470 @@ namespace RhinoSpatial
             {
                 Mesh = mesh,
                 Material = material,
-                SourceUrl = tile.Url
+                SourceUrl = tile.Url,
+                IsClippedFallback = buildReport.UnclippedTriangleCount == 0 && buildReport.ClippedOversizedTriangleCount > 0
             };
+        }
+
+        private sealed class PrimitiveBuildReport
+        {
+            public int TotalTriangleCount { get; init; }
+
+            public int RejectedOutOfBoundsTriangleCount { get; set; }
+
+            public int RejectedOversizedTriangleCount { get; set; }
+
+            public int ClippedOversizedTriangleCount { get; set; }
+
+            public int UnclippedTriangleCount { get; set; }
+
+            public int DegenerateTriangleCount { get; set; }
+
+            public int InvalidMeshCount { get; set; }
+        }
+
+        private sealed class ProjectedMeshVertex
+        {
+            public Point3d Point { get; init; }
+
+            public Point2f TextureCoordinate { get; init; }
+        }
+
+        private static bool TryChooseProjectedVertices(
+            Google3dTilesTileDescriptor tile,
+            Google3dTilesDecodedPrimitive decodedPrimitive,
+            SpatialContext2D spatialContext,
+            out List<Point3d> projectedVertices,
+            out double minimumHeight,
+            out BoundingBox2D clipBounds,
+            out double maxTriangleEdgeLength)
+        {
+            var placedBounds = CreatePlacedBounds(spatialContext);
+            var scoringBounds = CreateExpandedPlacedBounds(placedBounds);
+            clipBounds = placedBounds;
+            maxTriangleEdgeLength = Math.Max(MinimumTriangleEdgeLimit, MeasureBoundsDiagonal(placedBounds) * TriangleEdgeLimitMultiplier);
+            var candidates = new[]
+            {
+                ProjectVertices(tile, decodedPrimitive, spatialContext, ProjectionMode.TileTransform),
+                ProjectVertices(tile, decodedPrimitive, spatialContext, ProjectionMode.YUpToZUpThenTileTransform),
+                ProjectVertices(tile, decodedPrimitive, spatialContext, ProjectionMode.InverseYUpToZUpThenTileTransform),
+                ProjectVertices(tile, decodedPrimitive, spatialContext, ProjectionMode.RawEcef)
+            };
+            var selected = candidates[0];
+            var selectedScore = ScoreCandidate(selected.Points, decodedPrimitive.TriangleIndices, scoringBounds, maxTriangleEdgeLength);
+            for (var candidateIndex = 1; candidateIndex < candidates.Length; candidateIndex++)
+            {
+                var candidate = candidates[candidateIndex];
+                var score = ScoreCandidate(candidate.Points, decodedPrimitive.TriangleIndices, scoringBounds, maxTriangleEdgeLength);
+                if (score > selectedScore)
+                {
+                    selected = candidate;
+                    selectedScore = score;
+                }
+            }
+
+            if (selected.Points.Count == 0)
+            {
+                projectedVertices = new List<Point3d>();
+                minimumHeight = 0.0;
+                return false;
+            }
+
+            projectedVertices = selected.Points;
+            minimumHeight = selected.MinimumHeight;
+            return true;
+        }
+
+        private static (List<Point3d> Points, double MinimumHeight) ProjectVertices(
+            Google3dTilesTileDescriptor tile,
+            Google3dTilesDecodedPrimitive decodedPrimitive,
+            SpatialContext2D spatialContext,
+            ProjectionMode projectionMode)
+        {
+            var points = new List<Point3d>(decodedPrimitive.EcefVertices.Count);
+            var minimumHeight = double.PositiveInfinity;
+            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
+            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
+
+            foreach (var vertex in decodedPrimitive.EcefVertices)
+            {
+                var transformedVertex = projectionMode switch
+                {
+                    ProjectionMode.TileTransform => ApplyTileTransform(vertex, tile.Transform),
+                    ProjectionMode.YUpToZUpThenTileTransform => ApplyTileTransform(ConvertGltfYUpToZUp(vertex), tile.Transform),
+                    ProjectionMode.InverseYUpToZUpThenTileTransform => ApplyTileTransform(ConvertInverseGltfYUpToZUp(vertex), tile.Transform),
+                    _ => vertex
+                };
+
+                if (!TryConvertEcefToProjected(transformedVertex, spatialContext, out var projectedPoint))
+                {
+                    return (new List<Point3d>(), 0.0);
+                }
+
+                if (!IsFinite(projectedPoint.X) ||
+                    !IsFinite(projectedPoint.Y) ||
+                    !IsFinite(projectedPoint.Z))
+                {
+                    return (new List<Point3d>(), 0.0);
+                }
+
+                points.Add(new Point3d(
+                    projectedPoint.X - offsetX,
+                    projectedPoint.Y - offsetY,
+                    projectedPoint.Z));
+                minimumHeight = Math.Min(minimumHeight, projectedPoint.Z);
+            }
+
+            if (double.IsPositiveInfinity(minimumHeight))
+            {
+                minimumHeight = 0.0;
+            }
+
+            return (points, minimumHeight);
+        }
+
+        private static double ScoreCandidate(
+            IReadOnlyList<Point3d> points,
+            IReadOnlyList<int> triangleIndices,
+            BoundingBox2D expandedBounds,
+            double maxTriangleEdgeLength)
+        {
+            if (points.Count == 0)
+            {
+                return double.NegativeInfinity;
+            }
+
+            var insideCount = 0;
+            foreach (var point in points)
+            {
+                if (IsInsideBounds(point, expandedBounds))
+                {
+                    insideCount++;
+                }
+            }
+
+            var usableTriangleCount = 0;
+            var oversizedTriangleCount = 0;
+            var outOfBoundsTriangleCount = 0;
+            for (var triangleIndex = 0; triangleIndex + 2 < triangleIndices.Count; triangleIndex += 3)
+            {
+                var a = triangleIndices[triangleIndex];
+                var b = triangleIndices[triangleIndex + 1];
+                var c = triangleIndices[triangleIndex + 2];
+                if (a < 0 || b < 0 || c < 0 ||
+                    a >= points.Count || b >= points.Count || c >= points.Count ||
+                    a == b || b == c || a == c)
+                {
+                    continue;
+                }
+
+                if (!TriangleBoundingBoxTouchesBounds(points[a], points[b], points[c], expandedBounds))
+                {
+                    outOfBoundsTriangleCount++;
+                }
+                else if (IsOversizedTriangle(points[a], points[b], points[c], maxTriangleEdgeLength))
+                {
+                    oversizedTriangleCount++;
+                }
+                else
+                {
+                    usableTriangleCount++;
+                }
+            }
+
+            var candidateBounds = BoundingBox.Empty;
+            foreach (var point in points)
+            {
+                candidateBounds.Union(point);
+            }
+
+            if (!candidateBounds.IsValid)
+            {
+                return insideCount;
+            }
+
+            var studyCenterX = (expandedBounds.MinX + expandedBounds.MaxX) * 0.5;
+            var studyCenterY = (expandedBounds.MinY + expandedBounds.MaxY) * 0.5;
+            var candidateCenter = candidateBounds.Center;
+            var distance = Math.Sqrt(
+                Math.Pow(candidateCenter.X - studyCenterX, 2.0) +
+                Math.Pow(candidateCenter.Y - studyCenterY, 2.0));
+            var width = Math.Max(1.0, expandedBounds.MaxX - expandedBounds.MinX);
+            var height = Math.Max(1.0, expandedBounds.MaxY - expandedBounds.MinY);
+            var studyDiagonal = Math.Sqrt((width * width) + (height * height));
+
+            var contextTouchingTriangleCount = usableTriangleCount + oversizedTriangleCount;
+            return (contextTouchingTriangleCount * 100000.0) +
+                   (insideCount * 1000.0) -
+                   (oversizedTriangleCount * 10.0) -
+                   (outOfBoundsTriangleCount * 10.0) -
+                   (distance / Math.Max(1.0, studyDiagonal));
+        }
+
+        private static BoundingBox2D CreatePlacedBounds(SpatialContext2D spatialContext)
+        {
+            return RhinoSpatialContextTools.CreatePlacedBoundingBox(
+                spatialContext.PlacementBoundingBox,
+                spatialContext.PlacementOrigin,
+                spatialContext.UseAbsoluteCoordinates);
+        }
+
+        private static BoundingBox2D CreateExpandedPlacedBounds(BoundingBox2D placedBounds)
+        {
+            var width = Math.Max(1.0, placedBounds.MaxX - placedBounds.MinX);
+            var height = Math.Max(1.0, placedBounds.MaxY - placedBounds.MinY);
+
+            return new BoundingBox2D(
+                placedBounds.MinX - (width * 3.0),
+                placedBounds.MinY - (height * 3.0),
+                placedBounds.MaxX + (width * 3.0),
+                placedBounds.MaxY + (height * 3.0));
+        }
+
+        private static double MeasureBoundsDiagonal(BoundingBox2D bounds)
+        {
+            var width = Math.Max(1.0, bounds.MaxX - bounds.MinX);
+            var height = Math.Max(1.0, bounds.MaxY - bounds.MinY);
+            return Math.Sqrt((width * width) + (height * height));
+        }
+
+        private static List<ProjectedMeshVertex> RemoveDuplicatePolygonVertices(
+            IReadOnlyList<ProjectedMeshVertex> vertices,
+            double tolerance)
+        {
+            var result = new List<ProjectedMeshVertex>();
+            foreach (var vertex in vertices)
+            {
+                if (!IsValidPoint(vertex.Point))
+                {
+                    continue;
+                }
+
+                if (result.Count == 0 ||
+                    Distance3D(result[^1].Point, vertex.Point) > tolerance)
+                {
+                    result.Add(vertex);
+                }
+            }
+
+            if (result.Count > 1 &&
+                Distance3D(result[0].Point, result[^1].Point) <= tolerance)
+            {
+                result.RemoveAt(result.Count - 1);
+            }
+
+            return result;
+        }
+
+        private static bool IsUsableTriangle(Point3d a, Point3d b, Point3d c, double minimumArea)
+        {
+            if (!IsValidPoint(a) || !IsValidPoint(b) || !IsValidPoint(c))
+            {
+                return false;
+            }
+
+            if (Distance3D(a, b) <= MeshPointTolerance ||
+                Distance3D(b, c) <= MeshPointTolerance ||
+                Distance3D(c, a) <= MeshPointTolerance)
+            {
+                return false;
+            }
+
+            var ab = b - a;
+            var ac = c - a;
+            var area = Vector3d.CrossProduct(ab, ac).Length * 0.5;
+            return IsFinite(area) && area > minimumArea;
+        }
+
+        private static bool TriangleBoundingBoxTouchesBounds(Point3d a, Point3d b, Point3d c, BoundingBox2D bounds)
+        {
+            if (IsInsideBounds(a, bounds) || IsInsideBounds(b, bounds) || IsInsideBounds(c, bounds))
+            {
+                return true;
+            }
+
+            var minX = Math.Min(a.X, Math.Min(b.X, c.X));
+            var maxX = Math.Max(a.X, Math.Max(b.X, c.X));
+            var minY = Math.Min(a.Y, Math.Min(b.Y, c.Y));
+            var maxY = Math.Max(a.Y, Math.Max(b.Y, c.Y));
+
+            return minX <= bounds.MaxX &&
+                   maxX >= bounds.MinX &&
+                   minY <= bounds.MaxY &&
+                   maxY >= bounds.MinY;
+        }
+
+        private static bool IsOversizedTriangle(Point3d a, Point3d b, Point3d c, double maxEdgeLength)
+        {
+            return Distance2D(a, b) > maxEdgeLength ||
+                   Distance2D(b, c) > maxEdgeLength ||
+                   Distance2D(c, a) > maxEdgeLength;
+        }
+
+        private static ProjectedMeshVertex CreateProjectedMeshVertex(
+            Point3d point,
+            Google3dTilesDecodedPrimitive decodedPrimitive,
+            int sourceIndex)
+        {
+            var textureCoordinate = decodedPrimitive.TextureCoordinates.Count > sourceIndex
+                ? decodedPrimitive.TextureCoordinates[sourceIndex]
+                : new Point2f(0.0f, 0.0f);
+
+            return new ProjectedMeshVertex
+            {
+                Point = point,
+                TextureCoordinate = textureCoordinate
+            };
+        }
+
+        private static List<ProjectedMeshVertex> ClipTriangleToBounds(
+            ProjectedMeshVertex a,
+            ProjectedMeshVertex b,
+            ProjectedMeshVertex c,
+            BoundingBox2D bounds)
+        {
+            var polygon = new List<ProjectedMeshVertex> { a, b, c };
+            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Left);
+            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Right);
+            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Bottom);
+            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Top);
+            return polygon;
+        }
+
+        private static List<ProjectedMeshVertex> ClipPolygonToBoundary(
+            IReadOnlyList<ProjectedMeshVertex> polygon,
+            BoundingBox2D bounds,
+            ClipBoundary boundary)
+        {
+            var result = new List<ProjectedMeshVertex>();
+            if (polygon.Count == 0)
+            {
+                return result;
+            }
+
+            var previous = polygon[^1];
+            var previousInside = IsInsideClipBoundary(previous.Point, bounds, boundary);
+            foreach (var current in polygon)
+            {
+                var currentInside = IsInsideClipBoundary(current.Point, bounds, boundary);
+
+                if (currentInside)
+                {
+                    if (!previousInside)
+                    {
+                        result.Add(IntersectClipBoundary(previous, current, bounds, boundary));
+                    }
+
+                    result.Add(current);
+                }
+                else if (previousInside)
+                {
+                    result.Add(IntersectClipBoundary(previous, current, bounds, boundary));
+                }
+
+                previous = current;
+                previousInside = currentInside;
+            }
+
+            return result;
+        }
+
+        private static bool IsInsideClipBoundary(Point3d point, BoundingBox2D bounds, ClipBoundary boundary)
+        {
+            return boundary switch
+            {
+                ClipBoundary.Left => point.X >= bounds.MinX,
+                ClipBoundary.Right => point.X <= bounds.MaxX,
+                ClipBoundary.Bottom => point.Y >= bounds.MinY,
+                _ => point.Y <= bounds.MaxY
+            };
+        }
+
+        private static ProjectedMeshVertex IntersectClipBoundary(
+            ProjectedMeshVertex start,
+            ProjectedMeshVertex end,
+            BoundingBox2D bounds,
+            ClipBoundary boundary)
+        {
+            var denominator = boundary is ClipBoundary.Left or ClipBoundary.Right
+                ? end.Point.X - start.Point.X
+                : end.Point.Y - start.Point.Y;
+            var numerator = boundary switch
+            {
+                ClipBoundary.Left => bounds.MinX - start.Point.X,
+                ClipBoundary.Right => bounds.MaxX - start.Point.X,
+                ClipBoundary.Bottom => bounds.MinY - start.Point.Y,
+                _ => bounds.MaxY - start.Point.Y
+            };
+            var t = Math.Abs(denominator) < 1e-12 ? 0.0 : numerator / denominator;
+            t = Math.Max(0.0, Math.Min(1.0, t));
+
+            return new ProjectedMeshVertex
+            {
+                Point = new Point3d(
+                    Lerp(start.Point.X, end.Point.X, t),
+                    Lerp(start.Point.Y, end.Point.Y, t),
+                    Lerp(start.Point.Z, end.Point.Z, t)),
+                TextureCoordinate = new Point2f(
+                    (float)Lerp(start.TextureCoordinate.X, end.TextureCoordinate.X, t),
+                    (float)Lerp(start.TextureCoordinate.Y, end.TextureCoordinate.Y, t))
+            };
+        }
+
+        private static double Lerp(double start, double end, double t)
+        {
+            return start + ((end - start) * t);
+        }
+
+        private enum ClipBoundary
+        {
+            Left,
+            Right,
+            Bottom,
+            Top
+        }
+
+        private static double Distance2D(Point3d a, Point3d b)
+        {
+            var dx = a.X - b.X;
+            var dy = a.Y - b.Y;
+            return Math.Sqrt((dx * dx) + (dy * dy));
+        }
+
+        private static double Distance3D(Point3d a, Point3d b)
+        {
+            var dx = a.X - b.X;
+            var dy = a.Y - b.Y;
+            var dz = a.Z - b.Z;
+            return Math.Sqrt((dx * dx) + (dy * dy) + (dz * dz));
+        }
+
+        private static bool IsValidPoint(Point3d point)
+        {
+            return IsFinite(point.X) && IsFinite(point.Y) && IsFinite(point.Z);
+        }
+
+        private static bool IsFinite(double value)
+        {
+            return !double.IsNaN(value) && !double.IsInfinity(value);
+        }
+
+        private static bool IsInsideBounds(Point3d point, BoundingBox2D bounds)
+        {
+            return point.X >= bounds.MinX &&
+                   point.X <= bounds.MaxX &&
+                   point.Y >= bounds.MinY &&
+                   point.Y <= bounds.MaxY;
+        }
+
+        private static Point3d ConvertGltfYUpToZUp(Point3d point)
+        {
+            return new Point3d(point.X, -point.Z, point.Y);
+        }
+
+        private static Point3d ConvertInverseGltfYUpToZUp(Point3d point)
+        {
+            return new Point3d(point.X, point.Z, -point.Y);
         }
 
         private static Point3d ApplyTileTransform(Point3d point, IReadOnlyList<double> matrixValues)
@@ -302,70 +921,26 @@ namespace RhinoSpatial
             return true;
         }
 
-        private static bool DoesTriangleIntersectBounds(Point3d a, Point3d b, Point3d c, BoundingBox2D bounds)
+        private static string TrimUrlForStatus(string url)
         {
-            var triangleBounds = new BoundingBox2D(
-                Math.Min(a.X, Math.Min(b.X, c.X)),
-                Math.Min(a.Y, Math.Min(b.Y, c.Y)),
-                Math.Max(a.X, Math.Max(b.X, c.X)),
-                Math.Max(a.Y, Math.Max(b.Y, c.Y)));
-
-            return RhinoSpatialContextTools.DoBoundingBoxesIntersect(bounds, triangleBounds);
-        }
-
-        private static bool ShouldKeepTriangle(
-            Point3d a,
-            Point3d b,
-            Point3d c,
-            BoundingBox2D bounds,
-            BoundingBox2D expandedBounds,
-            double boundsDiagonal)
-        {
-            if (!DoesTriangleIntersectBounds(a, b, c, bounds))
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
             {
-                return false;
+                return uri.AbsolutePath;
             }
 
-            var edgeLimit = boundsDiagonal * 6.0;
-            var edgeAB = Distance2D(a, b);
-            var edgeBC = Distance2D(b, c);
-            var edgeCA = Distance2D(c, a);
-            if (edgeAB > edgeLimit || edgeBC > edgeLimit || edgeCA > edgeLimit)
+            return url.Length <= 140 ? url : url[..140] + "...";
+        }
+
+        private static string TrimStatusBody(string body)
+        {
+            var trimmed = body.Trim();
+            if (trimmed.Length <= 240)
             {
-                return false;
+                return trimmed;
             }
 
-            var insideCount = 0;
-            if (IsPointInsideBounds(a, expandedBounds)) insideCount++;
-            if (IsPointInsideBounds(b, expandedBounds)) insideCount++;
-            if (IsPointInsideBounds(c, expandedBounds)) insideCount++;
-
-            if (insideCount >= 1)
-            {
-                return true;
-            }
-
-            var centroid = new Point3d(
-                (a.X + b.X + c.X) / 3.0,
-                (a.Y + b.Y + c.Y) / 3.0,
-                (a.Z + b.Z + c.Z) / 3.0);
-
-            return IsPointInsideBounds(centroid, expandedBounds);
+            return trimmed[..240] + "...";
         }
 
-        private static bool IsPointInsideBounds(Point3d point, BoundingBox2D bounds)
-        {
-            return point.X >= bounds.MinX &&
-                   point.X <= bounds.MaxX &&
-                   point.Y >= bounds.MinY &&
-                   point.Y <= bounds.MaxY;
-        }
-
-        private static double Distance2D(Point3d a, Point3d b)
-        {
-            var dx = a.X - b.X;
-            var dy = a.Y - b.Y;
-            return Math.Sqrt((dx * dx) + (dy * dy));
-        }
     }
 }

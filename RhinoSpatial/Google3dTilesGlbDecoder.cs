@@ -3,11 +3,25 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 using Rhino.Geometry;
 using SharpGLTF.Schema2;
 
 namespace RhinoSpatial
 {
+    internal sealed class Google3dTilesDecodedTile
+    {
+        public List<Google3dTilesDecodedPrimitive> Primitives { get; init; } = new();
+
+        public bool UsesDracoCompression { get; init; }
+
+        public bool RequiresDracoCompression { get; init; }
+
+        public int SkippedPrimitiveCount { get; init; }
+
+        public string LastError { get; init; } = string.Empty;
+    }
+
     internal sealed class Google3dTilesDecodedPrimitive
     {
         public string Name { get; init; } = string.Empty;
@@ -27,11 +41,17 @@ namespace RhinoSpatial
 
     internal static class Google3dTilesGlbDecoder
     {
-        public static List<Google3dTilesDecodedPrimitive> Decode(byte[] glbBytes)
+        public static Google3dTilesDecodedTile Decode(byte[] glbBytes)
         {
+            var jsonText = TryReadGlbJsonText(glbBytes);
+            var usesDracoCompression = jsonText.Contains("KHR_draco_mesh_compression", StringComparison.Ordinal);
+            var requiresDracoCompression = jsonText.Contains("\"extensionsRequired\"", StringComparison.Ordinal) &&
+                jsonText.Contains("KHR_draco_mesh_compression", StringComparison.Ordinal);
+
             using var stream = new MemoryStream(glbBytes, writable: false);
             var model = ModelRoot.ReadGLB(stream);
             var decodedPrimitives = new List<Google3dTilesDecodedPrimitive>();
+            var skippedPrimitiveCount = 0;
 
             foreach (var logicalMesh in model.LogicalMeshes)
             {
@@ -53,12 +73,14 @@ namespace RhinoSpatial
                         var positionAccessor = primitive.GetVertexAccessor("POSITION");
                         if (positionAccessor is null)
                         {
+                            skippedPrimitiveCount++;
                             continue;
                         }
 
                         var positions = positionAccessor.AsVector3Array().ToArray();
                         if (positions.Length < 3)
                         {
+                            skippedPrimitiveCount++;
                             continue;
                         }
 
@@ -77,6 +99,7 @@ namespace RhinoSpatial
 
                         if (triangleIndices.Count == 0)
                         {
+                            skippedPrimitiveCount++;
                             continue;
                         }
 
@@ -134,7 +157,47 @@ namespace RhinoSpatial
                 }
             }
 
-            return decodedPrimitives;
+            return new Google3dTilesDecodedTile
+            {
+                Primitives = decodedPrimitives,
+                UsesDracoCompression = usesDracoCompression,
+                RequiresDracoCompression = requiresDracoCompression,
+                SkippedPrimitiveCount = skippedPrimitiveCount
+            };
+        }
+
+        private static string TryReadGlbJsonText(byte[] glbBytes)
+        {
+            const uint glbMagic = 0x46546C67;
+            const uint jsonChunkType = 0x4E4F534A;
+
+            if (glbBytes.Length < 20 ||
+                BitConverter.ToUInt32(glbBytes, 0) != glbMagic)
+            {
+                return string.Empty;
+            }
+
+            var offset = 12;
+            while (offset + 8 <= glbBytes.Length)
+            {
+                var chunkLength = checked((int)BitConverter.ToUInt32(glbBytes, offset));
+                var chunkType = BitConverter.ToUInt32(glbBytes, offset + 4);
+                offset += 8;
+
+                if (chunkLength < 0 || offset + chunkLength > glbBytes.Length)
+                {
+                    return string.Empty;
+                }
+
+                if (chunkType == jsonChunkType)
+                {
+                    return Encoding.UTF8.GetString(glbBytes, offset, chunkLength);
+                }
+
+                offset += chunkLength;
+            }
+
+            return string.Empty;
         }
     }
 }
