@@ -43,6 +43,5 @@
     <EmbeddedResource Include="Resources/LoadOSM.png" LogicalName="RhinoSpatial.Resources.LoadOSM.png" />
     <EmbeddedResource Include="Resources/View3DTiles.png" LogicalName="RhinoSpatial.Resources.View3DTiles.png" />
     <EmbeddedResource Include="Resources/Category.png" LogicalName="RhinoSpatial.Resources.Category.png" />
-    <EmbeddedResource Include="Resources/Google3dTilesViewer.html" LogicalName="RhinoSpatial.Resources.Google3dTilesViewer.html" />
   </ItemGroup>
 </Project>

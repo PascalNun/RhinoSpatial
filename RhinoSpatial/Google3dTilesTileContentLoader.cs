@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Rhino.Display;
 using Rhino.Geometry;
@@ -14,17 +15,21 @@ namespace RhinoSpatial
 {
     internal static class Google3dTilesTileContentLoader
     {
-        private static readonly HttpClient HttpClient = new();
+        private static readonly HttpClient HttpClient = new()
+        {
+            Timeout = TimeSpan.FromSeconds(12)
+        };
         private static readonly object CacheSyncRoot = new();
         private static readonly Dictionary<string, List<Google3dTilesDecodedPrimitive>> DecodedTileCache = new(StringComparer.Ordinal);
         private static readonly string TextureCacheDirectory = Path.Combine(Path.GetTempPath(), "RhinoSpatial", "google-3d-tiles");
 
         public static async Task<List<Google3dTilesReferenceSession.DisplayPrimitive>> LoadDisplayPrimitivesAsync(
-            IEnumerable<Google3dTilesTileDescriptorPayload> tiles,
-            SpatialContext2D spatialContext)
+            IEnumerable<Google3dTilesTileDescriptor> tiles,
+            SpatialContext2D spatialContext,
+            CancellationToken cancellationToken = default)
         {
             var displayPrimitives = new List<Google3dTilesReferenceSession.DisplayPrimitive>();
-            const int maxTilesToDecode = 40;
+            const int maxTilesToDecode = 12;
 
             foreach (var tile in tiles
                 .Where(static tile => tile is not null && !string.IsNullOrWhiteSpace(tile.Url))
@@ -38,7 +43,16 @@ namespace RhinoSpatial
                     continue;
                 }
 
-                var decodedPrimitives = await GetOrLoadDecodedTileAsync(tileUrl).ConfigureAwait(false);
+                List<Google3dTilesDecodedPrimitive> decodedPrimitives;
+                try
+                {
+                    decodedPrimitives = await GetOrLoadDecodedTileAsync(tileUrl, cancellationToken).ConfigureAwait(false);
+                }
+                catch
+                {
+                    continue;
+                }
+
                 foreach (var decodedPrimitive in decodedPrimitives)
                 {
                     var displayPrimitive = CreateDisplayPrimitive(tile, decodedPrimitive, spatialContext);
@@ -52,7 +66,7 @@ namespace RhinoSpatial
             return displayPrimitives;
         }
 
-        private static async Task<List<Google3dTilesDecodedPrimitive>> GetOrLoadDecodedTileAsync(string tileUrl)
+        private static async Task<List<Google3dTilesDecodedPrimitive>> GetOrLoadDecodedTileAsync(string tileUrl, CancellationToken cancellationToken)
         {
             lock (CacheSyncRoot)
             {
@@ -62,7 +76,7 @@ namespace RhinoSpatial
                 }
             }
 
-            var glbBytes = await HttpClient.GetByteArrayAsync(tileUrl).ConfigureAwait(false);
+            var glbBytes = await HttpClient.GetByteArrayAsync(tileUrl, cancellationToken).ConfigureAwait(false);
             var decodedPrimitives = Google3dTilesGlbDecoder.Decode(glbBytes);
 
             lock (CacheSyncRoot)
@@ -74,7 +88,7 @@ namespace RhinoSpatial
         }
 
         private static Google3dTilesReferenceSession.DisplayPrimitive? CreateDisplayPrimitive(
-            Google3dTilesTileDescriptorPayload tile,
+            Google3dTilesTileDescriptor tile,
             Google3dTilesDecodedPrimitive decodedPrimitive,
             SpatialContext2D spatialContext)
         {
@@ -262,7 +276,7 @@ namespace RhinoSpatial
         {
             projectedPoint = Point3d.Unset;
 
-            if (!Google3dTilesRuntimeMeshConverter.TryConvertEcefToGeodetic(
+            if (!Google3dTilesCoordinateConverter.TryConvertEcefToGeodetic(
                     ecefPoint.X,
                     ecefPoint.Y,
                     ecefPoint.Z,

@@ -1,29 +1,61 @@
 using System;
 using System.Collections.Generic;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
 using Rhino.Display;
 using Rhino.Geometry;
 using Rhino;
 using RhinoSpatial.Core;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace RhinoSpatial
 {
-    public class Google3dTilesViewerComponent : GH_Component
+    public class Google3dTilesViewerComponent : GH_TaskCapableComponent<Google3dTilesViewerComponent.SolveResults>
     {
-        private bool _lastOpenViewerRequest;
+        private const string DisabledStatus = "Google 3D Tiles viewer is disabled. Connect a Boolean Toggle set to True to Enable when you want RhinoSpatial to request the bounded reference-only viewport layer.";
+        private const string PolicyStatus = "Google Photorealistic 3D Tiles are reference-only. RhinoSpatial loads a bounded transient viewport layer and keeps it outside the editable Rhino workflow: no bake, no export, no offline geometry cache.";
+        private static readonly TimeSpan DirectLoadTimeout = TimeSpan.FromSeconds(45);
+
         private readonly List<Google3dTilesReferenceSession.DisplayPrimitive> _previewPrimitives = new();
-        private readonly List<Mesh> _previewFallbackMeshes = new();
         private Curve? _previewFrame;
         private BoundingBox _previewBox = BoundingBox.Empty;
+
+        public class SolveResults
+        {
+            public List<Google3dTilesReferenceSession.DisplayPrimitive> Primitives { get; init; } = new();
+
+            public Curve? AreaFrame { get; init; }
+
+            public string Status { get; init; } = string.Empty;
+
+            public bool Active { get; init; }
+
+            public GH_RuntimeMessageLevel? MessageLevel { get; init; }
+        }
+
+        private sealed class RequestData
+        {
+            public string ApiKey { get; init; } = string.Empty;
+
+            public SpatialContext2D SpatialContext { get; init; } = null!;
+
+            public BoundingBox2D BoundingBox4326 { get; init; } = null!;
+
+            public Curve AreaFrame { get; init; } = null!;
+
+            public bool EnableReference { get; init; }
+        }
 
         public Google3dTilesViewerComponent()
             : base(
                 "3D Tiles Viewer (Google)",
                 "3D Tiles View",
-                "Enable a runtime-streamed Google Photorealistic 3D Tiles viewer for the selected Spatial Context. This feature is reference-only and does not create bakeable Rhino geometry.",
+                "Enable a direct, reference-only Google Photorealistic 3D Tiles viewport layer for the selected Spatial Context. This feature does not create bakeable Rhino geometry.",
                 "RhinoSpatial",
                 "Viewers")
         {
+            NormalizeComponentLayout();
         }
 
         public override GH_Exposure Exposure => GH_Exposure.quinary;
@@ -32,16 +64,13 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("API Key", "API Key", "User-managed Google Maps API key for the Map Tiles API. The key is used only at runtime in the local Google 3D Tiles viewer backend.", GH_ParamAccess.item);
+            pManager.AddTextParameter("API Key", "API Key", "User-managed Google Maps API key for the Map Tiles API. RhinoSpatial uses it only for direct tile requests from this component.", GH_ParamAccess.item);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
             pManager.AddBooleanParameter("Enable Viewer", "Enable", "Enable the transient Google 3D Tiles viewer in the Rhino viewport. This layer is reference-only and is not bakeable or exportable.", GH_ParamAccess.item, false);
-            pManager.AddBooleanParameter("Open Viewer Window", "Open", "Open the diagnostic Google 3D Tiles runtime window. The viewer backend otherwise stays in the background while Rhino draws the transient viewport mesh.", GH_ParamAccess.item, false);
-            pManager[3].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
-            pManager.AddTextParameter("Viewer URL", "Viewer URL", "Local runtime URL for the streamed Google 3D Tiles viewer page.", GH_ParamAccess.item);
             pManager.AddTextParameter("Status", "Status", "Status text for the Google 3D Tiles viewer.", GH_ParamAccess.item);
             pManager.AddBooleanParameter("Viewer Active", "Active", "True when the transient Google 3D Tiles viewer is enabled in the Rhino viewport.", GH_ParamAccess.item);
         }
@@ -49,89 +78,54 @@ namespace RhinoSpatial
         public override void AddedToDocument(GH_Document document)
         {
             base.AddedToDocument(document);
-            Google3dTilesReferenceManager.RegisterComponent(this);
+            NormalizeComponentLayout();
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            var result = base.Read(reader);
+            NormalizeComponentLayout();
+            return result;
         }
 
         protected override void SolveInstance(IGH_DataAccess dataAccess)
         {
-            string? apiKey = null;
-            string? spatialContextText = null;
-            var enableReference = false;
-            var openViewer = false;
+            NormalizeComponentLayout();
 
-            dataAccess.GetData(0, ref apiKey);
-            dataAccess.GetData(1, ref spatialContextText);
-            dataAccess.GetData(2, ref enableReference);
-            dataAccess.GetData(3, ref openViewer);
-
-            var viewerUrl = Google3dTilesViewerHost.GetCurrentUrl();
-            dataAccess.SetData(0, viewerUrl);
-            dataAccess.SetData(2, false);
-
-            if (!RhinoSpatialInputParser.TryGetRequiredSpatialContext(spatialContextText, out var spatialContext, out var errorMessage))
+            if (!TryGetRequestData(dataAccess, out var requestData))
             {
-                dataAccess.SetData(1, errorMessage);
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, errorMessage);
-                Google3dTilesReferenceManager.RemoveSession(InstanceGuid);
                 ClearLivePreviewState();
-                ResetOpenViewerRequest(openViewer);
                 return;
             }
 
-            var normalizedApiKey = string.IsNullOrWhiteSpace(apiKey) ? string.Empty : apiKey.Trim();
-
-            if (string.IsNullOrWhiteSpace(normalizedApiKey))
+            if (!requestData.EnableReference)
             {
-                const string missingKeyMessage = "API Key is required. This viewer is user-managed and runtime-streamed. RhinoSpatial does not ship or store a shared Google Maps API key.";
-                dataAccess.SetData(1, missingKeyMessage);
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, missingKeyMessage);
-                Google3dTilesReferenceManager.RemoveSession(InstanceGuid);
                 ClearLivePreviewState();
-                ResetOpenViewerRequest(openViewer);
+                dataAccess.SetData(0, DisabledStatus);
+                dataAccess.SetData(1, false);
                 return;
             }
 
-            if (!TryResolveWgs84BoundingBox(spatialContext!, out var boundingBox4326))
+            if (InPreSolve)
             {
-                const string missingBoundingBoxMessage = "The Spatial Context could not provide a usable EPSG:4326 bounding box for the 3D Tiles viewer.";
-                dataAccess.SetData(1, missingBoundingBoxMessage);
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, missingBoundingBoxMessage);
-                Google3dTilesReferenceManager.RemoveSession(InstanceGuid);
-                ClearLivePreviewState();
-                ResetOpenViewerRequest(openViewer);
+                Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData, CancelToken), CancelToken);
+                TaskList.Add(task);
                 return;
             }
 
-            const string policyStatus = "Google Photorealistic 3D Tiles are reference-only. RhinoSpatial streams them at runtime as a viewer layer and keeps them outside the editable Rhino workflow: no bake, no export, no offline geometry cache.";
-
-            Google3dTilesViewerHost.UpdateConfiguration(InstanceGuid, normalizedApiKey, boundingBox4326, policyStatus);
-            dataAccess.SetData(0, Google3dTilesViewerHost.GetCurrentUrl());
-            dataAccess.SetData(2, enableReference);
-
-            if (enableReference)
+            if (!GetSolveResults(dataAccess, out SolveResults result))
             {
-                var session = CreateViewportSession(spatialContext!, normalizedApiKey, boundingBox4326);
-                Google3dTilesReferenceManager.SetSession(session);
-
-                Google3dTilesViewerHost.EnsureBackgroundRuntime(InstanceGuid, normalizedApiKey, boundingBox4326, policyStatus);
-                if (Google3dTilesReferenceManager.TryGetSession(InstanceGuid, out var currentSession) && currentSession is not null)
-                {
-                    ApplyLivePreviewState(currentSession);
-                    dataAccess.SetData(1, currentSession.Status);
-                }
-                else
-                {
-                    dataAccess.SetData(1, policyStatus);
-                }
-            }
-            else
-            {
-                Google3dTilesReferenceManager.RemoveSession(InstanceGuid);
-                ClearLivePreviewState();
-                dataAccess.SetData(1, policyStatus);
+                result = ComputeSafe(requestData, CancellationToken.None);
             }
 
-            HandleOpenViewer(openViewer, normalizedApiKey, boundingBox4326, policyStatus);
+            ApplySolveResults(result);
+            dataAccess.SetData(0, result.Status);
+            dataAccess.SetData(1, result.Active);
+
+            if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
+            {
+                AddRuntimeMessage(result.MessageLevel.Value, result.Status);
+            }
         }
 
         protected override System.Drawing.Bitmap? Icon => IconLoader.Load("RhinoSpatial.Resources.View3DTiles.png");
@@ -140,8 +134,6 @@ namespace RhinoSpatial
 
         public override void RemovedFromDocument(GH_Document document)
         {
-            Google3dTilesReferenceManager.UnregisterComponent(InstanceGuid);
-            Google3dTilesReferenceManager.RemoveSession(InstanceGuid);
             ClearLivePreviewState();
             base.RemovedFromDocument(document);
         }
@@ -164,20 +156,6 @@ namespace RhinoSpatial
                 {
                     args.Display.DrawMeshShaded(primitive.Mesh, primitive.Material);
                 }
-
-                return;
-            }
-
-            foreach (var mesh in _previewFallbackMeshes)
-            {
-                if (mesh.VertexColors.Count == mesh.Vertices.Count)
-                {
-                    args.Display.DrawMeshFalseColors(mesh);
-                }
-                else
-                {
-                    args.Display.DrawMeshShaded(mesh, args.ShadeMaterial);
-                }
             }
         }
 
@@ -191,11 +169,6 @@ namespace RhinoSpatial
                 {
                     args.Display.DrawMeshWires(primitive.Mesh, args.WireColour_Selected);
                 }
-            }
-
-            foreach (var mesh in _previewFallbackMeshes)
-            {
-                args.Display.DrawMeshWires(mesh, Attributes?.Selected == true ? args.WireColour_Selected : args.WireColour);
             }
 
             if (_previewFrame is not null)
@@ -212,29 +185,169 @@ namespace RhinoSpatial
         {
         }
 
-        private void HandleOpenViewer(bool openViewer, string apiKey, BoundingBox2D boundingBox4326, string status)
+        private bool TryGetRequestData(IGH_DataAccess dataAccess, out RequestData requestData)
         {
-            if (!openViewer)
+            requestData = new RequestData();
+
+            string? apiKey = null;
+            string? spatialContextText = null;
+            var enableReference = false;
+
+            dataAccess.GetData(0, ref apiKey);
+            dataAccess.GetData(1, ref spatialContextText);
+            dataAccess.GetData(2, ref enableReference);
+
+            dataAccess.SetData(1, false);
+
+            if (!RhinoSpatialInputParser.TryGetRequiredSpatialContext(spatialContextText, out var spatialContext, out var errorMessage))
             {
-                _lastOpenViewerRequest = false;
-                return;
+                dataAccess.SetData(0, errorMessage);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, errorMessage);
+                return false;
             }
 
-            if (_lastOpenViewerRequest)
+            var normalizedApiKey = string.IsNullOrWhiteSpace(apiKey) ? string.Empty : apiKey.Trim();
+
+            if (string.IsNullOrWhiteSpace(normalizedApiKey))
             {
-                return;
+                const string missingKeyMessage = "API Key is required. This reference layer is user-managed. RhinoSpatial does not ship or store a shared Google Maps API key.";
+                dataAccess.SetData(0, missingKeyMessage);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, missingKeyMessage);
+                return false;
             }
 
-            _lastOpenViewerRequest = true;
-            Google3dTilesViewerHost.OpenInBrowser(InstanceGuid, apiKey, boundingBox4326, status);
+            if (!TryResolveWgs84BoundingBox(spatialContext, out var boundingBox4326))
+            {
+                const string missingBoundingBoxMessage = "The Spatial Context could not provide a usable EPSG:4326 bounding box for the 3D Tiles viewer.";
+                dataAccess.SetData(0, missingBoundingBoxMessage);
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, missingBoundingBoxMessage);
+                return false;
+            }
+
+            requestData = new RequestData
+            {
+                ApiKey = normalizedApiKey,
+                SpatialContext = spatialContext,
+                BoundingBox4326 = boundingBox4326,
+                AreaFrame = CreateAreaFrame(spatialContext),
+                EnableReference = enableReference
+            };
+            return true;
         }
 
-        private void ResetOpenViewerRequest(bool openViewer)
+        private static SolveResults Compute(RequestData requestData, CancellationToken cancellationToken)
         {
-            if (!openViewer)
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(DirectLoadTimeout);
+
+            var loadResult = Google3dTilesDirectLoader
+                .LoadAsync(
+                    requestData.ApiKey,
+                    requestData.BoundingBox4326,
+                    requestData.SpatialContext,
+                    null,
+                    timeout.Token)
+                .GetAwaiter()
+                .GetResult();
+
+            return new SolveResults
             {
-                _lastOpenViewerRequest = false;
+                Primitives = loadResult.Primitives,
+                AreaFrame = requestData.AreaFrame.DuplicateCurve(),
+                Status = string.IsNullOrWhiteSpace(loadResult.Status) ? PolicyStatus : loadResult.Status,
+                Active = true,
+                MessageLevel = loadResult.Primitives.Count == 0 ? GH_RuntimeMessageLevel.Warning : null
+            };
+        }
+
+        private static SolveResults ComputeSafe(RequestData requestData, CancellationToken cancellationToken)
+        {
+            try
+            {
+                return Compute(requestData, cancellationToken);
             }
+            catch (OperationCanceledException)
+            {
+                return new SolveResults
+                {
+                    AreaFrame = requestData.AreaFrame.DuplicateCurve(),
+                    Status = "Google 3D Tiles direct loader timed out after 45 seconds. Try a smaller Spatial Context or check the Google Maps API key and network access.",
+                    Active = true,
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                };
+            }
+            catch (Exception exception)
+            {
+                return new SolveResults
+                {
+                    AreaFrame = requestData.AreaFrame.DuplicateCurve(),
+                    Status = $"Google 3D Tiles direct loader failed: {exception.Message}",
+                    Active = true,
+                    MessageLevel = GH_RuntimeMessageLevel.Error
+                };
+            }
+        }
+
+        private void ApplySolveResults(SolveResults result)
+        {
+            _previewPrimitives.Clear();
+            _previewFrame = result.AreaFrame?.DuplicateCurve();
+            _previewBox = BoundingBox.Empty;
+
+            if (_previewFrame is not null)
+            {
+                _previewBox.Union(_previewFrame.GetBoundingBox(accurate: false));
+            }
+
+            foreach (var primitive in result.Primitives)
+            {
+                _previewPrimitives.Add(new Google3dTilesReferenceSession.DisplayPrimitive
+                {
+                    Mesh = primitive.Mesh,
+                    Material = primitive.Material,
+                    SourceUrl = primitive.SourceUrl
+                });
+                _previewBox.Union(primitive.Mesh.GetBoundingBox(accurate: false));
+            }
+        }
+
+        private void NormalizeComponentLayout()
+        {
+            for (var index = Params.Input.Count - 1; index >= 0; index--)
+            {
+                var input = Params.Input[index];
+                if (input.Name.Equals("Open Viewer Window", StringComparison.OrdinalIgnoreCase) ||
+                    input.NickName.Equals("Open", StringComparison.OrdinalIgnoreCase))
+                {
+                    Params.UnregisterInputParameter(input, true);
+                }
+            }
+
+            for (var index = Params.Output.Count - 1; index >= 0; index--)
+            {
+                var output = Params.Output[index];
+                if (output.Name.Equals("Viewer URL", StringComparison.OrdinalIgnoreCase) ||
+                    output.NickName.Equals("Viewer URL", StringComparison.OrdinalIgnoreCase))
+                {
+                    Params.UnregisterOutputParameter(output, true);
+                }
+            }
+
+            if (Params.Output.Count > 0)
+            {
+                Params.Output[0].Name = "Status";
+                Params.Output[0].NickName = "Status";
+                Params.Output[0].Description = "Status text for the Google 3D Tiles viewer.";
+            }
+
+            if (Params.Output.Count > 1)
+            {
+                Params.Output[1].Name = "Viewer Active";
+                Params.Output[1].NickName = "Active";
+                Params.Output[1].Description = "True when the transient Google 3D Tiles viewer is enabled in the Rhino viewport.";
+            }
+
+            Params.OnParametersChanged();
         }
 
         private static bool TryResolveWgs84BoundingBox(SpatialContext2D spatialContext, out BoundingBox2D boundingBox4326)
@@ -255,61 +368,17 @@ namespace RhinoSpatial
             return false;
         }
 
-        private Google3dTilesReferenceSession CreateViewportSession(
-            SpatialContext2D spatialContext,
-            string apiKey,
-            BoundingBox2D boundingBox4326)
+        private static Curve CreateAreaFrame(SpatialContext2D spatialContext)
         {
-            var frame = RhinoSpatialContextTools.CreateBoundingBoxFrame(
+            return RhinoSpatialContextTools.CreateBoundingBoxFrame(
                 spatialContext.PlacementBoundingBox,
                 spatialContext.PlacementOrigin,
                 spatialContext.UseAbsoluteCoordinates);
-
-            return new Google3dTilesReferenceSession
-            {
-                OwnerId = InstanceGuid,
-                ApiKey = apiKey,
-                SpatialContext = spatialContext,
-                BoundingBox4326 = boundingBox4326,
-                Status = "Google 3D Tiles runtime is starting in the background. Rhino will draw the transient viewer mesh directly in the viewport.",
-                AreaFrame = frame
-            };
-        }
-
-        internal void ApplyLivePreviewState(Google3dTilesReferenceSession session)
-        {
-            _previewPrimitives.Clear();
-            _previewFallbackMeshes.Clear();
-            _previewFrame = session.AreaFrame?.DuplicateCurve();
-            _previewBox = BoundingBox.Empty;
-
-            if (_previewFrame is not null)
-            {
-                _previewBox.Union(_previewFrame.GetBoundingBox(accurate: false));
-            }
-
-                foreach (var primitive in session.DecodedPrimitives)
-                {
-                    _previewPrimitives.Add(new Google3dTilesReferenceSession.DisplayPrimitive
-                    {
-                        Mesh = primitive.Mesh,
-                        Material = primitive.Material ?? session.TileMaterial,
-                        SourceUrl = primitive.SourceUrl
-                    });
-                    _previewBox.Union(primitive.Mesh.GetBoundingBox(accurate: false));
-                }
-
-            foreach (var mesh in session.RuntimeMeshes)
-            {
-                _previewFallbackMeshes.Add(mesh);
-                _previewBox.Union(mesh.GetBoundingBox(accurate: false));
-            }
         }
 
         internal void ClearLivePreviewState()
         {
             _previewPrimitives.Clear();
-            _previewFallbackMeshes.Clear();
             _previewFrame = null;
             _previewBox = BoundingBox.Empty;
         }

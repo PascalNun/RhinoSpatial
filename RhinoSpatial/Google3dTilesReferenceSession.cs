@@ -6,9 +6,9 @@ using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
-    internal sealed class Google3dTilesReferenceSession
+    public sealed class Google3dTilesReferenceSession
     {
-        internal sealed class DisplayPrimitive
+        public sealed class DisplayPrimitive
         {
             public Mesh Mesh { get; init; } = null!;
 
@@ -29,17 +29,15 @@ namespace RhinoSpatial
 
         public Curve? AreaFrame { get; set; }
 
-        public List<Mesh> RuntimeMeshes { get; set; } = new();
-
         public List<DisplayPrimitive> DecodedPrimitives { get; set; } = new();
-
-        public DateTime LastRuntimeUpdateUtc { get; set; } = DateTime.MinValue;
 
         public int RuntimeTriangleCount { get; set; }
 
-        public string LastTileBatchSignature { get; set; } = string.Empty;
+        public string LastDirectLoadSignature { get; set; } = string.Empty;
 
-        public bool TileBatchInProgress { get; set; }
+        public bool DirectLoadInProgress { get; set; }
+
+        public DateTime DirectLoadStartedUtc { get; set; } = DateTime.MinValue;
 
         public DisplayMaterial TileMaterial { get; init; } = new(System.Drawing.Color.FromArgb(220, 174, 174, 174))
         {
