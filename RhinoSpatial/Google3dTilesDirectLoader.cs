@@ -47,11 +47,11 @@ namespace RhinoSpatial
         {
             if (string.IsNullOrWhiteSpace(apiKey))
             {
-                return Google3dTilesDirectLoadResult.Failed("Google 3D Tiles direct loader needs a user-managed Google Maps API key.");
+                return Google3dTilesDirectLoadResult.Failed("Google 3D Tiles viewer needs a user-managed Google Maps API key.");
             }
 
             var rootUri = BuildGoogleTilesUri("/v1/3dtiles/root.json", apiKey, null, null);
-            reportProgress?.Invoke("Google 3D Tiles direct loader is requesting the root tileset from Google...");
+            reportProgress?.Invoke("Google 3D Tiles viewer is requesting the root tileset from Google...");
             using var rootDocument = await LoadJsonDocumentAsync(rootUri, cancellationToken).ConfigureAwait(false);
             reportProgress?.Invoke("Google 3D Tiles root tileset received. Traversing intersecting tile nodes...");
             var rootElement = rootDocument.RootElement;
@@ -97,7 +97,7 @@ namespace RhinoSpatial
                         hasIntersectingRefinement = true;
                         try
                         {
-                            reportProgress?.Invoke($"Google 3D Tiles direct loader is resolving child tileset {loadedExternalTilesets}...");
+                            reportProgress?.Invoke($"Google 3D Tiles viewer is resolving child tileset {loadedExternalTilesets}...");
                             using var externalDocument = await LoadJsonDocumentAsync(contentUri, cancellationToken).ConfigureAwait(false);
                             var externalRootElement = externalDocument.RootElement;
                             session ??= TryGetSessionFromJson(externalRootElement);
@@ -174,7 +174,7 @@ namespace RhinoSpatial
                     if (descriptors.Count <= MaxContentTiles ||
                         descriptors.Count % 25 == 0)
                     {
-                        reportProgress?.Invoke($"Google 3D Tiles direct loader found {descriptors.Count} candidate GLB tile content URL(s)...");
+                        reportProgress?.Invoke($"Google 3D Tiles viewer found {descriptors.Count} candidate GLB tile content URL(s)...");
                     }
                 }
             }
@@ -182,7 +182,7 @@ namespace RhinoSpatial
             if (descriptors.Count == 0)
             {
                 return Google3dTilesDirectLoadResult.Failed(
-                    $"Google 3D Tiles direct loader did not find GLB tile content intersecting the selected area after visiting {visitedTiles} tile node(s).");
+                    $"Google 3D Tiles viewer did not find GLB tile content intersecting the selected area after visiting {visitedTiles} tile node(s).");
             }
 
             var selectedDescriptors = SelectBestContentDescriptors(descriptors, MaxDecodeCandidateTiles).ToList();
@@ -194,7 +194,7 @@ namespace RhinoSpatial
             {
                 var batch = descriptorBatch.ToList();
                 decodedDescriptorCount += batch.Count;
-                reportProgress?.Invoke($"Google 3D Tiles direct loader is decoding tile content URL(s) {decodedDescriptorCount - batch.Count + 1}-{decodedDescriptorCount} from {selectedDescriptors.Count} selected fine candidate(s)...");
+                reportProgress?.Invoke($"Google 3D Tiles viewer is decoding tile content URL(s) {decodedDescriptorCount - batch.Count + 1}-{decodedDescriptorCount} from {selectedDescriptors.Count} selected fine candidate(s)...");
                 var contentResult = await Google3dTilesTileContentLoader
                     .LoadDisplayPrimitivesAsync(batch, spatialContext, cancellationToken)
                     .ConfigureAwait(false);
@@ -226,13 +226,13 @@ namespace RhinoSpatial
             Google3dTilesContentLoadResult contentResult)
         {
             var fallbackNote = suppressedFallbackCount > 0
-                ? $" Suppressed {suppressedFallbackCount} coarse clipped fallback mesh(es)."
+                ? $" Suppressed {suppressedFallbackCount} coarse fallback mesh(es)."
                 : string.Empty;
             var validityNote = contentResult.InvalidMeshCount > 0 || contentResult.DegenerateTriangleCount > 0
                 ? $" Dropped {contentResult.InvalidMeshCount} invalid mesh(es) and {contentResult.DegenerateTriangleCount} degenerate triangle(s)."
                 : string.Empty;
 
-            return $"Google 3D Tiles direct loader decoded {primitiveCount} reference mesh(es) from {decodedDescriptorCount} selected tile content URL(s) ({totalCandidateCount} candidate URL(s)), {triangleCount} triangles.{fallbackNote}{validityNote}";
+            return $"Google 3D Tiles viewer decoded {primitiveCount} preview mesh(es) from {decodedDescriptorCount} selected tile content URL(s) ({totalCandidateCount} candidate URL(s)), {triangleCount} triangles.{fallbackNote}{validityNote}";
         }
 
         private static Google3dTilesContentLoadResult CombineContentResults(
@@ -299,7 +299,7 @@ namespace RhinoSpatial
                 var suffix = string.IsNullOrWhiteSpace(contentResult.LastError)
                     ? string.Empty
                     : $" Last decode error: {contentResult.LastError}";
-                return $"Google 3D Tiles direct loader found {totalCandidateCount} candidate tile content URL(s), but all {contentResult.DecodeFailureCount} attempted GLB decode(s) failed.{suffix}";
+                return $"Google 3D Tiles viewer found {totalCandidateCount} candidate tile content URL(s), but all {contentResult.DecodeFailureCount} attempted GLB decode(s) failed.{suffix}";
             }
 
             var dracoNote = contentResult.DracoCompressedTileCount > 0
@@ -309,10 +309,10 @@ namespace RhinoSpatial
                 ? $" Skipped {contentResult.SkippedDecodedPrimitiveCount} primitive(s) without directly readable POSITION/index data."
                 : string.Empty;
             var rejectedNote = contentResult.TotalDecodedTriangleCount > 0
-                ? $" Clipped {contentResult.ClippedOversizedTriangleCount} oversized triangle(s); rejected {contentResult.RejectedOversizedTriangleCount} oversized and {contentResult.RejectedOutOfBoundsTriangleCount} out-of-context triangle(s) from {contentResult.TotalDecodedTriangleCount} decoded triangle(s)."
+                ? $" Rejected {contentResult.RejectedOversizedTriangleCount} oversized and {contentResult.RejectedOutOfBoundsTriangleCount} out-of-context triangle(s) from {contentResult.TotalDecodedTriangleCount} decoded triangle(s)."
                 : string.Empty;
             var fallbackNote = suppressedFallbackCount > 0 || contentResult.FallbackPrimitiveCount > 0
-                ? $" Suppressed {Math.Max(suppressedFallbackCount, contentResult.FallbackPrimitiveCount)} coarse clipped fallback mesh(es) because they are not usable local 3D tile geometry."
+                ? $" Suppressed {Math.Max(suppressedFallbackCount, contentResult.FallbackPrimitiveCount)} coarse fallback mesh(es) because they are not usable local 3D tile geometry."
                 : string.Empty;
             var validityNote = contentResult.InvalidMeshCount > 0 || contentResult.DegenerateTriangleCount > 0
                 ? $" Dropped {contentResult.InvalidMeshCount} invalid mesh(es) and {contentResult.DegenerateTriangleCount} degenerate triangle(s)."
@@ -321,7 +321,7 @@ namespace RhinoSpatial
                 ? string.Empty
                 : $" Last decode/build error: {contentResult.LastError}";
 
-            return $"Google 3D Tiles direct loader found {totalCandidateCount} candidate tile content URL(s), attempted {contentResult.AttemptedTileCount} GLB load(s) from {decodedDescriptorCount} selected candidate(s), decoded {contentResult.DecodedPrimitiveCount} primitive(s), but produced no usable mesh faces.{dracoNote}{skippedNote}{rejectedNote}{fallbackNote}{validityNote}{errorNote}";
+            return $"Google 3D Tiles viewer found {totalCandidateCount} candidate tile content URL(s), attempted {contentResult.AttemptedTileCount} GLB load(s) from {decodedDescriptorCount} selected candidate(s), decoded {contentResult.DecodedPrimitiveCount} primitive(s), but produced no usable preview mesh faces.{dracoNote}{skippedNote}{rejectedNote}{fallbackNote}{validityNote}{errorNote}";
         }
 
         private static async Task<JsonDocument> LoadJsonDocumentAsync(Uri uri, CancellationToken cancellationToken)

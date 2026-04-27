@@ -238,23 +238,41 @@ namespace RhinoSpatial
                 TotalTriangleCount = decodedPrimitive.TriangleIndices.Count / 3
             };
 
-            if (!TryChooseProjectedVertices(tile, decodedPrimitive, spatialContext, out var projectedVertices, out var minimumHeight, out var clipBounds, out var maxTriangleEdgeLength))
+            if (!TryChooseProjectedVertices(tile, decodedPrimitive, spatialContext, out var projectedVertices, out var candidateElevationBaseline, out var clipBounds, out var maxTriangleEdgeLength))
             {
                 return null;
             }
 
             var mesh = new Mesh();
+            var usedVertexMap = new Dictionary<int, int>();
+            var elevationBaseline = ResolveElevationBaseline(spatialContext);
             var minimumTriangleArea = Math.Max(1e-8, Math.Pow(MeasureBoundsDiagonal(clipBounds), 2.0) * 1e-12);
 
-            int AddMeshVertex(ProjectedMeshVertex sourceVertex)
+            int GetOrCreateVertexIndex(int sourceIndex)
             {
+                if (usedVertexMap.TryGetValue(sourceIndex, out var existingIndex))
+                {
+                    return existingIndex;
+                }
+
+                var sourcePoint = projectedVertices[sourceIndex];
                 var newIndex = mesh.Vertices.Count;
                 mesh.Vertices.Add(
-                    sourceVertex.Point.X,
-                    sourceVertex.Point.Y,
-                    spatialContext.UseAbsoluteCoordinates ? sourceVertex.Point.Z : sourceVertex.Point.Z - minimumHeight);
+                    sourcePoint.X,
+                    sourcePoint.Y,
+                    spatialContext.UseAbsoluteCoordinates ? sourcePoint.Z : sourcePoint.Z - elevationBaseline);
 
-                mesh.TextureCoordinates.Add(sourceVertex.TextureCoordinate.X, 1.0f - sourceVertex.TextureCoordinate.Y);
+                if (decodedPrimitive.TextureCoordinates.Count > sourceIndex)
+                {
+                    var uv = decodedPrimitive.TextureCoordinates[sourceIndex];
+                    mesh.TextureCoordinates.Add(uv.X, 1.0f - uv.Y);
+                }
+                else
+                {
+                    mesh.TextureCoordinates.Add(0.0f, 0.0f);
+                }
+
+                usedVertexMap[sourceIndex] = newIndex;
                 return newIndex;
             }
 
@@ -289,59 +307,23 @@ namespace RhinoSpatial
                 }
 
                 var oversized = IsOversizedTriangle(pa, pb, pc, maxTriangleEdgeLength);
-                var clippedTriangle = ClipTriangleToBounds(
-                    CreateProjectedMeshVertex(pa, decodedPrimitive, a),
-                    CreateProjectedMeshVertex(pb, decodedPrimitive, b),
-                    CreateProjectedMeshVertex(pc, decodedPrimitive, c),
-                    clipBounds);
-
-                clippedTriangle = RemoveDuplicatePolygonVertices(clippedTriangle, MeshPointTolerance);
-                if (clippedTriangle.Count < 3)
-                {
-                    if (oversized)
-                    {
-                        buildReport.RejectedOversizedTriangleCount++;
-                    }
-                    else
-                    {
-                        buildReport.RejectedOutOfBoundsTriangleCount++;
-                    }
-
-                    continue;
-                }
-
-                var addedFaceCount = 0;
-                var firstVertex = clippedTriangle[0];
-                for (var clippedIndex = 1; clippedIndex + 1 < clippedTriangle.Count; clippedIndex++)
-                {
-                    var secondVertex = clippedTriangle[clippedIndex];
-                    var thirdVertex = clippedTriangle[clippedIndex + 1];
-                    if (!IsUsableTriangle(firstVertex.Point, secondVertex.Point, thirdVertex.Point, minimumTriangleArea))
-                    {
-                        buildReport.DegenerateTriangleCount++;
-                        continue;
-                    }
-
-                    mesh.Faces.AddFace(
-                        AddMeshVertex(firstVertex),
-                        AddMeshVertex(secondVertex),
-                        AddMeshVertex(thirdVertex));
-                    addedFaceCount++;
-                }
-
-                if (addedFaceCount == 0)
-                {
-                    continue;
-                }
-
                 if (oversized)
                 {
-                    buildReport.ClippedOversizedTriangleCount++;
+                    buildReport.RejectedOversizedTriangleCount++;
+                    continue;
                 }
-                else
+
+                if (!IsUsableTriangle(pa, pb, pc, minimumTriangleArea))
                 {
-                    buildReport.UnclippedTriangleCount++;
+                    buildReport.DegenerateTriangleCount++;
+                    continue;
                 }
+
+                mesh.Faces.AddFace(
+                    GetOrCreateVertexIndex(a),
+                    GetOrCreateVertexIndex(b),
+                    GetOrCreateVertexIndex(c));
+                buildReport.UnclippedTriangleCount++;
             }
 
             if (mesh.Faces.Count == 0)
@@ -388,6 +370,18 @@ namespace RhinoSpatial
             };
         }
 
+        private static double ResolveElevationBaseline(SpatialContext2D spatialContext)
+        {
+            if (spatialContext.UseAbsoluteCoordinates)
+            {
+                return 0.0;
+            }
+
+            return SpatialElevationBaselineCache.TryGet(spatialContext, out var elevationBaseline)
+                ? elevationBaseline
+                : 0.0;
+        }
+
         private sealed class PrimitiveBuildReport
         {
             public int TotalTriangleCount { get; init; }
@@ -403,13 +397,6 @@ namespace RhinoSpatial
             public int DegenerateTriangleCount { get; set; }
 
             public int InvalidMeshCount { get; set; }
-        }
-
-        private sealed class ProjectedMeshVertex
-        {
-            public Point3d Point { get; init; }
-
-            public Point2f TextureCoordinate { get; init; }
         }
 
         private static bool TryChooseProjectedVertices(
@@ -610,34 +597,6 @@ namespace RhinoSpatial
             return Math.Sqrt((width * width) + (height * height));
         }
 
-        private static List<ProjectedMeshVertex> RemoveDuplicatePolygonVertices(
-            IReadOnlyList<ProjectedMeshVertex> vertices,
-            double tolerance)
-        {
-            var result = new List<ProjectedMeshVertex>();
-            foreach (var vertex in vertices)
-            {
-                if (!IsValidPoint(vertex.Point))
-                {
-                    continue;
-                }
-
-                if (result.Count == 0 ||
-                    Distance3D(result[^1].Point, vertex.Point) > tolerance)
-                {
-                    result.Add(vertex);
-                }
-            }
-
-            if (result.Count > 1 &&
-                Distance3D(result[0].Point, result[^1].Point) <= tolerance)
-            {
-                result.RemoveAt(result.Count - 1);
-            }
-
-            return result;
-        }
-
         private static bool IsUsableTriangle(Point3d a, Point3d b, Point3d c, double minimumArea)
         {
             if (!IsValidPoint(a) || !IsValidPoint(b) || !IsValidPoint(c))
@@ -681,129 +640,6 @@ namespace RhinoSpatial
             return Distance2D(a, b) > maxEdgeLength ||
                    Distance2D(b, c) > maxEdgeLength ||
                    Distance2D(c, a) > maxEdgeLength;
-        }
-
-        private static ProjectedMeshVertex CreateProjectedMeshVertex(
-            Point3d point,
-            Google3dTilesDecodedPrimitive decodedPrimitive,
-            int sourceIndex)
-        {
-            var textureCoordinate = decodedPrimitive.TextureCoordinates.Count > sourceIndex
-                ? decodedPrimitive.TextureCoordinates[sourceIndex]
-                : new Point2f(0.0f, 0.0f);
-
-            return new ProjectedMeshVertex
-            {
-                Point = point,
-                TextureCoordinate = textureCoordinate
-            };
-        }
-
-        private static List<ProjectedMeshVertex> ClipTriangleToBounds(
-            ProjectedMeshVertex a,
-            ProjectedMeshVertex b,
-            ProjectedMeshVertex c,
-            BoundingBox2D bounds)
-        {
-            var polygon = new List<ProjectedMeshVertex> { a, b, c };
-            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Left);
-            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Right);
-            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Bottom);
-            polygon = ClipPolygonToBoundary(polygon, bounds, ClipBoundary.Top);
-            return polygon;
-        }
-
-        private static List<ProjectedMeshVertex> ClipPolygonToBoundary(
-            IReadOnlyList<ProjectedMeshVertex> polygon,
-            BoundingBox2D bounds,
-            ClipBoundary boundary)
-        {
-            var result = new List<ProjectedMeshVertex>();
-            if (polygon.Count == 0)
-            {
-                return result;
-            }
-
-            var previous = polygon[^1];
-            var previousInside = IsInsideClipBoundary(previous.Point, bounds, boundary);
-            foreach (var current in polygon)
-            {
-                var currentInside = IsInsideClipBoundary(current.Point, bounds, boundary);
-
-                if (currentInside)
-                {
-                    if (!previousInside)
-                    {
-                        result.Add(IntersectClipBoundary(previous, current, bounds, boundary));
-                    }
-
-                    result.Add(current);
-                }
-                else if (previousInside)
-                {
-                    result.Add(IntersectClipBoundary(previous, current, bounds, boundary));
-                }
-
-                previous = current;
-                previousInside = currentInside;
-            }
-
-            return result;
-        }
-
-        private static bool IsInsideClipBoundary(Point3d point, BoundingBox2D bounds, ClipBoundary boundary)
-        {
-            return boundary switch
-            {
-                ClipBoundary.Left => point.X >= bounds.MinX,
-                ClipBoundary.Right => point.X <= bounds.MaxX,
-                ClipBoundary.Bottom => point.Y >= bounds.MinY,
-                _ => point.Y <= bounds.MaxY
-            };
-        }
-
-        private static ProjectedMeshVertex IntersectClipBoundary(
-            ProjectedMeshVertex start,
-            ProjectedMeshVertex end,
-            BoundingBox2D bounds,
-            ClipBoundary boundary)
-        {
-            var denominator = boundary is ClipBoundary.Left or ClipBoundary.Right
-                ? end.Point.X - start.Point.X
-                : end.Point.Y - start.Point.Y;
-            var numerator = boundary switch
-            {
-                ClipBoundary.Left => bounds.MinX - start.Point.X,
-                ClipBoundary.Right => bounds.MaxX - start.Point.X,
-                ClipBoundary.Bottom => bounds.MinY - start.Point.Y,
-                _ => bounds.MaxY - start.Point.Y
-            };
-            var t = Math.Abs(denominator) < 1e-12 ? 0.0 : numerator / denominator;
-            t = Math.Max(0.0, Math.Min(1.0, t));
-
-            return new ProjectedMeshVertex
-            {
-                Point = new Point3d(
-                    Lerp(start.Point.X, end.Point.X, t),
-                    Lerp(start.Point.Y, end.Point.Y, t),
-                    Lerp(start.Point.Z, end.Point.Z, t)),
-                TextureCoordinate = new Point2f(
-                    (float)Lerp(start.TextureCoordinate.X, end.TextureCoordinate.X, t),
-                    (float)Lerp(start.TextureCoordinate.Y, end.TextureCoordinate.Y, t))
-            };
-        }
-
-        private static double Lerp(double start, double end, double t)
-        {
-            return start + ((end - start) * t);
-        }
-
-        private enum ClipBoundary
-        {
-            Left,
-            Right,
-            Bottom,
-            Top
         }
 
         private static double Distance2D(Point3d a, Point3d b)
