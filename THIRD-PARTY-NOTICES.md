@@ -37,6 +37,26 @@ RhinoSpatial uses NetTopologySuite for 2D geometry operations such as buffering,
 
 RhinoSpatial uses ProjNET for spatial reference and coordinate transformation support.
 
+### GeographicLib EGM96 Geoid Grid
+
+- Data file: `egm96-15.pgm`
+- Source: GeographicLib geoid data distribution
+- Model: WGS84 EGM96, 15-minute global geoid grid
+- Source URL: https://sourceforge.net/projects/geographiclib/files/geoids-distrib/egm96-15.zip/
+- Documentation: https://geographiclib.sourceforge.io/html/GeoidEval.1.html
+
+RhinoSpatial embeds this grid to convert WGS84 ellipsoid heights to approximate sea-level/geoid heights for globally available vertical alignment.
+
+### Mapzen Terrain Tiles
+
+- Dataset/service: Mapzen Terrain Tiles / AWS `elevation-tiles-prod`
+- Format used: Skadi HGT tiles in unprojected WGS84 coordinates
+- Source URL: https://s3.amazonaws.com/elevation-tiles-prod/skadi/
+- Documentation: https://www.mapzen.com/blog/terrain-tile-service/
+- Attribution guidance: https://www.mapzen.com/rights/
+
+RhinoSpatial uses Mapzen Skadi terrain tiles as the built-in global terrain fallback when no user terrain service URL is provided.
+
 ## Notes
 
 - RhinoSpatial itself remains licensed under MIT.

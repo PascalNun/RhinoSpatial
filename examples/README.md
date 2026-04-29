@@ -37,6 +37,7 @@ The current example/regression set is centered around:
 - `Load Terrain`
 - `Load GeoTIFF`
 - `Load OSM`
+- `3D Tiles Viewer (Google)` where a user-managed API key is available
 
 These examples are meant to support:
 
@@ -65,10 +66,11 @@ The validation checklist and source manifest remain the broader regression basel
 
 The current source manifest mixes:
 
+- broad fallback references that make RhinoSpatial easier to try without local setup
 - Hessen-specific deep-dive references that have been useful during development
 - Germany-wide official references where they fit the RhinoSpatial workflow well
 
-That balance is intentional.
+That balance is intentional, but local references should be understood as test fixtures and examples. The main RhinoSpatial workflow should continue to prefer user-provided project data, with generic fallbacks used only for convenience and orientation.
 
 Hessen remains a strong practical test bed for:
 
@@ -77,9 +79,9 @@ Hessen remains a strong practical test bed for:
 - cadastral workflows
 - official building and parcel context
 
-Germany-wide references are included where they strengthen:
+Broad and Germany-wide references are included where they strengthen:
 
 - national-scale WFS/WMS testing
-- fallback planning
+- fallback behavior checks
 - broader provider validation
 - examples that are not tied to a single federal state

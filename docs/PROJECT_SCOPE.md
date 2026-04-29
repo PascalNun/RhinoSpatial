@@ -70,6 +70,7 @@ The following source / component types are considered part of the core RhinoSpat
 - **Load Terrain**
 - **Load GeoTIFF**
 - **Load OSM**
+- **3D Tiles Viewer (Google)** as an optional viewer, not a normal source/import workflow
 
 These form the core source ecosystem of the project and are considered stable at the source-category level.
 
@@ -114,6 +115,8 @@ Typical use cases:
 - site base surfaces
 - contextual ground reference for buildings and other layers
 
+The preferred terrain path is still user-provided or official project data where available. The built-in global terrain fallback exists to make first tests and general context workflows easier, not to replace better local datasets.
+
 ### GeoTIFF
 Georeferenced raster files aligned to the same shared spatial workflow.
 
@@ -133,6 +136,16 @@ Typical use cases:
 - rail
 - fast black-plan / site-context style studies
 
+### 3D Tiles Viewer (Google)
+Optional user-managed contextual 3D viewer for Google Photorealistic 3D Tiles.
+
+Typical use cases:
+- visual urban context
+- quick massing/orientation checks
+- comparing official editable layers with broad photogrammetric surroundings
+
+The component requires the user's own Google Maps API key. It is a viewer workflow and should not be presented as an official editable data source.
+
 ## OSM Scope
 
 OSM is part of the core scope because it makes RhinoSpatial more widely usable across many regions.
@@ -147,7 +160,7 @@ The intended OSM outputs are:
 - **Green**
 - **Rail**
 
-Buildings are the highest priority.  
+Buildings are the highest priority.
 The rest should support contextual modeling, figure-ground studies, black-plan style workflows, and general site understanding.
 
 Important:
@@ -178,14 +191,14 @@ These kinds of improvements are considered **refinement within the core scope**,
 
 RhinoSpatial should generally prefer:
 
-1. **official / local source first**
-2. **practical fallback second**
+1. **user-provided and official project data first**
+2. **practical broad fallback second**
 3. **clear status communication**
 4. **no misleading assumptions about data quality**
 
 This means:
 - official sources remain the ideal where available
-- OSM and other fallback strategies improve general usability
+- OSM, global terrain, fallback imagery, and similar strategies improve general usability
 - fallback data should not be presented as equivalent to richer official data
 - the user should be able to understand when fallback behavior is being used
 
@@ -255,6 +268,7 @@ The meaningful long-term core scope of RhinoSpatial is currently considered to b
 - Terrain
 - GeoTIFF
 - OSM
+- optional Google 3D Tiles viewing
 
 At this point, the project should focus more on:
 
@@ -275,24 +289,22 @@ The current priority is to make the existing system feel more complete, dependab
 
 ## Policy Note: Google 3D Tiles
 
-Google Photorealistic 3D Tiles are considered a legitimate later extension goal for RhinoSpatial, but they are not part of the core functionality.
+Google Photorealistic 3D Tiles are available in RhinoSpatial as an optional viewer component.
 
-If this feature is added later, it should be treated as:
+This feature should be treated as:
 
 - optional
 - advanced
 - user-managed through the user's own API key and billing setup
-- reference-only
-- runtime-streamed
-- clearly separate from the core editable modeling workflow
+- bounded to the selected Spatial Context
+- clearly separate from official editable project data
 
 Important:
 Google 3D Tiles should not be treated as a normal import source.
 
 RhinoSpatial should not use Google Photorealistic 3D Tiles as:
-- editable Rhino geometry
-- bakeable scene content
-- exportable mesh content
+- a replacement for official editable source data
+- an offline authoritative dataset
 - offline cached geometry
 - a source for derived or extracted geometry
 

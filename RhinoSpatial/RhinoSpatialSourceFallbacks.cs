@@ -1,7 +1,14 @@
+using System.Collections.Generic;
 using RhinoSpatial.Core;
 
 namespace RhinoSpatial
 {
+    internal enum TerrainSourceKind
+    {
+        Wcs,
+        GlobalSkadiTiles
+    }
+
     internal enum RhinoSpatialSourceTier
     {
         UserProvided,
@@ -33,7 +40,8 @@ namespace RhinoSpatial
         string BaseUrl,
         string CoverageId,
         RhinoSpatialSourceTier Tier,
-        string DisplayName)
+        string DisplayName,
+        TerrainSourceKind Kind = TerrainSourceKind.Wcs)
     {
         public bool UsesFallback => Tier != RhinoSpatialSourceTier.UserProvided;
 
@@ -52,8 +60,8 @@ namespace RhinoSpatial
     {
         private const string DefaultWmsUrl = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
         private const string DefaultWmsLayer = "BlueMarble_ShadedRelief_Bathymetry";
-        private const string DefaultTerrainServiceUrl = "https://inspire-hessen.de/raster/dgm1/ows";
-        private const string DefaultTerrainCoverageId = "he_dgm1";
+        private const string GlobalTerrainTilesUrl = "https://s3.amazonaws.com/elevation-tiles-prod/skadi";
+        private const string GlobalTerrainCoverageId = "Mapzen Skadi HGT";
 
         public static ResolvedImagerySource ResolveImagerySource(string? baseUrl, string? layerName)
         {
@@ -80,16 +88,38 @@ namespace RhinoSpatial
             {
                 return new ResolvedTerrainSource(
                     serviceUrl.Trim(),
-                    string.IsNullOrWhiteSpace(coverageId) ? DefaultTerrainCoverageId : coverageId.Trim(),
+                    string.IsNullOrWhiteSpace(coverageId) ? string.Empty : coverageId.Trim(),
                     RhinoSpatialSourceTier.UserProvided,
                     "user-provided terrain source");
             }
 
             return new ResolvedTerrainSource(
-                DefaultTerrainServiceUrl,
-                string.IsNullOrWhiteSpace(coverageId) ? DefaultTerrainCoverageId : coverageId.Trim(),
-                RhinoSpatialSourceTier.BuiltInOfficialExample,
-                "Hessen DGM1 official example terrain source");
+                GlobalTerrainTilesUrl,
+                string.IsNullOrWhiteSpace(coverageId) ? GlobalTerrainCoverageId : coverageId.Trim(),
+                RhinoSpatialSourceTier.BuiltInGlobalFallback,
+                "Mapzen/AWS Skadi global elevation tiles",
+                TerrainSourceKind.GlobalSkadiTiles);
+        }
+
+        public static IReadOnlyList<ResolvedTerrainSource> ResolveTerrainSources(string? serviceUrl, string? coverageId)
+        {
+            if (!string.IsNullOrWhiteSpace(serviceUrl))
+            {
+                return new[]
+                {
+                    ResolveTerrainSource(serviceUrl, coverageId)
+                };
+            }
+
+            return new[]
+            {
+                new ResolvedTerrainSource(
+                    GlobalTerrainTilesUrl,
+                    GlobalTerrainCoverageId,
+                    RhinoSpatialSourceTier.BuiltInGlobalFallback,
+                    "Mapzen/AWS Skadi global elevation tiles",
+                    TerrainSourceKind.GlobalSkadiTiles)
+            };
         }
 
         public static bool TryCreateRequestSpatialContext(

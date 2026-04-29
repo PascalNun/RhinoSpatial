@@ -9,10 +9,22 @@
       "LoD2 Buildings",
       "Terrain",
       "GeoTIFF",
-      "OSM"
+      "OSM",
+      "Google 3D Tiles Viewer"
     ]
   },
   "sources": [
+    {
+      "id": "terrain-global-skadi-fallback",
+      "type": "Terrain",
+      "purpose": "Built-in global terrain fallback",
+      "url": null,
+      "notes": [
+        "Leave Terrain Service URL empty in Load Terrain",
+        "Uses broad Mapzen/AWS Skadi elevation tiles for convenient context",
+        "Good for smoke tests and general fallback behavior; prefer user-provided official terrain for project work"
+      ]
+    },
     {
       "id": "wfs-hessen-reference",
       "type": "WFS",
@@ -36,11 +48,11 @@
     {
       "id": "wcs-germany-dgm200",
       "type": "Terrain",
-      "purpose": "Germany-wide practical terrain fallback reference",
+      "purpose": "Germany-wide official terrain reference",
       "url": "https://sgx.geodatenzentrum.de/wcs_dgm200_inspire?SERVICE=WCS&REQUEST=GetCapabilities",
       "notes": [
         "Official BKG nationwide terrain reference at coarser resolution than state-level DGM sources",
-        "Useful as a practical Germany-wide terrain fallback example"
+        "Useful as an explicit user-provided WCS test source"
       ]
     },
     {
@@ -119,7 +131,7 @@
       "purpose": "Official WCS-backed terrain reference",
       "url": "https://inspire-hessen.de/raster/dgm1/ows?REQUEST=GetCapabilities&SERVICE=WCS&VERSION=2.1.0",
       "notes": [
-        "Current first provider-backed terrain source",
+        "High-resolution local official terrain source",
         "Useful for terrain and elevation consistency checks"
       ]
     },
@@ -181,6 +193,17 @@
       "notes": [
         "Uses the built-in Overpass fallback strategy",
         "Good for Buildings, Road, Water, Green, and Rail regression checks"
+      ]
+    },
+    {
+      "id": "google-3d-tiles-viewer",
+      "type": "3D Tiles Viewer",
+      "purpose": "Optional contextual Google Photorealistic 3D Tiles viewer",
+      "url": null,
+      "notes": [
+        "Requires a user-managed Google Maps API key",
+        "Use only for bounded contextual preview aligned to Spatial Context",
+        "Not a substitute for official editable project data"
       ]
     }
   ]

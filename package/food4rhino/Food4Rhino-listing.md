@@ -22,8 +22,9 @@ RhinoSpatial currently supports workflows for:
 - `terrain`
 - `GeoTIFF-based raster placement`
 - `lightweight OSM context`
+- optional Google 3D Tiles viewing with a user-managed API key
 
-The goal is to keep geospatial workflows practical, lightweight, and directly usable inside Rhino and Grasshopper.
+The goal is to keep geospatial workflows practical, lightweight, and directly usable inside Rhino and Grasshopper. User-provided project data remains the main path; broad fallbacks are included only to make first tests and contextual work easier.
 
 RhinoSpatial grew out of a practical need: bringing official geodata and site context directly into Rhino and Grasshopper in a way that feels usable for design work. It is intended to keep that process simple, lightweight, and useful, with aligned outputs and minimal setup.
 
@@ -33,6 +34,8 @@ Typical workflow:
 2. inspect layers when needed
 3. load one or more aligned sources
 4. work directly with the combined site context in Rhino and Grasshopper
+
+Built-in fallbacks currently include global imagery for WMS-style context, global terrain for quick elevation context, and public OSM access for lightweight urban context.
 
 ## Early Stage Note
 
@@ -46,7 +49,7 @@ Feedback, edge cases, and additional test links are very welcome.
 
 Current release package:
 
-- `RhinoSpatial-0.2.2-alpha.zip` 
+- `RhinoSpatial-0.2.2-alpha.zip`
 
 ## Repository
 

@@ -12,7 +12,7 @@ namespace RhinoSpatial
 {
     internal sealed class Google3dTilesDirectLoadResult
     {
-        public List<Google3dTilesReferenceSession.DisplayPrimitive> Primitives { get; init; } = new();
+        public List<Google3dTilesDisplayPrimitive> Primitives { get; init; } = new();
 
         public string Status { get; init; } = string.Empty;
 
@@ -186,7 +186,7 @@ namespace RhinoSpatial
             }
 
             var selectedDescriptors = SelectBestContentDescriptors(descriptors, MaxDecodeCandidateTiles).ToList();
-            var decodedPrimitives = new List<Google3dTilesReferenceSession.DisplayPrimitive>();
+            var decodedPrimitives = new List<Google3dTilesDisplayPrimitive>();
             var aggregateContentResult = new Google3dTilesContentLoadResult();
             var decodedDescriptorCount = 0;
 
@@ -232,14 +232,14 @@ namespace RhinoSpatial
                 ? $" Dropped {contentResult.InvalidMeshCount} invalid mesh(es) and {contentResult.DegenerateTriangleCount} degenerate triangle(s)."
                 : string.Empty;
 
-            return $"Google 3D Tiles viewer decoded {primitiveCount} preview mesh(es) from {decodedDescriptorCount} selected tile content URL(s) ({totalCandidateCount} candidate URL(s)), {triangleCount} triangles.{fallbackNote}{validityNote}";
+            return $"Google 3D Tiles viewer decoded {primitiveCount} preview mesh(es) from {decodedDescriptorCount} selected tile content URL(s) ({totalCandidateCount} candidate URL(s)), {triangleCount} triangles. Vertical correction: EGM96 geoid grid.{fallbackNote}{validityNote}";
         }
 
         private static Google3dTilesContentLoadResult CombineContentResults(
             Google3dTilesContentLoadResult left,
             Google3dTilesContentLoadResult right)
         {
-            var primitives = new List<Google3dTilesReferenceSession.DisplayPrimitive>(left.Primitives.Count + right.Primitives.Count);
+            var primitives = new List<Google3dTilesDisplayPrimitive>(left.Primitives.Count + right.Primitives.Count);
             primitives.AddRange(left.Primitives);
             primitives.AddRange(right.Primitives);
 

@@ -15,7 +15,7 @@ namespace RhinoSpatial
 {
     internal sealed class Google3dTilesContentLoadResult
     {
-        public List<Google3dTilesReferenceSession.DisplayPrimitive> Primitives { get; init; } = new();
+        public List<Google3dTilesDisplayPrimitive> Primitives { get; init; } = new();
 
         public int AttemptedTileCount { get; init; }
 
@@ -76,7 +76,7 @@ namespace RhinoSpatial
             SpatialContext2D spatialContext,
             CancellationToken cancellationToken = default)
         {
-            var displayPrimitives = new List<Google3dTilesReferenceSession.DisplayPrimitive>();
+            var displayPrimitives = new List<Google3dTilesDisplayPrimitive>();
             var attemptedTileCount = 0;
             var decodeFailureCount = 0;
             var decodedPrimitiveCount = 0;
@@ -227,7 +227,7 @@ namespace RhinoSpatial
                 $"Google 3D Tiles GLB request failed ({(int)response.StatusCode}) for {TrimUrlForStatus(tileUrl)}: {TrimStatusBody(body)}");
         }
 
-        private static Google3dTilesReferenceSession.DisplayPrimitive? CreateDisplayPrimitive(
+        private static Google3dTilesDisplayPrimitive? CreateDisplayPrimitive(
             Google3dTilesTileDescriptor tile,
             Google3dTilesDecodedPrimitive decodedPrimitive,
             SpatialContext2D spatialContext,
@@ -345,7 +345,7 @@ namespace RhinoSpatial
             {
                 var texturePath = EnsureTextureFile(decodedPrimitive.BaseColorTextureBytes, decodedPrimitive.BaseColorTextureMimeType);
                 material = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(texturePath);
-                return new Google3dTilesReferenceSession.DisplayPrimitive
+                return new Google3dTilesDisplayPrimitive
                 {
                     Mesh = mesh,
                     Material = material,
@@ -361,7 +361,7 @@ namespace RhinoSpatial
                 Shine = decodedPrimitive.IsUnlit ? 0.0 : 0.2
             };
 
-            return new Google3dTilesReferenceSession.DisplayPrimitive
+            return new Google3dTilesDisplayPrimitive
             {
                 Mesh = mesh,
                 Material = material,
@@ -753,7 +753,12 @@ namespace RhinoSpatial
                 return false;
             }
 
-            projectedPoint = new Point3d(projectedX, projectedY, height);
+            var spatialHeight = SpatialVerticalDatumTransform.ConvertWgs84EllipsoidHeightToSpatialHeight(
+                latitudeDegrees,
+                longitudeDegrees,
+                height);
+
+            projectedPoint = new Point3d(projectedX, projectedY, spatialHeight.HeightMeters);
             return true;
         }
 

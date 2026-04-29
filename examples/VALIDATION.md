@@ -53,6 +53,8 @@ It is intentionally small and practical. The point is to confirm that the core s
 - confirm terrain aligns with the same `Spatial Context`
 - confirm terrain and LoD2 share a sensible local Z reference in localized mode
 - confirm absolute mode still keeps real coordinates when requested
+- leave the Terrain URL empty and confirm the global fallback returns usable context terrain
+- connect a user-provided WCS terrain source and confirm explicit source data still wins over fallback behavior
 
 ## GeoTIFF
 
@@ -70,10 +72,18 @@ It is intentionally small and practical. The point is to confirm that the core s
 - confirm OSM still works gracefully when one category fails or times out
 - confirm status output stays readable during partial OSM failures
 
+## Google 3D Tiles Viewer
+
+- connect a user-managed Google Maps API key
+- enable `3D Tiles Viewer (Google)` for a small Spatial Context
+- confirm preview meshes and materials appear aligned to the same area
+- confirm status clearly communicates viewer behavior and bounded loading
+- confirm the component remains disabled and quiet when Enable is false
+
 ## Combined Workflow
 
 - use one `Spatial Context`
-- load WFS, WMS, LoD2, Terrain, GeoTIFF, and OSM in the same definition as far as practical
+- load WFS, WMS, LoD2, Terrain, GeoTIFF, OSM, and optional 3D Tiles viewer context in the same definition as far as practical
 - confirm outputs align in XY
 - confirm localized placement still makes the workflow manageable near the Rhino origin
 - confirm terrain/building elevation consistency remains acceptable

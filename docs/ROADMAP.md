@@ -4,7 +4,7 @@
 
 RhinoSpatial has moved beyond its original starting point as a WFS-focused loader and is now developing into a broader geospatial toolkit for Rhino and Grasshopper.
 
-At this stage, the core source scope is considered defined at the category level.  
+At this stage, the core source scope is considered defined at the category level.
 The main focus is no longer to constantly add new categories of sources, but to strengthen, refine, simplify, and polish the current system.
 
 No additional core source categories are currently planned.
@@ -30,6 +30,7 @@ The current core RhinoSpatial ecosystem includes:
 - Terrain
 - GeoTIFF
 - OSM
+- optional Google 3D Tiles viewing
 
 These are considered the meaningful core source/component types of the project.
 
@@ -132,6 +133,7 @@ This includes:
 
 ### Terrain and elevation consistency
 - continue improving terrain behavior
+- keep the built-in terrain fallback broad and generic rather than tied to one local provider
 - strengthen vertical consistency across terrain, buildings, and contextual outputs
 - make elevation handling more robust without overcomplicating the workflow
 
@@ -178,7 +180,7 @@ This may include:
 - stronger source hierarchy
 - clearer fallback communication
 - better generic imagery fallback behavior
-- more robust terrain fallback planning
+- more robust global terrain fallback behavior
 - clearer use of OSM as a contextual fallback where richer official data is missing
 
 ### Internal cleanup and architecture polish
@@ -214,37 +216,35 @@ RhinoSpatial should become especially strong for:
 
 ### 3. Better universality through balanced source logic
 Official sources should remain the preferred choice where available.
-OSM should continue to improve RhinoSpatial's broader usability as a practical contextual fallback.
+OSM, global terrain, and generic imagery fallbacks should continue to improve RhinoSpatial's broader usability as practical contextual fallbacks.
 
 The long-term goal is a system that works well with rich official data where possible, while still remaining useful in more general contexts.
 
 ---
 
-## Later Optional Extension Policy
+## Optional Viewer Policy
 
 ### Google Photorealistic 3D Tiles
-Google Photorealistic 3D Tiles remain a legitimate later extension goal, but only in a tightly limited form.
+Google Photorealistic 3D Tiles are present as an optional viewer, but only in a tightly limited form.
 
-If explored later, they should be treated as:
+They should be treated as:
 
 - optional
 - advanced
 - user-managed through the user's own API key and billing setup
-- reference-only
-- runtime-streamed
-- clearly separate from the core editable modeling workflow
+- bounded by the selected Spatial Context
+- clearly separate from official editable modeling data
 
 They should not be treated as:
 
-- editable Rhino geometry
-- bakeable content
-- exportable mesh content
+- a replacement for official editable data
+- an authoritative project data source
 - offline cached geometry
 - a source for derived or extracted geometry
 
-This means that a Google 3D Tiles feature, if it ever exists in RhinoSpatial, should act only as a visual reference or contextual preview layer.
+This means the Google 3D Tiles component should act only as a visual reference or contextual preview layer.
 
-It is not the current major milestone for RhinoSpatial, and it should not redefine the identity of the project.
+It should not redefine the identity of the project.
 
 ---
 

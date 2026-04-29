@@ -14,6 +14,7 @@ namespace RhinoSpatial
         private const int DefaultMaxGridSizeLimit = 2048;
 
         private readonly WcsClient _wcsClient = new();
+        private readonly GlobalSkadiTerrainClient _globalTerrainClient = new();
 
         public class SolveResults
         {
@@ -26,7 +27,7 @@ namespace RhinoSpatial
 
         public LoadTerrainComponent()
             : base("Load Terrain", "Load Terrain",
-                "Load an aligned terrain surface for the shared RhinoSpatial spatial context.",
+                "Load an aligned terrain mesh for the shared RhinoSpatial spatial context.",
                 "RhinoSpatial", "Sources")
         {
         }
@@ -37,7 +38,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service. Leave empty to use the built-in default terrain source. RhinoSpatial is structured so lower-resolution global DEM fallbacks can be added later.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service. Leave empty to use the built-in global terrain fallback.", GH_ParamAccess.item);
             pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. Leave empty to use the default coverage of the selected terrain source.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
 
@@ -105,18 +106,49 @@ namespace RhinoSpatial
             }
 
             return new RequestData(
-                RhinoSpatialSourceFallbacks.ResolveTerrainSource(serviceUrl, coverageId),
+                RhinoSpatialSourceFallbacks.ResolveTerrainSources(serviceUrl, coverageId),
                 spatialContext);
         }
 
         private async Task<SolveResults> ComputeAsync(RequestData requestData)
         {
+            var failures = new List<string>();
+            foreach (var source in requestData.Sources)
+            {
+                try
+                {
+                    return await ComputeForSourceAsync(source, requestData.SpatialContext);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{source.DisplayName}: {ex.Message}");
+                }
+            }
+
+            return new SolveResults
+            {
+                TerrainMeshes = new List<Mesh>(),
+                Status = failures.Count == 0
+                    ? "No terrain source was available."
+                    : $"No terrain fallback could load the selected area. {string.Join(" ", failures)}",
+                MessageLevel = GH_RuntimeMessageLevel.Error
+            };
+        }
+
+        private async Task<SolveResults> ComputeForSourceAsync(
+            ResolvedTerrainSource source,
+            SpatialContext2D spatialContext)
+        {
+            if (source.Kind == TerrainSourceKind.GlobalSkadiTiles)
+            {
+                return await ComputeGlobalTerrainFallbackAsync(source, spatialContext);
+            }
+
             try
             {
-                var spatialContext = requestData.SpatialContext;
-                var capabilities = await _wcsClient.LoadCapabilitiesAsync(requestData.Source.BaseUrl);
+                var capabilities = await _wcsClient.LoadCapabilitiesAsync(source.BaseUrl);
 
-                var coverageId = requestData.Source.CoverageId;
+                var coverageId = source.CoverageId;
                 if (!capabilities.Coverages.Exists(coverage => coverage.CoverageId.Equals(coverageId, StringComparison.OrdinalIgnoreCase)))
                 {
                     if (capabilities.Coverages.Count > 0)
@@ -127,7 +159,7 @@ namespace RhinoSpatial
 
                 var options = new WcsRequestOptions
                 {
-                    BaseUrl = requestData.Source.BaseUrl,
+                    BaseUrl = source.BaseUrl,
                     CoverageId = coverageId,
                     Version = string.IsNullOrWhiteSpace(capabilities.ServiceVersion) ? "2.0.1" : capabilities.ServiceVersion,
                     Format = "image/tiff"
@@ -176,18 +208,50 @@ namespace RhinoSpatial
                 return new SolveResults
                 {
                     TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
-                    Status = $"{requestData.Source.CreateStatusPrefix()}{status}"
+                    Status = $"{source.CreateStatusPrefix()}{status}"
                 };
             }
             catch (Exception ex)
             {
-                return new SolveResults
-                {
-                    TerrainMeshes = new List<Mesh>(),
-                    Status = ex.Message,
-                    MessageLevel = GH_RuntimeMessageLevel.Error
-                };
+                throw new InvalidOperationException(ex.Message, ex);
             }
+        }
+
+        private async Task<SolveResults> ComputeGlobalTerrainFallbackAsync(
+            ResolvedTerrainSource source,
+            SpatialContext2D spatialContext)
+        {
+            if (spatialContext.Wgs84BoundingBox is null)
+            {
+                throw new InvalidOperationException("The global terrain fallback needs a WGS84 bounding box from the Spatial Context.");
+            }
+
+            var raster = await _globalTerrainClient.LoadAsync(spatialContext.Wgs84BoundingBox).ConfigureAwait(false);
+            var elevationBase = spatialContext.UseAbsoluteCoordinates
+                ? 0.0
+                : SpatialElevationBaselineCache.ResolveOrStore(
+                    spatialContext,
+                    ResolveElevationBase(raster));
+
+            SpatialTerrainCache.Store(
+                spatialContext,
+                raster.SrsName,
+                spatialContext.Wgs84BoundingBox,
+                raster,
+                elevationBase);
+
+            var mesh = BuildProjectedTerrainMesh(
+                raster,
+                spatialContext.Wgs84BoundingBox,
+                spatialContext,
+                elevationBase);
+            var status = BuildStatusMessage(raster.CoverageId, spatialContext.UseAbsoluteCoordinates, false);
+
+            return new SolveResults
+            {
+                TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
+                Status = $"{source.CreateStatusPrefix()}{status}"
+            };
         }
 
         private static string BuildStatusMessage(string coverageId, bool useAbsoluteCoordinates, bool usedCachedFile)
@@ -301,6 +365,80 @@ namespace RhinoSpatial
             return mesh;
         }
 
+        private static Mesh? BuildProjectedTerrainMesh(
+            TerrainRasterData raster,
+            BoundingBox2D rasterBoundingBox4326,
+            SpatialContext2D spatialContext,
+            double elevationBase)
+        {
+            var width = raster.Width;
+            var height = raster.Height;
+            if (width <= 1 || height <= 1)
+            {
+                return null;
+            }
+
+            var safeMaxGrid = Math.Clamp(InternalGridSize, 64, DefaultMaxGridSizeLimit);
+            var strideX = Math.Max(1, (int)Math.Ceiling(width / (double)safeMaxGrid));
+            var strideY = Math.Max(1, (int)Math.Ceiling(height / (double)safeMaxGrid));
+
+            var sampleWidth = (int)Math.Ceiling(width / (double)strideX);
+            var sampleHeight = (int)Math.Ceiling(height / (double)strideY);
+            var spanX = rasterBoundingBox4326.MaxX - rasterBoundingBox4326.MinX;
+            var spanY = rasterBoundingBox4326.MaxY - rasterBoundingBox4326.MinY;
+            var cellSizeX = spanX / (width - 1);
+            var cellSizeY = spanY / (height - 1);
+            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
+            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
+            var mesh = new Mesh();
+
+            for (var y = 0; y < sampleHeight; y++)
+            {
+                var sourceY = Math.Min(height - 1, y * strideY);
+                var latitude = rasterBoundingBox4326.MaxY - sourceY * cellSizeY;
+
+                for (var x = 0; x < sampleWidth; x++)
+                {
+                    var sourceX = Math.Min(width - 1, x * strideX);
+                    var longitude = rasterBoundingBox4326.MinX + sourceX * cellSizeX;
+                    if (!SpatialReferenceTransform.TryTransformXY(
+                            "EPSG:4326",
+                            spatialContext.ResolvedSrs,
+                            longitude,
+                            latitude,
+                            out var worldX,
+                            out var worldY))
+                    {
+                        return null;
+                    }
+
+                    var elevation = raster.Elevations[sourceY * width + sourceX];
+                    if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                    {
+                        elevation = (float)elevationBase;
+                    }
+
+                    mesh.Vertices.Add(worldX - offsetX, worldY - offsetY, elevation - elevationBase);
+                }
+            }
+
+            for (var y = 0; y < sampleHeight - 1; y++)
+            {
+                for (var x = 0; x < sampleWidth - 1; x++)
+                {
+                    var index0 = y * sampleWidth + x;
+                    var index1 = index0 + 1;
+                    var index2 = index0 + sampleWidth + 1;
+                    var index3 = index0 + sampleWidth;
+                    mesh.Faces.AddFace(index0, index1, index2, index3);
+                }
+            }
+
+            mesh.Normals.ComputeNormals();
+            mesh.Compact();
+            return mesh;
+        }
+
         private static double ResolveElevationBase(TerrainRasterData raster)
         {
             var minZ = double.PositiveInfinity;
@@ -321,7 +459,7 @@ namespace RhinoSpatial
             return double.IsInfinity(minZ) ? 0.0 : minZ;
         }
 
-        private record RequestData(ResolvedTerrainSource Source, SpatialContext2D SpatialContext);
+        private record RequestData(IReadOnlyList<ResolvedTerrainSource> Sources, SpatialContext2D SpatialContext);
 
         public override Guid ComponentGuid => new Guid("e6941d59-50c0-46f4-96fa-9546a0f54f9d");
     }

@@ -19,13 +19,13 @@ namespace RhinoSpatial
         private const string PolicyStatus = "Google 3D Tiles viewer is enabled. RhinoSpatial requests bounded tile content directly for contextual viewing and outputs decoded preview meshes with aligned materials.";
         private static readonly TimeSpan DirectLoadTimeout = TimeSpan.FromSeconds(45);
 
-        private readonly List<Google3dTilesReferenceSession.DisplayPrimitive> _previewPrimitives = new();
+        private readonly List<Google3dTilesDisplayPrimitive> _previewPrimitives = new();
         private Curve? _previewFrame;
         private BoundingBox _previewBox = BoundingBox.Empty;
 
         public class SolveResults
         {
-            public List<Google3dTilesReferenceSession.DisplayPrimitive> Primitives { get; init; } = new();
+            public List<Google3dTilesDisplayPrimitive> Primitives { get; init; } = new();
 
             public Curve? AreaFrame { get; init; }
 
@@ -308,7 +308,7 @@ namespace RhinoSpatial
 
             foreach (var primitive in result.Primitives)
             {
-                _previewPrimitives.Add(new Google3dTilesReferenceSession.DisplayPrimitive
+                _previewPrimitives.Add(new Google3dTilesDisplayPrimitive
                 {
                     Mesh = primitive.Mesh,
                     Material = primitive.Material,
@@ -424,7 +424,7 @@ namespace RhinoSpatial
             return changed;
         }
 
-        private static List<object> BuildOutputMaterials(IEnumerable<Google3dTilesReferenceSession.DisplayPrimitive> primitives)
+        private static List<object> BuildOutputMaterials(IEnumerable<Google3dTilesDisplayPrimitive> primitives)
         {
             var materials = new List<object>();
             foreach (var primitive in primitives)
@@ -450,7 +450,7 @@ namespace RhinoSpatial
 
         private static string BuildStatusWithBounds(
             string status,
-            IReadOnlyCollection<Google3dTilesReferenceSession.DisplayPrimitive> primitives)
+            IReadOnlyCollection<Google3dTilesDisplayPrimitive> primitives)
         {
             if (primitives.Count == 0)
             {
