@@ -74,14 +74,20 @@ namespace RhinoSpatial.Core
 
             var lod2GeometryContainers = featureElement
                 .Descendants()
-                .Where(element =>
-                    string.Equals(element.Name.LocalName, "geometry3DLoD2", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(element.Name.LocalName, "geometryMultiSurface", StringComparison.OrdinalIgnoreCase))
+                .Where(element => string.Equals(element.Name.LocalName, "geometryMultiSurface", StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
             if (lod2GeometryContainers.Count == 0)
             {
-                lod2GeometryContainers.Add(featureElement);
+                lod2GeometryContainers = featureElement
+                    .Descendants()
+                    .Where(element => string.Equals(element.Name.LocalName, "geometry3DLoD2", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+
+            if (lod2GeometryContainers.Count == 0)
+            {
+                lod2GeometryContainers = new List<XElement> { featureElement };
             }
 
             foreach (var container in lod2GeometryContainers)
@@ -182,27 +188,8 @@ namespace RhinoSpatial.Core
         private static List<Coordinate3D> ReadRingFromPosList(XElement posListElement, string srsName)
         {
             var rawValues = posListElement.Value.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-            var dimension = GetCoordinateDimension(posListElement, srsName, rawValues.Length);
-            var points = new List<Coordinate3D>();
-
-            for (int valueIndex = 0; valueIndex + 1 < rawValues.Length; valueIndex += dimension)
-            {
-                if (!double.TryParse(rawValues[valueIndex], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var firstValue) ||
-                    !double.TryParse(rawValues[valueIndex + 1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var secondValue))
-                {
-                    continue;
-                }
-
-                var thirdValue = 0.0;
-                if (dimension >= 3 && valueIndex + 2 < rawValues.Length)
-                {
-                    double.TryParse(rawValues[valueIndex + 2], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out thirdValue);
-                }
-
-                points.Add(CreateCoordinate(firstValue, secondValue, thirdValue, srsName));
-            }
-
-            return points;
+            var dimension = GetCoordinateDimension(posListElement, srsName, rawValues);
+            return ReadCoordinates(rawValues, dimension, srsName);
         }
 
         private static List<Coordinate3D> ReadRingFromPosElements(List<XElement> posElements, string srsName)
@@ -285,7 +272,7 @@ namespace RhinoSpatial.Core
             return false;
         }
 
-        private static int GetCoordinateDimension(XElement posListElement, string srsName, int valueCount)
+        private static int GetCoordinateDimension(XElement posListElement, string srsName, IReadOnlyList<string> rawValues)
         {
             var srsDimensionValue = posListElement
                 .Attributes()
@@ -298,15 +285,151 @@ namespace RhinoSpatial.Core
                 return parsedDimension;
             }
 
-            if (!string.IsNullOrWhiteSpace(srsName) &&
-                (srsName.Contains("7423", StringComparison.OrdinalIgnoreCase) ||
-                 srsName.Contains("4979", StringComparison.OrdinalIgnoreCase)) &&
-                valueCount % 3 == 0)
+            var twoDimensionalCandidate = EvaluateCoordinateDimension(rawValues, 2, srsName);
+            var threeDimensionalCandidate = EvaluateCoordinateDimension(rawValues, 3, srsName);
+
+            if (!threeDimensionalCandidate.IsValid)
+            {
+                return 2;
+            }
+
+            if (!twoDimensionalCandidate.IsValid)
+            {
+                return 3;
+            }
+
+            if (CoordinateReferenceSystemImpliesThreeDimensions(srsName))
+            {
+                return 3;
+            }
+
+            if (LooksLikeProjectedThreeDimensionalPositionList(rawValues) &&
+                ThreeDimensionalCandidateIsClearlyBetter(threeDimensionalCandidate, twoDimensionalCandidate))
             {
                 return 3;
             }
 
             return 2;
+        }
+
+        private static List<Coordinate3D> ReadCoordinates(IReadOnlyList<string> rawValues, int dimension, string srsName)
+        {
+            var points = new List<Coordinate3D>();
+
+            for (int valueIndex = 0; valueIndex + 1 < rawValues.Count; valueIndex += dimension)
+            {
+                if (!double.TryParse(rawValues[valueIndex], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var firstValue) ||
+                    !double.TryParse(rawValues[valueIndex + 1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var secondValue))
+                {
+                    continue;
+                }
+
+                var thirdValue = 0.0;
+                if (dimension >= 3 && valueIndex + 2 < rawValues.Count)
+                {
+                    double.TryParse(rawValues[valueIndex + 2], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out thirdValue);
+                }
+
+                points.Add(CreateCoordinate(firstValue, secondValue, thirdValue, srsName));
+            }
+
+            return points;
+        }
+
+        private static CoordinateDimensionCandidate EvaluateCoordinateDimension(IReadOnlyList<string> rawValues, int dimension, string srsName)
+        {
+            if (rawValues.Count < dimension * 4 || rawValues.Count % dimension != 0)
+            {
+                return CoordinateDimensionCandidate.Invalid(dimension);
+            }
+
+            var points = ReadCoordinates(rawValues, dimension, srsName);
+            if (points.Count < 4)
+            {
+                return CoordinateDimensionCandidate.Invalid(dimension);
+            }
+
+            var closureDistance = CalculateDistance(points[0], points[^1]);
+            return new CoordinateDimensionCandidate(dimension, true, points.Count, closureDistance);
+        }
+
+        private static bool CoordinateReferenceSystemImpliesThreeDimensions(string srsName)
+        {
+            return !string.IsNullOrWhiteSpace(srsName) &&
+                   (srsName.Contains("7423", StringComparison.OrdinalIgnoreCase) ||
+                    srsName.Contains("4979", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool ThreeDimensionalCandidateIsClearlyBetter(
+            CoordinateDimensionCandidate threeDimensionalCandidate,
+            CoordinateDimensionCandidate twoDimensionalCandidate)
+        {
+            return threeDimensionalCandidate.IsClosed && !twoDimensionalCandidate.IsClosed ||
+                   threeDimensionalCandidate.ClosureDistance * 1_000.0 < twoDimensionalCandidate.ClosureDistance;
+        }
+
+        private static double CalculateDistance(Coordinate3D first, Coordinate3D second)
+        {
+            var dx = first.X - second.X;
+            var dy = first.Y - second.Y;
+            var dz = first.Z - second.Z;
+            return Math.Sqrt(dx * dx + dy * dy + dz * dz);
+        }
+
+        private static bool LooksLikeProjectedThreeDimensionalPositionList(IReadOnlyList<string> rawValues)
+        {
+            var sampleTripleCount = Math.Min(4, rawValues.Count / 3);
+            if (sampleTripleCount == 0)
+            {
+                return false;
+            }
+
+            var plausibleTripleCount = 0;
+            for (var index = 0; index < sampleTripleCount; index++)
+            {
+                var valueIndex = index * 3;
+                if (!double.TryParse(rawValues[valueIndex], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var x) ||
+                    !double.TryParse(rawValues[valueIndex + 1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var y) ||
+                    !double.TryParse(rawValues[valueIndex + 2], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var z))
+                {
+                    continue;
+                }
+
+                var xyLooksProjected = Math.Abs(x) > 1_000.0 || Math.Abs(y) > 1_000.0;
+                var zLooksLikeHeight = Math.Abs(z) < 20_000.0;
+                if (xyLooksProjected && zLooksLikeHeight)
+                {
+                    plausibleTripleCount++;
+                }
+            }
+
+            return plausibleTripleCount >= Math.Max(1, sampleTripleCount - 1);
+        }
+
+        private readonly struct CoordinateDimensionCandidate
+        {
+            public CoordinateDimensionCandidate(int dimension, bool isValid, int pointCount, double closureDistance)
+            {
+                Dimension = dimension;
+                IsValid = isValid;
+                PointCount = pointCount;
+                ClosureDistance = closureDistance;
+            }
+
+            public int Dimension { get; }
+
+            public bool IsValid { get; }
+
+            public int PointCount { get; }
+
+            public double ClosureDistance { get; }
+
+            public bool IsClosed => ClosureDistance <= 1e-7;
+
+            public static CoordinateDimensionCandidate Invalid(int dimension)
+            {
+                return new CoordinateDimensionCandidate(dimension, false, 0, double.PositiveInfinity);
+            }
         }
 
         private static string ReadHeightAboveGround(XElement featureElement)

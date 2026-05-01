@@ -62,6 +62,8 @@ These are meant to support:
 
 The validation checklist and source manifest remain the broader regression baseline.
 
+If a saved working definition shows Grasshopper IO archive warnings after a component layout change, replace the affected component once and reconnect it. The committed example definitions should stay warning-free and represent the current component layout.
+
 ## Reference Coverage
 
 The current source manifest mixes:

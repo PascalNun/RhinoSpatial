@@ -17,11 +17,12 @@
     {
       "id": "terrain-global-skadi-fallback",
       "type": "Terrain",
-      "purpose": "Built-in global terrain fallback",
+      "purpose": "Built-in quick global terrain fallback",
       "url": null,
       "notes": [
         "Leave Terrain Service URL empty in Load Terrain",
         "Uses broad Mapzen/AWS Skadi elevation tiles for convenient context",
+        "Intentionally limited to small study areas and short request times so Grasshopper stays responsive",
         "Good for smoke tests and general fallback behavior; prefer user-provided official terrain for project work"
       ]
     },

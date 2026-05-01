@@ -12,6 +12,8 @@ It is intentionally small and practical. The point is to confirm that the core s
 - `Spatial Context` still acts as the shared starting point
 - source outputs still align correctly when used together
 - status messaging still feels clear and calm rather than overly technical
+- opening saved example definitions does not show Grasshopper IO archive warnings
+- old working definitions that still contain removed/renamed component parameters are rebuilt by replacing the affected component once
 
 ## Spatial Context
 
@@ -46,6 +48,9 @@ It is intentionally small and practical. The point is to confirm that the core s
 - confirm the building output still aligns to the same `Spatial Context`
 - confirm localized mode still behaves consistently with terrain
 - confirm obvious missing-face regressions are not reintroduced
+- connect the `Status` output and check whether gaps are reported as returned buildings/surfaces with skipped conversion, or as no returned LoD2 data for that area
+- confirm the status reports the buffered WFS query bounds and the kept buildings still match the visible Spatial Context
+- for suspected provider gaps, compare returned LoD2 local bounds and output Brep bounds; matching bounds with low conversion failures usually points to source coverage rather than dropped geometry
 
 ## Terrain
 
@@ -53,7 +58,8 @@ It is intentionally small and practical. The point is to confirm that the core s
 - confirm terrain aligns with the same `Spatial Context`
 - confirm terrain and LoD2 share a sensible local Z reference in localized mode
 - confirm absolute mode still keeps real coordinates when requested
-- leave the Terrain URL empty and confirm the global fallback returns usable context terrain
+- leave the Terrain URL empty and confirm the global fallback returns usable context terrain for a small study area
+- try an intentionally large Spatial Context and confirm the fallback fails quickly with a clear status message instead of hanging Grasshopper
 - connect a user-provided WCS terrain source and confirm explicit source data still wins over fallback behavior
 
 ## GeoTIFF
@@ -79,6 +85,8 @@ It is intentionally small and practical. The point is to confirm that the core s
 - confirm preview meshes and materials appear aligned to the same area
 - confirm status clearly communicates viewer behavior and bounded loading
 - confirm the component remains disabled and quiet when Enable is false
+- confirm the component is presented as a viewer/reference workflow, not as a bake/export/import workflow
+- confirm older definitions no longer expose the removed browser/viewer-window inputs or `Viewer URL` output after replacing the component
 
 ## Combined Workflow
 
@@ -87,3 +95,11 @@ It is intentionally small and practical. The point is to confirm that the core s
 - confirm outputs align in XY
 - confirm localized placement still makes the workflow manageable near the Rhino origin
 - confirm terrain/building elevation consistency remains acceptable
+
+## Release Package
+
+- run `scripts/build-food4rhino-zip.sh`
+- confirm the generated zip includes the `.gha`, runtime files, `RhinoSpatial.Core.dll`, `README.md`, `LICENSE`, `THIRD-PARTY-NOTICES.md`, and `INSTALL.md`
+- run `scripts/build-yak.sh` on a machine with Rhino's Yak CLI available
+- confirm the generated Yak package includes the same user-facing docs, including `INSTALL.md`
+- confirm ignored staging/package artifacts are not committed

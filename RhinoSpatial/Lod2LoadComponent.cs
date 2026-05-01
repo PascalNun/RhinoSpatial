@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using GH_IO.Serialization;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
 using Grasshopper.Kernel.Types;
@@ -12,6 +14,7 @@ namespace RhinoSpatial
 {
     public class Lod2LoadComponent : GH_TaskCapableComponent<Lod2LoadComponent.SolveResults>
     {
+        private const double DefaultRequestBufferMeters = 25.0;
         private readonly WfsClient _wfsClient = new();
 
         public class SolveResults
@@ -46,6 +49,7 @@ namespace RhinoSpatial
                 "Load aligned LoD2 building geometry for the shared RhinoSpatial spatial context.",
                 "RhinoSpatial", "Sources")
         {
+            NormalizeComponentLayout();
         }
 
         public override GH_Exposure Exposure => GH_Exposure.quarternary;
@@ -60,6 +64,20 @@ namespace RhinoSpatial
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
         {
             pManager.AddBrepParameter("Buildings", "Buildings", "LoD2 building Breps grouped by layer and building.", GH_ParamAccess.tree);
+            pManager.AddTextParameter("Status", "Status", "Status and diagnostic information from the LoD2 loader.", GH_ParamAccess.item);
+        }
+
+        public override void AddedToDocument(GH_Document document)
+        {
+            base.AddedToDocument(document);
+            NormalizeComponentLayout();
+        }
+
+        public override bool Read(GH_IReader reader)
+        {
+            var result = base.Read(reader);
+            NormalizeComponentLayout();
+            return result;
         }
 
         protected override void SolveInstance(IGH_DataAccess dataAccess)
@@ -89,6 +107,7 @@ namespace RhinoSpatial
                 }
 
                 dataAccess.SetDataTree(0, result.BrepTree);
+                dataAccess.SetData(1, result.Status);
             }
             catch (Exception ex)
             {
@@ -174,11 +193,12 @@ namespace RhinoSpatial
                 Version = "2.0.0",
                 SrsName = requestSrs,
                 OutputFormat = "application/gml+xml; version=3.2",
-                BoundingBox = requestBoundingBox
+                BoundingBox = CreateBufferedBoundingBox(requestBoundingBox, requestSrs, DefaultRequestBufferMeters)
             };
 
             var response = _wfsClient.LoadFeatureResponseAsync(requestOptions).GetAwaiter().GetResult();
-            var buildings = Lod2GmlReader.ReadBuildings(response.ResponseText, resolvedLayer.LayerName);
+            var returnedBuildings = Lod2GmlReader.ReadBuildings(response.ResponseText, resolvedLayer.LayerName);
+            var buildings = FilterBuildingsToRequestBounds(returnedBuildings, requestBoundingBox);
             var targetBoundingBox = requestData.SpatialContext.RequestBoundingBox;
             var placementPoint = new Point3d(requestData.SpatialContext.PlacementOrigin.X, requestData.SpatialContext.PlacementOrigin.Y, 0.0);
             var elevationBase = requestData.SpatialContext.UseAbsoluteCoordinates
@@ -195,21 +215,30 @@ namespace RhinoSpatial
                 targetBoundingBox,
                 placementPoint,
                 requestData.SpatialContext.UseAbsoluteCoordinates,
-                elevationBase);
+                elevationBase,
+                out var buildReport);
 
             return new SolveResults
             {
                 BrepTree = brepTree,
                 BuildingCount = buildings.Count,
-                Status = buildings.Count == 0
-                    ? string.IsNullOrWhiteSpace(response.StatusNote)
-                        ? "No LoD2 buildings were returned inside the current Spatial Context."
-                        : $"No LoD2 buildings were returned inside the current Spatial Context. {response.StatusNote}"
-                    : requestData.SpatialContext.UseAbsoluteCoordinates
-                        ? $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' with absolute elevation.{BuildStatusSuffix(response.StatusNote)}"
-                        : $"Loaded {buildings.Count} LoD2 building Brep set(s) from layer '{resolvedLayer.LayerName}' using request SRS '{requestSrs}' and aligned them to the shared local terrain/building elevation baseline.{BuildStatusSuffix(response.StatusNote)}",
+                Status = BuildStatusMessage(
+                    buildings.Count,
+                    resolvedLayer.LayerName,
+                    requestSrs,
+                    requestData.SpatialContext.UseAbsoluteCoordinates,
+                    requestData.SpatialContext,
+                    requestBoundingBox,
+                    requestOptions.BoundingBox,
+                    DefaultRequestBufferMeters,
+                    returnedBuildings.Count,
+                    response.ResponseText.Length,
+                    response.StatusNote,
+                    buildReport),
                 MessageLevel = buildings.Count == 0
                     ? GH_RuntimeMessageLevel.Warning
+                    : buildReport.FailedSurfaceBrepCount > 0 || buildReport.MalformedLoopSurfaceCount > 0 || buildReport.BuildingsWithoutOutputCount > 0
+                        ? GH_RuntimeMessageLevel.Remark
                     : string.IsNullOrWhiteSpace(response.StatusNote)
                         ? null
                         : GH_RuntimeMessageLevel.Remark
@@ -237,6 +266,262 @@ namespace RhinoSpatial
             return string.IsNullOrWhiteSpace(statusNote)
                 ? string.Empty
                 : $" {statusNote}";
+        }
+
+        private static string BuildStatusMessage(
+            int buildingCount,
+            string layerName,
+            string requestSrs,
+            bool useAbsoluteCoordinates,
+            SpatialContext2D spatialContext,
+            BoundingBox2D requestBoundingBox,
+            BoundingBox2D? queryBoundingBox,
+            double requestBufferMeters,
+            int returnedBuildingCount,
+            int responseLengthBytes,
+            string responseStatusNote,
+            RhinoSpatialLod2OutputBuilder.BuildReport buildReport)
+        {
+            if (buildingCount == 0)
+            {
+                var noDataStatus = returnedBuildingCount > 0
+                    ? $"The buffered LoD2 WFS request returned {returnedBuildingCount} building(s), but none intersected the current Spatial Context."
+                    : "No LoD2 buildings were returned inside the current Spatial Context.";
+                if (queryBoundingBox is not null)
+                {
+                    noDataStatus += $" WFS query used a {FormatNumber(requestBufferMeters)} m buffer: {FormatBoundingBox2D(queryBoundingBox)}.";
+                }
+
+                return string.IsNullOrWhiteSpace(responseStatusNote)
+                    ? noDataStatus
+                    : $"{noDataStatus} {responseStatusNote}";
+            }
+
+            var alignmentNote = useAbsoluteCoordinates
+                ? "with absolute elevation."
+                : "and aligned them to the shared local terrain/building elevation baseline.";
+            var skippedSurfaceCount = buildReport.MalformedLoopSurfaceCount +
+                                      buildReport.DuplicateSurfaceCount +
+                                      buildReport.FailedSurfaceBrepCount;
+            var diagnosticNote =
+                $" Parsed {buildReport.ParsedBuildingCount} building(s), {buildReport.ParsedSurfaceCount} source surface(s); " +
+                $"created {buildReport.OutputBrepCount} Brep object(s) from {buildReport.ConstructedSurfaceCount} converted surface(s).";
+            if (returnedBuildingCount != buildReport.ParsedBuildingCount)
+            {
+                diagnosticNote += $" WFS returned {returnedBuildingCount} building(s); kept {buildReport.ParsedBuildingCount} intersecting the Spatial Context.";
+            }
+
+            if (queryBoundingBox is not null)
+            {
+                diagnosticNote += $" WFS query used a {FormatNumber(requestBufferMeters)} m buffer: {FormatBoundingBox2D(queryBoundingBox)}.";
+            }
+
+            diagnosticNote += $" Response size: {FormatByteLength(responseLengthBytes)}.";
+            diagnosticNote += $" Request bounds {requestSrs}: {FormatBoundingBox2D(requestBoundingBox)}.";
+            diagnosticNote += $" Context local XY bounds: {FormatLocalContextBounds(spatialContext)}.";
+            diagnosticNote += buildReport.TransformedSurfaceBounds.HasValue
+                ? $" Returned LoD2 local bounds: {FormatBoundingBox(buildReport.TransformedSurfaceBounds.Value)}."
+                : " Returned LoD2 local bounds: none.";
+            diagnosticNote += buildReport.OutputBrepBounds.HasValue
+                ? $" Output Brep bounds: {FormatBoundingBox(buildReport.OutputBrepBounds.Value)}."
+                : " Output Brep bounds: none.";
+
+            if (buildReport.BuildingsWithoutOutputCount > 0)
+            {
+                diagnosticNote += $" {buildReport.BuildingsWithoutOutputCount} returned building(s) produced no usable Breps.";
+                if (buildReport.BuildingsWithoutOutputIds.Count > 0)
+                {
+                    diagnosticNote += $" Example no-output building id(s): {string.Join(", ", buildReport.BuildingsWithoutOutputIds)}.";
+                }
+            }
+
+            if (skippedSurfaceCount > 0)
+            {
+                diagnosticNote +=
+                    $" Skipped {skippedSurfaceCount} surface(s): {buildReport.MalformedLoopSurfaceCount} malformed loop(s), " +
+                    $"{buildReport.DuplicateSurfaceCount} duplicate(s), {buildReport.FailedSurfaceBrepCount} conversion failure(s).";
+            }
+
+            if (buildReport.InvalidOutputBrepCount > 0)
+            {
+                diagnosticNote += $" Dropped {buildReport.InvalidOutputBrepCount} invalid output Brep(s).";
+            }
+
+            if (buildReport.InnerLoopOuterFallbackCount > 0)
+            {
+                diagnosticNote += $" Used outer-face fallback for {buildReport.InnerLoopOuterFallbackCount} surface(s) with problematic inner loops.";
+            }
+
+            return $"Loaded {buildingCount} LoD2 building Brep set(s) from layer '{layerName}' using request SRS '{requestSrs}' {alignmentNote}{diagnosticNote}{BuildStatusSuffix(responseStatusNote)}";
+        }
+
+        private static BoundingBox2D CreateBufferedBoundingBox(BoundingBox2D boundingBox, string srsName, double bufferMeters)
+        {
+            if (bufferMeters <= 0.0)
+            {
+                return boundingBox;
+            }
+
+            var normalizedSrs = RhinoSpatialContextTools.NormalizeSrsKey(srsName);
+            if (normalizedSrs == "EPSG:4326" || normalizedSrs == "EPSG:7423" || normalizedSrs == "EPSG:4283" || normalizedSrs == "EPSG:7844")
+            {
+                var centerLatitude = (boundingBox.MinY + boundingBox.MaxY) * 0.5;
+                var latitudeBuffer = bufferMeters / 111_320.0;
+                var longitudeMeters = Math.Max(1_000.0, 111_320.0 * Math.Cos(centerLatitude * Math.PI / 180.0));
+                var longitudeBuffer = bufferMeters / longitudeMeters;
+
+                return new BoundingBox2D(
+                    boundingBox.MinX - longitudeBuffer,
+                    boundingBox.MinY - latitudeBuffer,
+                    boundingBox.MaxX + longitudeBuffer,
+                    boundingBox.MaxY + latitudeBuffer);
+            }
+
+            return new BoundingBox2D(
+                boundingBox.MinX - bufferMeters,
+                boundingBox.MinY - bufferMeters,
+                boundingBox.MaxX + bufferMeters,
+                boundingBox.MaxY + bufferMeters);
+        }
+
+        private static List<Lod2Building> FilterBuildingsToRequestBounds(IReadOnlyList<Lod2Building> buildings, BoundingBox2D requestBoundingBox)
+        {
+            return buildings
+                .Where(building => BuildingIntersectsBounds(building, requestBoundingBox))
+                .ToList();
+        }
+
+        private static bool BuildingIntersectsBounds(Lod2Building building, BoundingBox2D requestBoundingBox)
+        {
+            foreach (var surface in building.Surfaces)
+            {
+                if (SurfaceIntersectsBounds(surface, requestBoundingBox))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool SurfaceIntersectsBounds(SurfacePolygon3D surface, BoundingBox2D requestBoundingBox)
+        {
+            return PointsIntersectBounds(surface.OuterPoints, requestBoundingBox) ||
+                   surface.InnerRings.Any(points => PointsIntersectBounds(points, requestBoundingBox));
+        }
+
+        private static bool PointsIntersectBounds(IReadOnlyList<Coordinate3D> points, BoundingBox2D requestBoundingBox)
+        {
+            if (points.Count == 0)
+            {
+                return false;
+            }
+
+            var minX = points.Min(static point => point.X);
+            var minY = points.Min(static point => point.Y);
+            var maxX = points.Max(static point => point.X);
+            var maxY = points.Max(static point => point.Y);
+            var pointBounds = new BoundingBox2D(minX, minY, maxX, maxY);
+            return RhinoSpatialContextTools.DoBoundingBoxesIntersect(pointBounds, requestBoundingBox);
+        }
+
+        private static string FormatBoundingBox2D(BoundingBox2D bounds)
+        {
+            return $"X {FormatNumber(bounds.MinX)}..{FormatNumber(bounds.MaxX)}, Y {FormatNumber(bounds.MinY)}..{FormatNumber(bounds.MaxY)}";
+        }
+
+        private static string FormatLocalContextBounds(SpatialContext2D spatialContext)
+        {
+            if (spatialContext.UseAbsoluteCoordinates)
+            {
+                return FormatBoundingBox2D(spatialContext.PlacementBoundingBox);
+            }
+
+            var origin = spatialContext.PlacementOrigin;
+            return $"X {FormatNumber(spatialContext.PlacementBoundingBox.MinX - origin.X)}..{FormatNumber(spatialContext.PlacementBoundingBox.MaxX - origin.X)}, " +
+                   $"Y {FormatNumber(spatialContext.PlacementBoundingBox.MinY - origin.Y)}..{FormatNumber(spatialContext.PlacementBoundingBox.MaxY - origin.Y)}";
+        }
+
+        private static string FormatBoundingBox(BoundingBox bounds)
+        {
+            return $"X {FormatNumber(bounds.Min.X)}..{FormatNumber(bounds.Max.X)}, " +
+                   $"Y {FormatNumber(bounds.Min.Y)}..{FormatNumber(bounds.Max.Y)}, " +
+                   $"Z {FormatNumber(bounds.Min.Z)}..{FormatNumber(bounds.Max.Z)}";
+        }
+
+        private static string FormatNumber(double value)
+        {
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
+        }
+
+        private static string FormatByteLength(int byteLength)
+        {
+            return byteLength >= 1024 * 1024
+                ? $"{(byteLength / 1024.0 / 1024.0).ToString("0.##", CultureInfo.InvariantCulture)} MB"
+                : $"{(byteLength / 1024.0).ToString("0.#", CultureInfo.InvariantCulture)} KB";
+        }
+
+        private void NormalizeComponentLayout()
+        {
+            var changed = false;
+
+            if (Params.Output.Count > 0)
+            {
+                changed |= SetParameterMetadata(
+                    Params.Output[0],
+                    "Buildings",
+                    "Buildings",
+                    "LoD2 building Breps grouped by layer and building.");
+            }
+
+            if (Params.Output.Count < 2)
+            {
+                Params.RegisterOutputParam(new Grasshopper.Kernel.Parameters.Param_String
+                {
+                    Name = "Status",
+                    NickName = "Status",
+                    Description = "Status and diagnostic information from the LoD2 loader.",
+                    Access = GH_ParamAccess.item
+                });
+                changed = true;
+            }
+            else
+            {
+                changed |= SetParameterMetadata(
+                    Params.Output[1],
+                    "Status",
+                    "Status",
+                    "Status and diagnostic information from the LoD2 loader.");
+            }
+
+            if (changed)
+            {
+                Params.OnParametersChanged();
+            }
+        }
+
+        private static bool SetParameterMetadata(IGH_Param parameter, string name, string nickName, string description)
+        {
+            var changed = false;
+            if (!string.Equals(parameter.Name, name, StringComparison.Ordinal))
+            {
+                parameter.Name = name;
+                changed = true;
+            }
+
+            if (!string.Equals(parameter.NickName, nickName, StringComparison.Ordinal))
+            {
+                parameter.NickName = nickName;
+                changed = true;
+            }
+
+            if (!string.Equals(parameter.Description, description, StringComparison.Ordinal))
+            {
+                parameter.Description = description;
+                changed = true;
+            }
+
+            return changed;
         }
 
         private static ResolvedLayer ResolveLayer(WfsCapabilitiesInfo capabilities, string? requestedLayerName)

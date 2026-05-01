@@ -13,6 +13,37 @@ namespace RhinoSpatial
     {
         private const double VertexTolerance = 0.001;
 
+        internal sealed class BuildReport
+        {
+            public int ParsedBuildingCount { get; set; }
+
+            public int ParsedSurfaceCount { get; set; }
+
+            public int BuildingsWithOutputCount { get; set; }
+
+            public int BuildingsWithoutOutputCount { get; set; }
+
+            public int ConstructedSurfaceCount { get; set; }
+
+            public int OutputBrepCount { get; set; }
+
+            public int MalformedLoopSurfaceCount { get; set; }
+
+            public int DuplicateSurfaceCount { get; set; }
+
+            public int FailedSurfaceBrepCount { get; set; }
+
+            public int InnerLoopOuterFallbackCount { get; set; }
+
+            public int InvalidOutputBrepCount { get; set; }
+
+            public BoundingBox? TransformedSurfaceBounds { get; set; }
+
+            public BoundingBox? OutputBrepBounds { get; set; }
+
+            public List<string> BuildingsWithoutOutputIds { get; } = new();
+        }
+
         public static GH_Structure<GH_Brep> BuildBrepTree(
             IReadOnlyList<Lod2Building> buildings,
             IReadOnlyList<string> layerOrder,
@@ -22,8 +53,14 @@ namespace RhinoSpatial
             BoundingBox2D targetBoundingBox,
             Point3d placementOrigin,
             bool useAbsoluteCoordinates,
-            double elevationBase)
+            double elevationBase,
+            out BuildReport report)
         {
+            report = new BuildReport
+            {
+                ParsedBuildingCount = buildings.Count,
+                ParsedSurfaceCount = buildings.Sum(static building => building.Surfaces.Count)
+            };
             var brepTree = new GH_Structure<GH_Brep>();
             var buildingsByLayer = buildings
                 .GroupBy(building => building.SourceLayerName, System.StringComparer.OrdinalIgnoreCase)
@@ -41,16 +78,31 @@ namespace RhinoSpatial
 
                 for (int buildingIndex = 0; buildingIndex < layerBuildings.Count; buildingIndex++)
                 {
-                    var buildingBreps = BuildBuildingBreps(layerBuildings[buildingIndex], sourceSrs, targetSrs, sourceBoundingBox, targetBoundingBox, offsetX, offsetY, elevationBase);
+                    var building = layerBuildings[buildingIndex];
+                    var buildingBreps = BuildBuildingBreps(building, sourceSrs, targetSrs, sourceBoundingBox, targetBoundingBox, offsetX, offsetY, elevationBase, report);
                     if (buildingBreps.Count == 0)
                     {
+                        TrackBuildingWithoutOutput(report, building);
                         continue;
                     }
 
+                    var validBreps = buildingBreps
+                        .Where(candidate => candidate is not null && candidate.IsValid)
+                        .ToList();
+                    report.InvalidOutputBrepCount += buildingBreps.Count - validBreps.Count;
+                    if (validBreps.Count == 0)
+                    {
+                        TrackBuildingWithoutOutput(report, building);
+                        continue;
+                    }
+
+                    report.BuildingsWithOutputCount++;
                     var path = new GH_Path(layerIndex, buildingIndex);
-                    foreach (var brep in buildingBreps.Where(candidate => candidate is not null && candidate.IsValid))
+                    foreach (var brep in validBreps)
                     {
                         brepTree.Append(new GH_Brep(brep), path);
+                        report.OutputBrepBounds = AccumulateBoundingBox(report.OutputBrepBounds, brep.GetBoundingBox(true));
+                        report.OutputBrepCount++;
                     }
                 }
             }
@@ -66,7 +118,8 @@ namespace RhinoSpatial
             BoundingBox2D targetBoundingBox,
             double offsetX,
             double offsetY,
-            double elevationBase)
+            double elevationBase,
+            BuildReport report)
         {
             var buildingBreps = new List<Brep>();
             var surfaceKeys = new HashSet<string>(System.StringComparer.Ordinal);
@@ -89,19 +142,30 @@ namespace RhinoSpatial
                         snapTolerance,
                         out var loops))
                 {
+                    report.MalformedLoopSurfaceCount++;
                     continue;
                 }
+
+                AccumulateLoopBounds(report, loops);
 
                 var surfaceKey = CreateSurfaceKey(loops.Outer, loops.Inners, VertexTolerance);
                 if (!surfaceKeys.Add(surfaceKey))
                 {
+                    report.DuplicateSurfaceCount++;
                     continue;
                 }
 
-                var surfaceBreps = CreateSurfaceBrepsFromLoops(loops.Outer, loops.Inners, tolerance);
+                var surfaceBreps = CreateSurfaceBrepsFromLoops(loops.Outer, loops.Inners, tolerance, out var usedInnerLoopOuterFallback);
                 if (surfaceBreps.Count == 0)
                 {
+                    report.FailedSurfaceBrepCount++;
                     continue;
+                }
+
+                report.ConstructedSurfaceCount++;
+                if (usedInnerLoopOuterFallback)
+                {
+                    report.InnerLoopOuterFallbackCount++;
                 }
 
                 buildingBreps.AddRange(surfaceBreps);
@@ -124,6 +188,44 @@ namespace RhinoSpatial
             }
 
             return buildingBreps;
+        }
+
+        private static void TrackBuildingWithoutOutput(BuildReport report, Lod2Building building)
+        {
+            report.BuildingsWithoutOutputCount++;
+
+            if (report.BuildingsWithoutOutputIds.Count >= 5)
+            {
+                return;
+            }
+
+            report.BuildingsWithoutOutputIds.Add(string.IsNullOrWhiteSpace(building.Id) ? "(missing id)" : building.Id);
+        }
+
+        private static void AccumulateLoopBounds(BuildReport report, SurfaceLoops loops)
+        {
+            report.TransformedSurfaceBounds = AccumulateBoundingBox(report.TransformedSurfaceBounds, loops.Outer.BoundingBox);
+            foreach (var inner in loops.Inners)
+            {
+                report.TransformedSurfaceBounds = AccumulateBoundingBox(report.TransformedSurfaceBounds, inner.BoundingBox);
+            }
+        }
+
+        private static BoundingBox? AccumulateBoundingBox(BoundingBox? target, BoundingBox bounds)
+        {
+            if (!bounds.IsValid)
+            {
+                return target;
+            }
+
+            if (target is null || !target.Value.IsValid)
+            {
+                return bounds;
+            }
+
+            var expanded = target.Value;
+            expanded.Union(bounds);
+            return expanded;
         }
 
         private static bool TryCreateTransformedClosedLoops(
@@ -312,8 +414,9 @@ namespace RhinoSpatial
             return point;
         }
 
-        private static List<Brep> CreateSurfaceBrepsFromLoops(Polyline outerPolyline, IReadOnlyList<Polyline> innerPolylines, double tolerance)
+        private static List<Brep> CreateSurfaceBrepsFromLoops(Polyline outerPolyline, IReadOnlyList<Polyline> innerPolylines, double tolerance, out bool usedInnerLoopOuterFallback)
         {
+            usedInnerLoopOuterFallback = false;
             if (outerPolyline.Count < 4)
             {
                 return new List<Brep>();
@@ -332,9 +435,15 @@ namespace RhinoSpatial
                     return new List<Brep>();
                 }
 
-                return TryCreatePlanarBreps(outerPolyline, new List<Polyline>(), tolerance);
+                usedInnerLoopOuterFallback = true;
+                return CreateSurfaceBrepsFromOuterLoop(outerPolyline, tolerance);
             }
 
+            return CreateSurfaceBrepsFromOuterLoop(outerPolyline, tolerance);
+        }
+
+        private static List<Brep> CreateSurfaceBrepsFromOuterLoop(Polyline outerPolyline, double tolerance)
+        {
             var cornerPoints = GetCornerPoints(outerPolyline);
 
             if (cornerPoints.Count == 3)
@@ -369,7 +478,7 @@ namespace RhinoSpatial
                 }
             }
 
-            var directBreps = TryCreatePlanarBreps(outerPolyline, innerPolylines, tolerance);
+            var directBreps = TryCreatePlanarBreps(outerPolyline, new List<Polyline>(), tolerance);
             if (directBreps.Count > 0)
             {
                 return directBreps;
@@ -378,7 +487,7 @@ namespace RhinoSpatial
             var simplifiedPolyline = SimplifyClosedPolyline(outerPolyline, tolerance);
             if (simplifiedPolyline.Count >= 4)
             {
-                var simplifiedBreps = TryCreatePlanarBreps(simplifiedPolyline, innerPolylines, tolerance);
+                var simplifiedBreps = TryCreatePlanarBreps(simplifiedPolyline, new List<Polyline>(), tolerance);
                 if (simplifiedBreps.Count > 0)
                 {
                     return simplifiedBreps;

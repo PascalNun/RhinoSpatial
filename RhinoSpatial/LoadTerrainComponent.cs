@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
 using Grasshopper.Kernel.Data;
@@ -12,6 +13,7 @@ namespace RhinoSpatial
     {
         private const int InternalGridSize = 512;
         private const int DefaultMaxGridSizeLimit = 2048;
+        private static readonly TimeSpan GlobalFallbackTimeout = TimeSpan.FromSeconds(12);
 
         private readonly WcsClient _wcsClient = new();
         private readonly GlobalSkadiTerrainClient _globalTerrainClient = new();
@@ -38,7 +40,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service. Leave empty to use the built-in global terrain fallback.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service. Leave empty to use the built-in quick global terrain fallback for small study areas.", GH_ParamAccess.item);
             pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. Leave empty to use the default coverage of the selected terrain source.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
 
@@ -65,14 +67,14 @@ namespace RhinoSpatial
 
                 if (InPreSolve)
                 {
-                    var task = Task.Run(() => ComputeAsync(requestData), CancelToken);
+                    var task = Task.Run(() => ComputeAsync(requestData, CancelToken), CancelToken);
                     TaskList.Add(task);
                     return;
                 }
 
                 if (!GetSolveResults(dataAccess, out var results))
                 {
-                    results = ComputeAsync(requestData).GetAwaiter().GetResult();
+                    results = ComputeAsync(requestData, CancellationToken.None).GetAwaiter().GetResult();
                 }
 
                 dataAccess.SetDataList(0, results.TerrainMeshes);
@@ -110,14 +112,16 @@ namespace RhinoSpatial
                 spatialContext);
         }
 
-        private async Task<SolveResults> ComputeAsync(RequestData requestData)
+        private async Task<SolveResults> ComputeAsync(RequestData requestData, CancellationToken cancellationToken)
         {
             var failures = new List<string>();
             foreach (var source in requestData.Sources)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 try
                 {
-                    return await ComputeForSourceAsync(source, requestData.SpatialContext);
+                    return await ComputeForSourceAsync(source, requestData.SpatialContext, cancellationToken);
                 }
                 catch (Exception ex)
                 {
@@ -130,18 +134,19 @@ namespace RhinoSpatial
                 TerrainMeshes = new List<Mesh>(),
                 Status = failures.Count == 0
                     ? "No terrain source was available."
-                    : $"No terrain fallback could load the selected area. {string.Join(" ", failures)}",
+                    : $"No terrain source could load the selected area. {string.Join(" ", failures)}",
                 MessageLevel = GH_RuntimeMessageLevel.Error
             };
         }
 
         private async Task<SolveResults> ComputeForSourceAsync(
             ResolvedTerrainSource source,
-            SpatialContext2D spatialContext)
+            SpatialContext2D spatialContext,
+            CancellationToken cancellationToken)
         {
             if (source.Kind == TerrainSourceKind.GlobalSkadiTiles)
             {
-                return await ComputeGlobalTerrainFallbackAsync(source, spatialContext);
+                return await ComputeGlobalTerrainFallbackAsync(source, spatialContext, cancellationToken);
             }
 
             try
@@ -219,14 +224,40 @@ namespace RhinoSpatial
 
         private async Task<SolveResults> ComputeGlobalTerrainFallbackAsync(
             ResolvedTerrainSource source,
-            SpatialContext2D spatialContext)
+            SpatialContext2D spatialContext,
+            CancellationToken cancellationToken)
         {
             if (spatialContext.Wgs84BoundingBox is null)
             {
                 throw new InvalidOperationException("The global terrain fallback needs a WGS84 bounding box from the Spatial Context.");
             }
 
-            var raster = await _globalTerrainClient.LoadAsync(spatialContext.Wgs84BoundingBox).ConfigureAwait(false);
+            TerrainRasterData raster;
+            try
+            {
+                raster = await _globalTerrainClient
+                    .LoadAsync(
+                        spatialContext.Wgs84BoundingBox,
+                        timeout: GlobalFallbackTimeout,
+                        cancellationToken: cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+            {
+                throw new InvalidOperationException(
+                    "The built-in global terrain fallback timed out after 12 seconds. "
+                    + "Use a smaller Spatial Context or connect an explicit terrain source.",
+                    ex);
+            }
+
+            var validElevationCount = CountValidElevations(raster);
+            if (validElevationCount < 4)
+            {
+                throw new InvalidOperationException(
+                    "The built-in global terrain fallback did not return enough usable elevation samples for this Spatial Context. "
+                    + "Connect an explicit terrain source for this area.");
+            }
+
             var elevationBase = spatialContext.UseAbsoluteCoordinates
                 ? 0.0
                 : SpatialElevationBaselineCache.ResolveOrStore(
@@ -245,7 +276,8 @@ namespace RhinoSpatial
                 spatialContext.Wgs84BoundingBox,
                 spatialContext,
                 elevationBase);
-            var status = BuildStatusMessage(raster.CoverageId, spatialContext.UseAbsoluteCoordinates, false);
+            var status = BuildStatusMessage(raster.CoverageId, spatialContext.UseAbsoluteCoordinates, false)
+                + " The built-in fallback is intended for quick context; use explicit terrain for project-grade elevation.";
 
             return new SolveResults
             {
@@ -457,6 +489,22 @@ namespace RhinoSpatial
             }
 
             return double.IsInfinity(minZ) ? 0.0 : minZ;
+        }
+
+        private static int CountValidElevations(TerrainRasterData raster)
+        {
+            var validCount = 0;
+            foreach (var elevation in raster.Elevations)
+            {
+                if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                {
+                    continue;
+                }
+
+                validCount++;
+            }
+
+            return validCount;
         }
 
         private record RequestData(IReadOnlyList<ResolvedTerrainSource> Sources, SpatialContext2D SpatialContext);

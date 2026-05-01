@@ -46,7 +46,7 @@ namespace RhinoSpatial
 
             public Curve AreaFrame { get; init; } = null!;
 
-            public bool EnableLoader { get; init; }
+            public bool EnableViewer { get; init; }
         }
 
         public Google3dTilesViewerComponent()
@@ -88,6 +88,7 @@ namespace RhinoSpatial
         public override bool Read(GH_IReader reader)
         {
             var result = base.Read(reader);
+            NormalizeComponentLayout();
             return result;
         }
 
@@ -101,7 +102,7 @@ namespace RhinoSpatial
                 return;
             }
 
-            if (!requestData.EnableLoader)
+            if (!requestData.EnableViewer)
             {
                 ClearLivePreviewState();
                 dataAccess.SetData(0, DisabledStatus);
@@ -196,11 +197,11 @@ namespace RhinoSpatial
 
             string? apiKey = null;
             string? spatialContextText = null;
-            var enableLoader = false;
+            var enableViewer = false;
 
             dataAccess.GetData(0, ref apiKey);
             dataAccess.GetData(1, ref spatialContextText);
-            dataAccess.GetData(2, ref enableLoader);
+            dataAccess.GetData(2, ref enableViewer);
 
             dataAccess.SetData(1, false);
 
@@ -215,7 +216,7 @@ namespace RhinoSpatial
 
             if (string.IsNullOrWhiteSpace(normalizedApiKey))
             {
-                const string missingKeyMessage = "API Key is required. Google 3D Tiles loading is user-managed. RhinoSpatial does not ship or store a shared Google Maps API key.";
+                const string missingKeyMessage = "API Key is required. Google 3D Tiles viewer access is user-managed. RhinoSpatial does not ship or store a shared Google Maps API key.";
                 dataAccess.SetData(0, missingKeyMessage);
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Warning, missingKeyMessage);
                 return false;
@@ -235,7 +236,7 @@ namespace RhinoSpatial
                 SpatialContext = spatialContext,
                 BoundingBox4326 = boundingBox4326,
                 AreaFrame = CreateAreaFrame(spatialContext),
-                EnableLoader = enableLoader
+                EnableViewer = enableViewer
             };
             return true;
         }

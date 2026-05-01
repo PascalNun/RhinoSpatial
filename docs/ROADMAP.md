@@ -134,8 +134,15 @@ This includes:
 ### Terrain and elevation consistency
 - continue improving terrain behavior
 - keep the built-in terrain fallback broad and generic rather than tied to one local provider
+- keep fallback terrain responsive by limiting it to small study areas, short request times, and clear failure messages
 - strengthen vertical consistency across terrain, buildings, and contextual outputs
 - make elevation handling more robust without overcomplicating the workflow
+
+### LoD2 diagnostics and provider compatibility
+- keep the small internal WFS request buffer for provider BBOX edge cases
+- use the `Status` output to distinguish provider coverage gaps from conversion failures
+- continue reducing invalid or duplicate LoD2 surfaces without inventing false building faces
+- collect more cross-provider LoD2 examples before adding heavier repair or clipping behavior
 
 ### GeoTIFF maturation
 - strengthen georeferenced raster behavior
@@ -180,7 +187,7 @@ This may include:
 - stronger source hierarchy
 - clearer fallback communication
 - better generic imagery fallback behavior
-- more robust global terrain fallback behavior
+- more robust global terrain fallback behavior, with fast failure when a fallback cannot serve the selected context cleanly
 - clearer use of OSM as a contextual fallback where richer official data is missing
 
 ### Internal cleanup and architecture polish

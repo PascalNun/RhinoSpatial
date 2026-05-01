@@ -107,6 +107,8 @@ Typical use cases:
 - roof forms
 - official building geometry in study models
 
+LoD2 loading should stay conservative and diagnostic. The component may request a small buffered area to reduce WFS BBOX edge misses, but the user-facing study area remains the Spatial Context. Status output should make it clear whether a gap is likely provider coverage, WFS filtering, duplicate source surfaces, or RhinoSpatial conversion failure.
+
 ### Terrain
 Ground surface / elevation / terrain geometry.
 
@@ -115,7 +117,9 @@ Typical use cases:
 - site base surfaces
 - contextual ground reference for buildings and other layers
 
-The preferred terrain path is still user-provided or official project data where available. The built-in global terrain fallback exists to make first tests and general context workflows easier, not to replace better local datasets.
+The preferred terrain path is still user-provided or official project data where available. The built-in global land-elevation fallback exists to make first tests and general context workflows easier, not to replace better local datasets.
+
+The fallback should stay conservative: small study areas, short request times, clear failure messages, and no hidden claim of project-grade accuracy. If the selected area is too large or the fallback source has no usable samples, the component should fail quickly and tell the user to connect an explicit terrain source.
 
 ### GeoTIFF
 Georeferenced raster files aligned to the same shared spatial workflow.
@@ -201,6 +205,7 @@ This means:
 - OSM, global terrain, fallback imagery, and similar strategies improve general usability
 - fallback data should not be presented as equivalent to richer official data
 - the user should be able to understand when fallback behavior is being used
+- fallbacks should be responsive; if they cannot load quickly and clearly, they should fail with useful status text instead of making Grasshopper feel stuck
 
 ## Important Technical Principles
 

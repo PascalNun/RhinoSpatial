@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace RhinoSpatial.Core
@@ -14,10 +15,12 @@ namespace RhinoSpatial.Core
         private const int TileSampleSize = 3601;
         private const short NoDataValue = -32768;
         private const int DefaultMaxSamples = 512;
+        private const int DefaultMaxTileCount = 16;
+        private static readonly TimeSpan DefaultFallbackTimeout = TimeSpan.FromSeconds(12);
 
         private static readonly HttpClient SharedHttpClient = new()
         {
-            Timeout = TimeSpan.FromSeconds(60)
+            Timeout = TimeSpan.FromSeconds(15)
         };
 
         private static readonly ConcurrentDictionary<TileKey, Task<HgtTile?>> TileCache = new();
@@ -35,14 +38,32 @@ namespace RhinoSpatial.Core
 
         public async Task<TerrainRasterData> LoadAsync(
             BoundingBox2D boundingBox4326,
-            int maxSamples = DefaultMaxSamples)
+            int maxSamples = DefaultMaxSamples,
+            int maxTileCount = DefaultMaxTileCount,
+            TimeSpan? timeout = null,
+            CancellationToken cancellationToken = default)
         {
             var safeBoundingBox = NormalizeBoundingBox(boundingBox4326);
+            var tileCount = CountIntersectingTiles(safeBoundingBox);
+            var safeMaxTileCount = Math.Max(1, maxTileCount);
+            if (tileCount > safeMaxTileCount)
+            {
+                throw new InvalidOperationException(
+                    $"The built-in global terrain fallback would need {tileCount} elevation tile downloads for this Spatial Context. "
+                    + $"The fallback is limited to {safeMaxTileCount} tile(s) so it stays responsive; use a smaller context or connect an explicit terrain source.");
+            }
+
+            using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeoutSource.CancelAfter(timeout ?? DefaultFallbackTimeout);
+            var token = timeoutSource.Token;
+
             var dimensions = ResolveSampleDimensions(safeBoundingBox, maxSamples);
             var elevations = new float[dimensions.Width * dimensions.Height];
 
             for (var y = 0; y < dimensions.Height; y++)
             {
+                token.ThrowIfCancellationRequested();
+
                 var latitude = dimensions.Height == 1
                     ? (safeBoundingBox.MinY + safeBoundingBox.MaxY) * 0.5
                     : safeBoundingBox.MaxY - ((safeBoundingBox.MaxY - safeBoundingBox.MinY) * y / (dimensions.Height - 1));
@@ -53,7 +74,7 @@ namespace RhinoSpatial.Core
                         ? (safeBoundingBox.MinX + safeBoundingBox.MaxX) * 0.5
                         : safeBoundingBox.MinX + ((safeBoundingBox.MaxX - safeBoundingBox.MinX) * x / (dimensions.Width - 1));
 
-                    elevations[(y * dimensions.Width) + x] = await SampleElevationAsync(latitude, longitude).ConfigureAwait(false);
+                    elevations[(y * dimensions.Width) + x] = await SampleElevationAsync(latitude, longitude, token).ConfigureAwait(false);
                 }
             }
 
@@ -69,10 +90,22 @@ namespace RhinoSpatial.Core
                 elevations);
         }
 
-        private static async Task<float> SampleElevationAsync(double latitude, double longitude)
+        private static async Task<float> SampleElevationAsync(double latitude, double longitude, CancellationToken cancellationToken)
         {
             var tileKey = TileKey.From(latitude, longitude);
-            var tile = await TileCache.GetOrAdd(tileKey, LoadTileAsync).ConfigureAwait(false);
+            var tileTask = TileCache.GetOrAdd(tileKey, key => LoadTileAsync(key, cancellationToken));
+
+            HgtTile? tile;
+            try
+            {
+                tile = await tileTask.ConfigureAwait(false);
+            }
+            catch
+            {
+                TileCache.TryRemove(tileKey, out _);
+                throw;
+            }
+
             if (tile is null)
             {
                 return NoDataValue;
@@ -81,32 +114,43 @@ namespace RhinoSpatial.Core
             return tile.Sample(latitude, longitude);
         }
 
-        private static async Task<HgtTile?> LoadTileAsync(TileKey tileKey)
+        private static async Task<HgtTile?> LoadTileAsync(TileKey tileKey, CancellationToken cancellationToken)
         {
             Directory.CreateDirectory(TerrainTileCacheDirectory);
             var localPath = Path.Combine(TerrainTileCacheDirectory, tileKey.FileName);
             if (!File.Exists(localPath))
             {
                 var requestUrl = $"https://s3.amazonaws.com/elevation-tiles-prod/skadi/{tileKey.LatitudeBand}/{tileKey.FileName}.gz";
-                using var response = await SharedHttpClient.GetAsync(requestUrl).ConfigureAwait(false);
+                using var response = await SharedHttpClient.GetAsync(requestUrl, cancellationToken).ConfigureAwait(false);
                 if (!response.IsSuccessStatusCode)
                 {
                     return null;
                 }
 
-                await using var responseStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+                await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
                 await using var gzipStream = new GZipStream(responseStream, CompressionMode.Decompress);
                 await using var fileStream = File.Create(localPath);
-                await gzipStream.CopyToAsync(fileStream).ConfigureAwait(false);
+                await gzipStream.CopyToAsync(fileStream, cancellationToken).ConfigureAwait(false);
             }
 
-            var bytes = await File.ReadAllBytesAsync(localPath).ConfigureAwait(false);
+            var bytes = await File.ReadAllBytesAsync(localPath, cancellationToken).ConfigureAwait(false);
             if (bytes.Length != TileSampleSize * TileSampleSize * 2)
             {
                 return null;
             }
 
             return new HgtTile(tileKey, bytes);
+        }
+
+        private static int CountIntersectingTiles(BoundingBox2D boundingBox)
+        {
+            var minLatitude = (int)Math.Floor(Math.Clamp(boundingBox.MinY, -89.999999, 89.999999));
+            var maxLatitude = (int)Math.Floor(Math.Clamp(boundingBox.MaxY - 1e-12, -89.999999, 89.999999));
+            var minLongitude = (int)Math.Floor(Math.Clamp(boundingBox.MinX, -179.999999, 179.999999));
+            var maxLongitude = (int)Math.Floor(Math.Clamp(boundingBox.MaxX - 1e-12, -179.999999, 179.999999));
+
+            return Math.Max(1, maxLatitude - minLatitude + 1)
+                * Math.Max(1, maxLongitude - minLongitude + 1);
         }
 
         private static BoundingBox2D NormalizeBoundingBox(BoundingBox2D boundingBox)

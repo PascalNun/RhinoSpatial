@@ -49,6 +49,6 @@ Good first components to try are:
 
 - RhinoSpatial is currently still in an early alpha stage.
 - The plugin has only been tested with a limited number of real WFS, WMS, LoD2, terrain, GeoTIFF, and OSM-related sources so far.
-- Leave imagery, terrain, or OSM source inputs empty only when you want RhinoSpatial's broad fallback behavior for quick context. For project work, prefer your own official or project-specific data sources.
+- Leave imagery, terrain, or OSM source inputs empty only when you want RhinoSpatial's broad fallback behavior for quick context. The terrain fallback is intentionally limited to small study areas and short request times. For project work, prefer your own official or project-specific data sources.
 - Behavior may still vary depending on the provider, geometry type, SRS, version, or response format.
 - Release packages also include a small number of third-party libraries. See `THIRD-PARTY-NOTICES.md` for bundled dependency notices.

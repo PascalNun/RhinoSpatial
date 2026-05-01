@@ -35,7 +35,7 @@ Typical workflow:
 3. load one or more aligned sources
 4. work directly with the combined site context in Rhino and Grasshopper
 
-Built-in fallbacks currently include global imagery for WMS-style context, global terrain for quick elevation context, and public OSM access for lightweight urban context.
+Built-in fallbacks currently include global imagery for WMS-style context, a quick global land-elevation fallback for small terrain previews, and public OSM access for lightweight urban context. Fallbacks are convenience/context tools; official or project-specific sources remain the preferred path for production work.
 
 ## Early Stage Note
 

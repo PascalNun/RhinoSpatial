@@ -148,7 +148,7 @@ Current focus and capabilities include:
 - layer discovery through `GetCapabilities`
 - shared spatial selection and placement through `Spatial Context`
 - automatic SRS handling where possible
-- terrain mesh loading from user-provided WCS services or the built-in global elevation fallback
+- terrain mesh loading from user-provided WCS services or the built-in quick global land-elevation fallback
 - GeoJSON-first parsing with GML fallback when needed
 - early LoD2 multi-surface loading
 - early OSM-based contextual loading
@@ -277,11 +277,15 @@ OSM is part of the core RhinoSpatial scope, and it is expected to keep evolving 
 3. Use the same `Spatial Context`
 4. Connect `Spatial Context` into `Load LoD2 Buildings`
 
+`Load LoD2 Buildings` requests a small buffered area from the WFS service, then keeps the returned buildings that intersect the actual Spatial Context. This helps with provider BBOX edge cases without changing the selected study area. The `Status` output reports returned buildings, kept buildings, request/query bounds, converted surfaces, skipped surfaces, and output bounds so provider coverage gaps can be separated from conversion problems.
+
 ### Typical terrain workflow
 
 1. Define the area with `Spatial Context`
-2. Connect a terrain WCS source to `Load Terrain`, or leave the URL empty for the built-in global terrain fallback
+2. Connect a terrain WCS source to `Load Terrain`, or leave the URL empty for the built-in global land-elevation fallback
 3. Load a terrain mesh aligned to the same local study space as the other sources
+
+The built-in fallback is intentionally limited to small study areas and short request times. If the selected area is too large, the fallback service has no usable elevation samples, or the request takes too long, `Load Terrain` fails quickly with a status message instead of blocking Grasshopper for a long time. For project work, connect an explicit official or project-specific terrain source.
 
 ### Typical OSM workflow
 
@@ -344,7 +348,8 @@ This shared spatial logic is the core architectural rule for:
 - `Spatial Context` is the central shared selection and placement component for the whole toolkit.
 - `Load WFS`, `Load WMS`, `Load LoD2 Buildings`, `Load Terrain`, `Load GeoTIFF`, and `Load OSM` are all intended to work within the same shared spatial workflow.
 - `Load Terrain` and `Load LoD2 Buildings` share the same localized elevation baseline when absolute coordinates are off, so terrain and buildings sit on the same local Z reference.
-- `Load Terrain` is a separate aligned source and is not treated as part of LoD2 loading. If no terrain URL is provided, it uses a global elevation fallback for quick context; project work should still prefer user-provided or official terrain where available.
+- `Load Terrain` is a separate aligned source and is not treated as part of LoD2 loading. If no terrain URL is provided, it uses a quick global land-elevation fallback for small-context orientation; project work should still prefer user-provided or official terrain where available.
+- `Load LoD2 Buildings` uses a small internal WFS request buffer and exposes detailed status diagnostics to make provider coverage, bbox filtering, duplicate surfaces, and conversion failures easier to distinguish.
 - The Google 3D Tiles component is an optional viewer with user-managed API access. It outputs contextual preview meshes/materials for viewing, but should not be treated as a substitute for official editable project data.
 - The map helper currently supports the SRS values that have come up most often in testing so far, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, `EPSG:3857`, `EPSG:27700`, `EPSG:4283`, `EPSG:7423`, and `EPSG:7844`.
 - `Load LoD2 Buildings` is still experimental and provider compatibility will need more real-world testing.
