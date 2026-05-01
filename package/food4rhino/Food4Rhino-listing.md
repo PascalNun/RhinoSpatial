@@ -39,9 +39,9 @@ Built-in fallbacks currently include global imagery for WMS-style context, a qui
 
 ## Early Stage Note
 
-RhinoSpatial is currently still in an early alpha stage.
+RhinoSpatial is currently still in an alpha stage.
 
-It has only been tested with a relatively small number of real WFS, WMS, LoD2, terrain, GeoTIFF, and OSM-related sources so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, or response format.
+The `0.3.0-alpha` release is the first release where the planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
 
 Feedback, edge cases, and additional test links are very welcome.
 
@@ -49,7 +49,7 @@ Feedback, edge cases, and additional test links are very welcome.
 
 Current release package:
 
-- `RhinoSpatial-0.2.2-alpha.zip`
+- `RhinoSpatial-0.3.0-alpha.zip`
 
 ## Repository
 

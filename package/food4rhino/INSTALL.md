@@ -1,6 +1,6 @@
 # RhinoSpatial Installation
 
-This package is currently an early alpha release of RhinoSpatial for Rhino 8.
+This package is currently an alpha release of RhinoSpatial for Rhino 8.
 
 ## Included Files
 
@@ -44,11 +44,13 @@ Good first components to try are:
 - `Load OSM`
 - `Load GeoTIFF`
 - `Load Terrain`
+- `3D Tiles Viewer (Google)` if you have a user-managed Google Maps API key
 
 ## Notes
 
-- RhinoSpatial is currently still in an early alpha stage.
-- The plugin has only been tested with a limited number of real WFS, WMS, LoD2, terrain, GeoTIFF, and OSM-related sources so far.
+- RhinoSpatial is currently still in an alpha stage.
+- The plugin has only been tested with a limited number of real WFS, WMS, LoD2, terrain, GeoTIFF, OSM, and 3D Tiles workflows so far.
 - Leave imagery, terrain, or OSM source inputs empty only when you want RhinoSpatial's broad fallback behavior for quick context. The terrain fallback is intentionally limited to small study areas and short request times. For project work, prefer your own official or project-specific data sources.
-- Behavior may still vary depending on the provider, geometry type, SRS, version, or response format.
+- The Google 3D Tiles component is a viewer/reference workflow that requires the user's own Google Maps API key and should not be treated as an editable project data source.
+- Behavior may still vary depending on the provider, geometry type, SRS, version, response format, API access, or local file metadata.
 - Release packages also include a small number of third-party libraries. See `THIRD-PARTY-NOTICES.md` for bundled dependency notices.

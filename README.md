@@ -20,7 +20,7 @@ The current RhinoSpatial scope is centered around:
 - `OSM`
 - optional `3D Tiles Viewer (Google)`
 
-This core source ecosystem is considered stable in category, but still open to refinement where it improves geometry quality, output usefulness, fallback behavior, alignment consistency, and general usability.
+The `v0.3.0-alpha` release is the first release where the planned core source ecosystem is present as a coherent toolkit. The source categories are considered stable at the category level, while individual providers, geometry conversion paths, fallbacks, and documentation are still expected to improve through real-world use.
 
 ## Why RhinoSpatial
 
@@ -117,7 +117,9 @@ Lightweight contextual geometry for quick figure-ground and site-context studies
 
 ## Project Status
 
-RhinoSpatial is currently still in an early alpha stage.
+RhinoSpatial is currently still in an alpha stage.
+
+As of `v0.3.0-alpha`, the originally planned core source set is present: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer all share the same Spatial Context workflow.
 
 It has only been tested with a relatively small number of WFS, WMS, LoD2, terrain, GeoTIFF, OSM, and 3D Tiles workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
 
@@ -361,6 +363,6 @@ RhinoSpatial is released under the MIT License.
 
 ## Feedback
 
-RhinoSpatial is still in an early alpha stage.
+RhinoSpatial is still in an alpha stage.
 
-Feedback, bug reports, edge cases, and additional WFS, WMS, LoD2, terrain, GeoTIFF, and OSM test links are very welcome.
+Feedback, bug reports, edge cases, and additional WFS, WMS, LoD2, terrain, GeoTIFF, OSM, and 3D Tiles test notes are very welcome.

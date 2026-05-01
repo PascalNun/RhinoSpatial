@@ -5,6 +5,7 @@
 RhinoSpatial has moved beyond its original starting point as a WFS-focused loader and is now developing into a broader geospatial toolkit for Rhino and Grasshopper.
 
 At this stage, the core source scope is considered defined at the category level.
+The `v0.3.0-alpha` release is the first release where the planned source categories are present together in the plugin.
 The main focus is no longer to constantly add new categories of sources, but to strengthen, refine, simplify, and polish the current system.
 
 No additional core source categories are currently planned.
