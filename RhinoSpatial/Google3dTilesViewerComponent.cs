@@ -15,8 +15,8 @@ namespace RhinoSpatial
 {
     public class Google3dTilesViewerComponent : GH_TaskCapableComponent<Google3dTilesViewerComponent.SolveResults>
     {
-        private const string DisabledStatus = "Google 3D Tiles viewer is disabled. Connect a Boolean Toggle set to True to Enable when you want RhinoSpatial to request bounded viewer content.";
-        private const string PolicyStatus = "Google 3D Tiles viewer is enabled. RhinoSpatial requests bounded tile content directly for contextual viewing and outputs decoded preview meshes with aligned materials.";
+        private const string DisabledStatus = "Google 3D Tiles viewer is disabled. Connect a Boolean Toggle set to True to Enable when you want RhinoSpatial to request bounded reference content.";
+        private const string PolicyStatus = "Google 3D Tiles viewer is enabled. RhinoSpatial requests bounded reference tile content directly for contextual viewing and outputs temporary preview meshes with aligned materials.";
         private static readonly TimeSpan DirectLoadTimeout = TimeSpan.FromSeconds(45);
 
         private readonly List<Google3dTilesDisplayPrimitive> _previewPrimitives = new();

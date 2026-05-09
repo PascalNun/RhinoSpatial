@@ -70,6 +70,7 @@ namespace RhinoSpatial
         private const double TriangleEdgeLimitMultiplier = 12.0;
         private const double MinimumTriangleEdgeLimit = 5000.0;
         private const double MeshPointTolerance = 1e-6;
+        private const double ReferenceMeshBoundsPaddingRatio = 0.25;
 
         public static async Task<Google3dTilesContentLoadResult> LoadDisplayPrimitivesAsync(
             IEnumerable<Google3dTilesTileDescriptor> tiles,
@@ -410,8 +411,8 @@ namespace RhinoSpatial
         {
             var placedBounds = CreatePlacedBounds(spatialContext);
             var scoringBounds = CreateExpandedPlacedBounds(placedBounds);
-            clipBounds = placedBounds;
-            maxTriangleEdgeLength = Math.Max(MinimumTriangleEdgeLimit, MeasureBoundsDiagonal(placedBounds) * TriangleEdgeLimitMultiplier);
+            clipBounds = ExpandPlacedBounds(placedBounds, ReferenceMeshBoundsPaddingRatio);
+            maxTriangleEdgeLength = Math.Max(MinimumTriangleEdgeLimit, MeasureBoundsDiagonal(clipBounds) * TriangleEdgeLimitMultiplier);
             var candidates = new[]
             {
                 ProjectVertices(tile, decodedPrimitive, spatialContext, ProjectionMode.TileTransform),
@@ -580,14 +581,26 @@ namespace RhinoSpatial
 
         private static BoundingBox2D CreateExpandedPlacedBounds(BoundingBox2D placedBounds)
         {
+            return ExpandPlacedBounds(placedBounds, 3.0);
+        }
+
+        private static BoundingBox2D ExpandPlacedBounds(BoundingBox2D placedBounds, double paddingRatio)
+        {
+            if (paddingRatio <= 0.0)
+            {
+                return placedBounds;
+            }
+
             var width = Math.Max(1.0, placedBounds.MaxX - placedBounds.MinX);
             var height = Math.Max(1.0, placedBounds.MaxY - placedBounds.MinY);
+            var paddingX = width * paddingRatio;
+            var paddingY = height * paddingRatio;
 
             return new BoundingBox2D(
-                placedBounds.MinX - (width * 3.0),
-                placedBounds.MinY - (height * 3.0),
-                placedBounds.MaxX + (width * 3.0),
-                placedBounds.MaxY + (height * 3.0));
+                placedBounds.MinX - paddingX,
+                placedBounds.MinY - paddingY,
+                placedBounds.MaxX + paddingX,
+                placedBounds.MaxY + paddingY);
         }
 
         private static double MeasureBoundsDiagonal(BoundingBox2D bounds)

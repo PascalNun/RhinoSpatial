@@ -107,7 +107,7 @@ Typical use cases:
 - roof forms
 - official building geometry in study models
 
-LoD2 loading should stay conservative and diagnostic. The component may request a small buffered area to reduce WFS BBOX edge misses, but the user-facing study area remains the Spatial Context. Status output should make it clear whether a gap is likely provider coverage, WFS filtering, duplicate source surfaces, or RhinoSpatial conversion failure.
+LoD2 loading should stay conservative and diagnostic. The component may request a small buffered area to reduce WFS BBOX edge misses, but the user-facing study area remains the Spatial Context. It should accept one LoD2 source input that can be a WFS URL, local CityGML/GML/XML file, folder, or ZIP archive, using the same Spatial Context filtering, Brep conversion, and elevation alignment workflow across service-based and local LoD2. Status output should make it clear whether a gap is likely provider coverage, WFS filtering, local file/context mismatch, skipped out-of-context local tiles, duplicate source surfaces, or RhinoSpatial conversion failure.
 
 ### Terrain
 Ground surface / elevation / terrain geometry.
@@ -148,7 +148,9 @@ Typical use cases:
 - quick massing/orientation checks
 - comparing official editable layers with broad photogrammetric surroundings
 
-The component requires the user's own Google Maps API key. It is a viewer workflow and should not be presented as an official editable data source.
+The component requires the user's own Google Maps API key. It is a reference viewer workflow and should not be presented as an official editable data source, import/export path, or offline cache.
+
+The viewer may keep coarser parent tile content available behind finer tiles when Google tile refinement leaves visible holes. This is an intentional reference-preview tradeoff: slight over-coverage is acceptable, but under-loading missing chunks inside the selected context is not useful for visual checking.
 
 ## OSM Scope
 
@@ -311,12 +313,15 @@ RhinoSpatial should not use Google Photorealistic 3D Tiles as:
 - a replacement for official editable source data
 - an offline authoritative dataset
 - offline cached geometry
+- a bake/export workflow
 - a source for derived or extracted geometry
 
 The intended role of Google 3D Tiles in RhinoSpatial is only:
 - visual reference
 - contextual preview
 - optional advanced background layer
+
+Users are responsible for their own Google Maps Platform project, billing, API key, and compliance with the current Google Maps Platform terms and Map Tiles API policies.
 
 This feature should not redefine the identity of RhinoSpatial.
 The core identity remains a lightweight, study-oriented geospatial toolkit built around Spatial Context, WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, and OSM.

@@ -199,14 +199,28 @@ namespace RhinoSpatial.Core
 
         private async Task<WfsFeatureResponse> LoadFeatureResponseUncachedAsync(WfsRequestOptions options)
         {
+            Exception? lastRequestException = null;
+
             foreach (var candidateOptions in CreateRequestSequence(options))
             {
                 var requestUrl = BuildGetFeatureRequestUrl(candidateOptions);
-                var response = await GetStringAsync(requestUrl);
-                return new WfsFeatureResponse(response, candidateOptions);
+
+                try
+                {
+                    var response = await GetStringAsync(requestUrl);
+                    var statusNote = lastRequestException is null
+                        ? string.Empty
+                        : $"Retried WFS request with output format '{candidateOptions.OutputFormat}' after the provider rejected an earlier request.";
+
+                    return new WfsFeatureResponse(response, candidateOptions, statusNote);
+                }
+                catch (Exception ex) when (ShouldTryNextRequestCandidate(ex))
+                {
+                    lastRequestException = ex;
+                }
             }
 
-            throw new InvalidOperationException("The WFS service request sequence did not produce a feature response.");
+            throw lastRequestException ?? new InvalidOperationException("The WFS service request sequence did not produce a feature response.");
         }
 
         private async Task<WfsRequestOptions> PrepareRequestOptionsAsync(WfsRequestOptions options)
@@ -324,6 +338,11 @@ namespace RhinoSpatial.Core
                    string.Equals(outputFormat, "json", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(outputFormat, "geojson", StringComparison.OrdinalIgnoreCase) ||
                    string.Equals(outputFormat, "GEOJSON", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ShouldTryNextRequestCandidate(Exception ex)
+        {
+            return ex is HttpRequestException or TimeoutException;
         }
 
         private static Exception CreateUnsupportedFeatureResponseException(string responseText)

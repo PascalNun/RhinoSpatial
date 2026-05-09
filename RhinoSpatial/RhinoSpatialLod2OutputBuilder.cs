@@ -37,6 +37,10 @@ namespace RhinoSpatial
 
             public int InvalidOutputBrepCount { get; set; }
 
+            public int FastSurfaceOutputBuildingCount { get; set; }
+
+            public int FastSurfaceOutputBrepCount { get; set; }
+
             public BoundingBox? TransformedSurfaceBounds { get; set; }
 
             public BoundingBox? OutputBrepBounds { get; set; }
@@ -54,7 +58,8 @@ namespace RhinoSpatial
             Point3d placementOrigin,
             bool useAbsoluteCoordinates,
             double elevationBase,
-            out BuildReport report)
+            out BuildReport report,
+            bool skipBuildingShellPostProcessing = false)
         {
             report = new BuildReport
             {
@@ -79,7 +84,17 @@ namespace RhinoSpatial
                 for (int buildingIndex = 0; buildingIndex < layerBuildings.Count; buildingIndex++)
                 {
                     var building = layerBuildings[buildingIndex];
-                    var buildingBreps = BuildBuildingBreps(building, sourceSrs, targetSrs, sourceBoundingBox, targetBoundingBox, offsetX, offsetY, elevationBase, report);
+                    var buildingBreps = BuildBuildingBreps(
+                        building,
+                        sourceSrs,
+                        targetSrs,
+                        sourceBoundingBox,
+                        targetBoundingBox,
+                        offsetX,
+                        offsetY,
+                        elevationBase,
+                        report,
+                        skipBuildingShellPostProcessing);
                     if (buildingBreps.Count == 0)
                     {
                         TrackBuildingWithoutOutput(report, building);
@@ -119,7 +134,8 @@ namespace RhinoSpatial
             double offsetX,
             double offsetY,
             double elevationBase,
-            BuildReport report)
+            BuildReport report,
+            bool skipBuildingShellPostProcessing)
         {
             var buildingBreps = new List<Brep>();
             var surfaceKeys = new HashSet<string>(System.StringComparer.Ordinal);
@@ -178,6 +194,13 @@ namespace RhinoSpatial
 
             var buildingCenter = GetBuildingCenter(buildingBreps);
             OrientBrepsOutward(buildingBreps, buildingCenter, tolerance);
+
+            if (skipBuildingShellPostProcessing)
+            {
+                report.FastSurfaceOutputBuildingCount++;
+                report.FastSurfaceOutputBrepCount += buildingBreps.Count;
+                return buildingBreps;
+            }
 
             var cleanedBreps = JoinBuildingBreps(buildingBreps, tolerance);
             if (cleanedBreps.Count > 0)

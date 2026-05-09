@@ -141,6 +141,10 @@ This includes:
 
 ### LoD2 diagnostics and provider compatibility
 - keep the small internal WFS request buffer for provider BBOX edge cases
+- support one `LoD2 Source` input for LoD2 WFS URLs, local CityGML/GML/XML files, folders, and ZIP archives
+- keep local CityGML folder/ZIP loading bounded by Spatial Context where file bounds are available
+- keep local CityGML performance honest: scan metadata first, filter buildings before conversion where possible, and report when large single files still dominate load time
+- evaluate shapefile or GeoPackage building import as a later vector/building-file source
 - use the `Status` output to distinguish provider coverage gaps from conversion failures
 - continue reducing invalid or duplicate LoD2 surfaces without inventing false building faces
 - collect more cross-provider LoD2 examples before adding heavier repair or clipping behavior
@@ -248,9 +252,11 @@ They should not be treated as:
 - a replacement for official editable data
 - an authoritative project data source
 - offline cached geometry
+- a bake/export/import workflow
 - a source for derived or extracted geometry
 
 This means the Google 3D Tiles component should act only as a visual reference or contextual preview layer.
+For preview completeness, it may include coarser parent tile content behind refined tiles when that avoids visible holes. Slight over-coverage is acceptable for this viewer; missing chunks inside the selected context are worse for the intended reference use.
 
 It should not redefine the identity of the project.
 

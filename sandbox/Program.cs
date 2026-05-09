@@ -8,6 +8,12 @@ namespace RhinoSpatial.Sandbox
     {
         static async Task Main(string[] args)
         {
+            if (args.Length > 0 && string.Equals(args[0], "lod2file", StringComparison.OrdinalIgnoreCase))
+            {
+                RunLod2File(args);
+                return;
+            }
+
             if (args.Length > 0 && string.Equals(args[0], "lod2", StringComparison.OrdinalIgnoreCase))
             {
                 await RunLod2Async(args);
@@ -54,6 +60,59 @@ namespace RhinoSpatial.Sandbox
                 Console.WriteLine("Error while loading or parsing the response:");
                 Console.WriteLine(ex.Message);
             }
+        }
+
+        private static void RunLod2File(string[] args)
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: lod2file <path> [minX,minY,maxX,maxY]");
+                return;
+            }
+
+            var filePath = args[1];
+            var filterBounds = args.Length > 2 && TryParseBoundingBox(args[2], out var parsedBounds)
+                ? parsedBounds
+                : null;
+            var metadataStartedAt = DateTime.UtcNow;
+            CityGmlSourceMetadata metadata;
+            using (var stream = System.IO.File.OpenRead(filePath))
+            {
+                metadata = Lod2GmlReader.ReadSourceMetadata(stream);
+            }
+            var metadataElapsed = DateTime.UtcNow - metadataStartedAt;
+
+            var startedAt = DateTime.UtcNow;
+            var text = System.IO.File.ReadAllText(filePath);
+            var buildings = Lod2GmlReader.ReadBuildings(text, System.IO.Path.GetFileNameWithoutExtension(filePath), filterBounds);
+            var elapsed = DateTime.UtcNow - startedAt;
+
+            Console.WriteLine($"File: {filePath}");
+            Console.WriteLine($"Source SRS: {metadata.SrsName}");
+            Console.WriteLine($"File bounds: {metadata.BoundingBox}");
+            Console.WriteLine($"Filter active: {filterBounds is not null}");
+            Console.WriteLine($"Parsed buildings: {buildings.Count}");
+            Console.WriteLine($"Parsed surfaces: {buildings.Sum(building => building.Surfaces.Count)}");
+            Console.WriteLine($"Metadata elapsed: {metadataElapsed.TotalSeconds:0.###} s");
+            Console.WriteLine($"Parse elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static bool TryParseBoundingBox(string text, out BoundingBox2D? boundingBox)
+        {
+            boundingBox = null;
+            var parts = text.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length != 4 ||
+                !double.TryParse(parts[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var minX) ||
+                !double.TryParse(parts[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var minY) ||
+                !double.TryParse(parts[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var maxX) ||
+                !double.TryParse(parts[3], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var maxY))
+            {
+                return false;
+            }
+
+            boundingBox = new BoundingBox2D(minX, minY, maxX, maxY);
+            return true;
         }
 
         private static async Task RunLod2Async(string[] args)

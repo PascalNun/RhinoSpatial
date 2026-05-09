@@ -30,7 +30,7 @@ namespace RhinoSpatial
         private const int MaxVisitedTiles = 12000;
         private const int MaxExternalTilesets = 120;
         private const int MaxContentTiles = 12;
-        private const int MaxDecodeCandidateTiles = 96;
+        private const int MaxDecodeCandidateTiles = 160;
         private const int MaxQueueSize = 20000;
 
         private static readonly HttpClient HttpClient = new()
@@ -66,6 +66,7 @@ namespace RhinoSpatial
             var descriptors = new List<Google3dTilesTileDescriptor>();
             var visitedTiles = 0;
             var loadedExternalTilesets = 0;
+            var parentFallbackContentCount = 0;
 
             while (queue.Count > 0 &&
                    visitedTiles < MaxVisitedTiles)
@@ -149,11 +150,6 @@ namespace RhinoSpatial
                     }
                 }
 
-                if (hasIntersectingRefinement)
-                {
-                    continue;
-                }
-
                 foreach (var contentUriText in contentUriTexts)
                 {
                     var contentUri = BuildContentUri(contentUriText, visit.BaseUri, apiKey, session);
@@ -171,6 +167,11 @@ namespace RhinoSpatial
                         Depth = visit.Depth,
                         GeometricError = TryReadGeometricError(visit.Tile)
                     });
+                    if (hasIntersectingRefinement)
+                    {
+                        parentFallbackContentCount++;
+                    }
+
                     if (descriptors.Count <= MaxContentTiles ||
                         descriptors.Count % 25 == 0)
                     {
@@ -194,7 +195,7 @@ namespace RhinoSpatial
             {
                 var batch = descriptorBatch.ToList();
                 decodedDescriptorCount += batch.Count;
-                reportProgress?.Invoke($"Google 3D Tiles viewer is decoding tile content URL(s) {decodedDescriptorCount - batch.Count + 1}-{decodedDescriptorCount} from {selectedDescriptors.Count} selected fine candidate(s)...");
+                reportProgress?.Invoke($"Google 3D Tiles viewer is decoding tile content URL(s) {decodedDescriptorCount - batch.Count + 1}-{decodedDescriptorCount} from {selectedDescriptors.Count} selected candidate(s)...");
                 var contentResult = await Google3dTilesTileContentLoader
                     .LoadDisplayPrimitivesAsync(batch, spatialContext, cancellationToken)
                     .ConfigureAwait(false);
@@ -207,12 +208,13 @@ namespace RhinoSpatial
                 .ToList();
             var suppressedFallbackCount = decodedPrimitives.Count - primitives.Count;
             var triangleCount = primitives.Sum(static primitive => primitive.Mesh.Faces.TriangleCount);
+            var outputBounds = CalculatePrimitiveBounds(primitives);
 
             return new Google3dTilesDirectLoadResult
             {
                 Primitives = primitives,
                 Status = primitives.Count > 0
-                    ? BuildSuccessStatus(primitives.Count, triangleCount, decodedDescriptorCount, descriptors.Count, suppressedFallbackCount, aggregateContentResult)
+                    ? BuildSuccessStatus(primitives.Count, triangleCount, decodedDescriptorCount, descriptors.Count, suppressedFallbackCount, parentFallbackContentCount, aggregateContentResult, outputBounds)
                     : BuildEmptyContentStatus(decodedDescriptorCount, descriptors.Count, aggregateContentResult, suppressedFallbackCount)
             };
         }
@@ -223,7 +225,9 @@ namespace RhinoSpatial
             int decodedDescriptorCount,
             int totalCandidateCount,
             int suppressedFallbackCount,
-            Google3dTilesContentLoadResult contentResult)
+            int parentFallbackContentCount,
+            Google3dTilesContentLoadResult contentResult,
+            Rhino.Geometry.BoundingBox? outputBounds)
         {
             var fallbackNote = suppressedFallbackCount > 0
                 ? $" Suppressed {suppressedFallbackCount} coarse fallback mesh(es)."
@@ -231,8 +235,20 @@ namespace RhinoSpatial
             var validityNote = contentResult.InvalidMeshCount > 0 || contentResult.DegenerateTriangleCount > 0
                 ? $" Dropped {contentResult.InvalidMeshCount} invalid mesh(es) and {contentResult.DegenerateTriangleCount} degenerate triangle(s)."
                 : string.Empty;
+            var rejectedNote = contentResult.TotalDecodedTriangleCount > 0
+                ? $" Triangle filtering: kept {triangleCount} / {contentResult.TotalDecodedTriangleCount}, rejected {contentResult.RejectedOutOfBoundsTriangleCount} out-of-bounds, {contentResult.RejectedOversizedTriangleCount} oversized, {contentResult.DegenerateTriangleCount} degenerate."
+                : string.Empty;
+            var decodeNote = contentResult.DecodeFailureCount > 0 || contentResult.EmptyTileCount > 0 || contentResult.EmptyPrimitiveCount > 0
+                ? $" Decode diagnostics: attempted {contentResult.AttemptedTileCount} tile(s), {contentResult.DecodeFailureCount} failed, {contentResult.EmptyTileCount} empty tile(s), {contentResult.EmptyPrimitiveCount} empty primitive(s)."
+                : $" Decode diagnostics: attempted {contentResult.AttemptedTileCount} tile(s), decoded {contentResult.DecodedPrimitiveCount} primitive(s).";
+            var boundsNote = outputBounds is not null && outputBounds.Value.IsValid
+                ? $" Output local bounds: {FormatBoundingBox(outputBounds.Value)}."
+                : " Output local bounds: none.";
+            var parentFallbackNote = parentFallbackContentCount > 0
+                ? $" Parent fallback: kept {parentFallbackContentCount} coarser candidate URL(s) available behind refined tiles."
+                : string.Empty;
 
-            return $"Google 3D Tiles viewer decoded {primitiveCount} preview mesh(es) from {decodedDescriptorCount} selected tile content URL(s) ({totalCandidateCount} candidate URL(s)), {triangleCount} triangles. Vertical correction: EGM96 geoid grid.{fallbackNote}{validityNote}";
+            return $"Google 3D Tiles viewer decoded {primitiveCount} preview mesh(es) from {decodedDescriptorCount} selected tile content URL(s) ({totalCandidateCount} candidate URL(s)), {triangleCount} triangles. Vertical correction: EGM96 geoid grid.{decodeNote}{rejectedNote}{boundsNote}{parentFallbackNote}{fallbackNote}{validityNote}";
         }
 
         private static Google3dTilesContentLoadResult CombineContentResults(
@@ -263,6 +279,31 @@ namespace RhinoSpatial
                 InvalidMeshCount = left.InvalidMeshCount + right.InvalidMeshCount,
                 LastError = string.IsNullOrWhiteSpace(right.LastError) ? left.LastError : right.LastError
             };
+        }
+
+        private static Rhino.Geometry.BoundingBox? CalculatePrimitiveBounds(IReadOnlyList<Google3dTilesDisplayPrimitive> primitives)
+        {
+            Rhino.Geometry.BoundingBox? bounds = null;
+            foreach (var primitive in primitives)
+            {
+                var primitiveBounds = primitive.Mesh.GetBoundingBox(true);
+                if (!primitiveBounds.IsValid)
+                {
+                    continue;
+                }
+
+                if (bounds is null || !bounds.Value.IsValid)
+                {
+                    bounds = primitiveBounds;
+                    continue;
+                }
+
+                var expanded = bounds.Value;
+                expanded.Union(primitiveBounds);
+                bounds = expanded;
+            }
+
+            return bounds;
         }
 
         private static IEnumerable<Google3dTilesTileDescriptor> SelectBestContentDescriptors(
@@ -722,6 +763,18 @@ namespace RhinoSpatial
             }
 
             return trimmed[..220] + "...";
+        }
+
+        private static string FormatBoundingBox(Rhino.Geometry.BoundingBox bounds)
+        {
+            return $"X {FormatNumber(bounds.Min.X)}..{FormatNumber(bounds.Max.X)}, " +
+                   $"Y {FormatNumber(bounds.Min.Y)}..{FormatNumber(bounds.Max.Y)}, " +
+                   $"Z {FormatNumber(bounds.Min.Z)}..{FormatNumber(bounds.Max.Z)}";
+        }
+
+        private static string FormatNumber(double value)
+        {
+            return value.ToString("0.###", CultureInfo.InvariantCulture);
         }
 
         private sealed record TileVisit(JsonElement Tile, Uri BaseUri, List<double> Transform, int Depth);

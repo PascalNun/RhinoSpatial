@@ -64,6 +64,8 @@ The validation checklist and source manifest remain the broader regression basel
 
 If a saved working definition shows Grasshopper IO archive warnings after a component layout change, replace the affected component once and reconnect it. The committed example definitions should stay warning-free and represent the current component layout.
 
+The Google 3D Tiles workflow is optional because it requires the user's own Google Maps API key. Example and validation notes should describe it as a reference viewer only, not as an editable data-source or export workflow.
+
 ## Reference Coverage
 
 The current source manifest mixes:
@@ -87,3 +89,5 @@ Broad and Germany-wide references are included where they strengthen:
 - fallback behavior checks
 - broader provider validation
 - examples that are not tied to a single federal state
+
+Local CityGML/LoD2 folders and ZIP archives are useful regression inputs, but they can vary widely in file structure and size. Validation should record whether RhinoSpatial skipped files by metadata bounds, filtered buildings before conversion, or had to inspect a large single tile.

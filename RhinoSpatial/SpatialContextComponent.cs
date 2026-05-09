@@ -318,7 +318,7 @@ namespace RhinoSpatial
                 return (requestData.RequestedSrs, string.Empty, null);
             }
 
-            if (string.IsNullOrWhiteSpace(requestData.BaseUrl) || string.IsNullOrWhiteSpace(requestData.LayerSelection))
+            if (string.IsNullOrWhiteSpace(requestData.BaseUrl))
             {
                 return (
                     "EPSG:25832",
@@ -330,6 +330,12 @@ namespace RhinoSpatial
 
             if (string.IsNullOrWhiteSpace(layerName))
             {
+                var serviceSrs = ResolveReferenceServiceSrs(requestData.BaseUrl);
+                if (!string.IsNullOrWhiteSpace(serviceSrs))
+                {
+                    return (serviceSrs, string.Empty, null);
+                }
+
                 return (
                     "EPSG:25832",
                     string.Empty,
@@ -453,6 +459,62 @@ namespace RhinoSpatial
             return ChoosePreferredSupportedSrs(layerInfo.SupportedSrs);
         }
 
+        private static string ResolveSupportedLayerSrs(IEnumerable<WfsLayerInfo> layerInfos)
+        {
+            return ChoosePreferredSupportedSrs(layerInfos.SelectMany(GetLayerSrsCandidates));
+        }
+
+        private static string ResolveSupportedLayerSrs(IEnumerable<WmsLayerInfo> layerInfos)
+        {
+            return ChoosePreferredSupportedSrs(layerInfos.SelectMany(layerInfo => layerInfo.SupportedSrs));
+        }
+
+        private static IEnumerable<string> GetLayerSrsCandidates(WfsLayerInfo layerInfo)
+        {
+            if (!string.IsNullOrWhiteSpace(layerInfo.DefaultSrs))
+            {
+                yield return layerInfo.DefaultSrs;
+            }
+
+            foreach (var otherSrs in layerInfo.OtherSrs)
+            {
+                yield return otherSrs;
+            }
+        }
+
+        private string ResolveReferenceServiceSrs(string baseUrl)
+        {
+            try
+            {
+                var wfsLayers = _wfsClient.LoadLayersAsync(baseUrl).GetAwaiter().GetResult();
+                var supportedWfsSrs = ResolveSupportedLayerSrs(wfsLayers);
+
+                if (!string.IsNullOrWhiteSpace(supportedWfsSrs))
+                {
+                    return supportedWfsSrs;
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                var wmsCapabilities = _wmsClient.LoadCapabilitiesAsync(baseUrl).GetAwaiter().GetResult();
+                var supportedWmsSrs = ResolveSupportedLayerSrs(wmsCapabilities.Layers);
+
+                if (!string.IsNullOrWhiteSpace(supportedWmsSrs))
+                {
+                    return supportedWmsSrs;
+                }
+            }
+            catch
+            {
+            }
+
+            return string.Empty;
+        }
+
         private static string ChoosePreferredSupportedSrs(IEnumerable<string> candidates)
         {
             string bestSrs = string.Empty;
@@ -572,11 +634,15 @@ namespace RhinoSpatial
             try
             {
                 var (initialViewBoundingBox, preferredSrs) = await ResolveInitialMapContextAsync(baseUrl, layerSelection, requestedSrs);
-                var initialMapView = persistedViewBoundingBox ?? initialViewBoundingBox;
+                var shouldRestorePersistedSelection = ShouldRestorePersistedSelection(persistedViewBoundingBox, initialViewBoundingBox);
+                var initialMapView = shouldRestorePersistedSelection
+                    ? persistedViewBoundingBox ?? initialViewBoundingBox
+                    : initialViewBoundingBox ?? persistedViewBoundingBox;
+
                 SpatialContextHelperHost.OpenInBrowser(
                     initialMapView,
                     preferredSrs,
-                    persistedSelection.HasSelection ? persistedSelection : null);
+                    shouldRestorePersistedSelection && persistedSelection.HasSelection ? persistedSelection : null);
             }
             catch
             {
@@ -593,13 +659,53 @@ namespace RhinoSpatial
             }
         }
 
+        private static bool ShouldRestorePersistedSelection(BoundingBox2D? persistedViewBoundingBox, BoundingBox2D? referenceViewBoundingBox)
+        {
+            if (persistedViewBoundingBox is null)
+            {
+                return false;
+            }
+
+            if (referenceViewBoundingBox is null)
+            {
+                return true;
+            }
+
+            return RhinoSpatialContextTools.DoBoundingBoxesIntersect(persistedViewBoundingBox, referenceViewBoundingBox);
+        }
+
         private async Task<(BoundingBox2D? InitialViewBoundingBox4326, string PreferredSrs)> ResolveInitialMapContextAsync(string? baseUrl, string? layerSelection, string? requestedSrs)
         {
             var normalizedRequestedSrs = NormalizeSupportedMapSrs(requestedSrs ?? string.Empty);
             var layerName = RhinoSpatialInputParser.ParseLayerName(layerSelection ?? string.Empty);
 
-            if (string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(layerName))
+            if (string.IsNullOrWhiteSpace(baseUrl))
             {
+                return (null, normalizedRequestedSrs);
+            }
+
+            if (string.IsNullOrWhiteSpace(layerName))
+            {
+                var wfsServiceContext = await TryResolveWfsServiceMapContextAsync(baseUrl);
+                if (wfsServiceContext is not null)
+                {
+                    return (
+                        wfsServiceContext.Value.Wgs84BoundingBox,
+                        string.IsNullOrWhiteSpace(normalizedRequestedSrs)
+                            ? wfsServiceContext.Value.PreferredSrs
+                            : normalizedRequestedSrs);
+                }
+
+                var wmsServiceContext = await TryResolveWmsServiceMapContextAsync(baseUrl);
+                if (wmsServiceContext is not null)
+                {
+                    return (
+                        wmsServiceContext.Value.Wgs84BoundingBox,
+                        string.IsNullOrWhiteSpace(normalizedRequestedSrs)
+                            ? wmsServiceContext.Value.PreferredSrs
+                            : normalizedRequestedSrs);
+                }
+
                 return (null, normalizedRequestedSrs);
             }
 
@@ -653,6 +759,59 @@ namespace RhinoSpatial
             {
                 return null;
             }
+        }
+
+        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWfsServiceMapContextAsync(string baseUrl)
+        {
+            try
+            {
+                var layers = await _wfsClient.LoadLayersAsync(baseUrl);
+                return (
+                    CombineBoundingBoxes(layers.Select(layer => layer.Wgs84BoundingBox)),
+                    ResolveSupportedLayerSrs(layers));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWmsServiceMapContextAsync(string baseUrl)
+        {
+            try
+            {
+                var capabilities = await _wmsClient.LoadCapabilitiesAsync(baseUrl);
+                return (
+                    CombineBoundingBoxes(capabilities.Layers.Select(layer => layer.Wgs84BoundingBox)),
+                    ResolveSupportedLayerSrs(capabilities.Layers));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static BoundingBox2D? CombineBoundingBoxes(IEnumerable<BoundingBox2D?> boundingBoxes)
+        {
+            BoundingBox2D? combined = null;
+
+            foreach (var boundingBox in boundingBoxes)
+            {
+                if (boundingBox is null)
+                {
+                    continue;
+                }
+
+                combined = combined is null
+                    ? boundingBox
+                    : new BoundingBox2D(
+                        Math.Min(combined.MinX, boundingBox.MinX),
+                        Math.Min(combined.MinY, boundingBox.MinY),
+                        Math.Max(combined.MaxX, boundingBox.MaxX),
+                        Math.Max(combined.MaxY, boundingBox.MaxY));
+            }
+
+            return combined;
         }
     }
 }

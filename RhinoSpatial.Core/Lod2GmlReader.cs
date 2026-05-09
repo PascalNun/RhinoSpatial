@@ -1,14 +1,23 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Xml.Linq;
+using System.Xml;
 
 namespace RhinoSpatial.Core
 {
+    public record CityGmlSourceMetadata(string SrsName, BoundingBox2D? BoundingBox);
+
     public static class Lod2GmlReader
     {
         public static List<Lod2Building> ReadBuildings(string gmlText, string sourceLayerName)
+        {
+            return ReadBuildings(gmlText, sourceLayerName, null);
+        }
+
+        public static List<Lod2Building> ReadBuildings(string gmlText, string sourceLayerName, BoundingBox2D? filterBounds)
         {
             var document = XDocument.Parse(gmlText);
             var root = document.Root;
@@ -23,17 +32,38 @@ namespace RhinoSpatial.Core
                 throw new InvalidOperationException(ReadExceptionMessage(root));
             }
 
-            if (!string.Equals(root.Name.LocalName, "FeatureCollection", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException("The XML response is not a supported WFS FeatureCollection.");
-            }
-
             var buildings = new List<Lod2Building>();
 
-            foreach (var memberElement in root.Elements().Where(IsFeatureMemberElement))
+            if (string.Equals(root.Name.LocalName, "FeatureCollection", StringComparison.OrdinalIgnoreCase))
             {
-                var featureElement = memberElement.Elements().FirstOrDefault();
-                if (featureElement is null)
+                foreach (var memberElement in root.Elements().Where(IsFeatureMemberElement))
+                {
+                    var featureElement = memberElement.Elements().FirstOrDefault();
+                    if (featureElement is null)
+                    {
+                        continue;
+                    }
+
+                    if (!FeatureElementIntersectsBounds(featureElement, filterBounds))
+                    {
+                        continue;
+                    }
+
+                    var building = ReadBuilding(featureElement, sourceLayerName);
+                    if (building.Surfaces.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    buildings.Add(building);
+                }
+
+                return buildings;
+            }
+
+            foreach (var featureElement in EnumerateCityGmlBuildingElements(root))
+            {
+                if (!FeatureElementIntersectsBounds(featureElement, filterBounds))
                 {
                     continue;
                 }
@@ -48,6 +78,307 @@ namespace RhinoSpatial.Core
             }
 
             return buildings;
+        }
+
+        private static bool FeatureElementIntersectsBounds(XElement featureElement, BoundingBox2D? filterBounds)
+        {
+            if (filterBounds is null)
+            {
+                return true;
+            }
+
+            var featureBounds = ReadElementBoundingBox(featureElement);
+            return featureBounds is null || DoBoundingBoxesIntersect(featureBounds, filterBounds);
+        }
+
+        public static string ReadSourceSrsName(string gmlText)
+        {
+            var document = XDocument.Parse(gmlText);
+            var root = document.Root;
+
+            if (root is null)
+            {
+                return string.Empty;
+            }
+
+            return root
+                .DescendantsAndSelf()
+                .Select(element => element
+                    .Attributes()
+                    .FirstOrDefault(attribute => string.Equals(attribute.Name.LocalName, "srsName", StringComparison.OrdinalIgnoreCase))
+                    ?.Value
+                    ?.Trim() ?? string.Empty)
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
+        }
+
+        public static CityGmlSourceMetadata ReadSourceMetadata(Stream stream)
+        {
+            var settings = new XmlReaderSettings
+            {
+                DtdProcessing = DtdProcessing.Prohibit,
+                IgnoreComments = true,
+                IgnoreWhitespace = true
+            };
+
+            using var reader = XmlReader.Create(stream, settings);
+            var srsName = string.Empty;
+            BoundingBox2D? sourceBoundingBox = null;
+
+            while (reader.Read())
+            {
+                if (reader.NodeType != XmlNodeType.Element)
+                {
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(srsName))
+                {
+                    srsName = ReadSrsNameAttribute(reader);
+                }
+
+                if (sourceBoundingBox is null &&
+                    string.Equals(reader.LocalName, "Envelope", StringComparison.OrdinalIgnoreCase))
+                {
+                    var envelopeSrsName = ReadSrsNameAttribute(reader);
+                    if (!string.IsNullOrWhiteSpace(envelopeSrsName))
+                    {
+                        srsName = envelopeSrsName;
+                    }
+
+                    if (TryReadEnvelopeFromReader(reader, string.IsNullOrWhiteSpace(envelopeSrsName) ? srsName : envelopeSrsName, out var bounds))
+                    {
+                        sourceBoundingBox = bounds;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(srsName) && sourceBoundingBox is not null)
+                {
+                    break;
+                }
+            }
+
+            return new CityGmlSourceMetadata(srsName, sourceBoundingBox);
+        }
+
+        public static BoundingBox2D? ReadSourceBoundingBox(string gmlText)
+        {
+            var document = XDocument.Parse(gmlText);
+            var root = document.Root;
+
+            if (root is null)
+            {
+                return null;
+            }
+
+            var envelopeElement = root
+                .DescendantsAndSelf()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "Envelope", StringComparison.OrdinalIgnoreCase));
+
+            if (envelopeElement is null)
+            {
+                return null;
+            }
+
+            var srsName = FindSrsName(envelopeElement);
+            var lowerCorner = envelopeElement
+                .Elements()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "lowerCorner", StringComparison.OrdinalIgnoreCase));
+            var upperCorner = envelopeElement
+                .Elements()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "upperCorner", StringComparison.OrdinalIgnoreCase));
+
+            if (lowerCorner is null || upperCorner is null ||
+                !TryReadEnvelopeCorner(lowerCorner.Value, srsName, out var lower) ||
+                !TryReadEnvelopeCorner(upperCorner.Value, srsName, out var upper))
+            {
+                return null;
+            }
+
+            return new BoundingBox2D(
+                Math.Min(lower.X, upper.X),
+                Math.Min(lower.Y, upper.Y),
+                Math.Max(lower.X, upper.X),
+                Math.Max(lower.Y, upper.Y));
+        }
+
+        private static string ReadSrsNameAttribute(XmlReader reader)
+        {
+            for (var attributeIndex = 0; attributeIndex < reader.AttributeCount; attributeIndex++)
+            {
+                reader.MoveToAttribute(attributeIndex);
+                if (string.Equals(reader.LocalName, "srsName", StringComparison.OrdinalIgnoreCase))
+                {
+                    var value = reader.Value?.Trim() ?? string.Empty;
+                    reader.MoveToElement();
+                    return value;
+                }
+            }
+
+            reader.MoveToElement();
+            return string.Empty;
+        }
+
+        private static bool TryReadEnvelopeFromReader(XmlReader reader, string srsName, out BoundingBox2D bounds)
+        {
+            bounds = new BoundingBox2D(0.0, 0.0, 0.0, 0.0);
+            if (XNode.ReadFrom(reader) is not XElement envelopeElement)
+            {
+                return false;
+            }
+
+            var lowerCornerText = envelopeElement
+                .Elements()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "lowerCorner", StringComparison.OrdinalIgnoreCase))
+                ?.Value;
+            var upperCornerText = envelopeElement
+                .Elements()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "upperCorner", StringComparison.OrdinalIgnoreCase))
+                ?.Value;
+
+            if (string.IsNullOrWhiteSpace(lowerCornerText) ||
+                string.IsNullOrWhiteSpace(upperCornerText) ||
+                !TryReadEnvelopeCorner(lowerCornerText, srsName, out var lower) ||
+                !TryReadEnvelopeCorner(upperCornerText, srsName, out var upper))
+            {
+                return false;
+            }
+
+            bounds = new BoundingBox2D(
+                Math.Min(lower.X, upper.X),
+                Math.Min(lower.Y, upper.Y),
+                Math.Max(lower.X, upper.X),
+                Math.Max(lower.Y, upper.Y));
+            return true;
+        }
+
+        private static BoundingBox2D? ReadElementBoundingBox(XElement element)
+        {
+            var envelopeElement = element
+                .Descendants()
+                .FirstOrDefault(candidate => string.Equals(candidate.Name.LocalName, "Envelope", StringComparison.OrdinalIgnoreCase));
+
+            if (envelopeElement is not null)
+            {
+                var srsName = FindSrsName(envelopeElement);
+                var lowerCorner = envelopeElement
+                    .Elements()
+                    .FirstOrDefault(candidate => string.Equals(candidate.Name.LocalName, "lowerCorner", StringComparison.OrdinalIgnoreCase));
+                var upperCorner = envelopeElement
+                    .Elements()
+                    .FirstOrDefault(candidate => string.Equals(candidate.Name.LocalName, "upperCorner", StringComparison.OrdinalIgnoreCase));
+
+                if (lowerCorner is not null &&
+                    upperCorner is not null &&
+                    TryReadEnvelopeCorner(lowerCorner.Value, srsName, out var lower) &&
+                    TryReadEnvelopeCorner(upperCorner.Value, srsName, out var upper))
+                {
+                    return new BoundingBox2D(
+                        Math.Min(lower.X, upper.X),
+                        Math.Min(lower.Y, upper.Y),
+                        Math.Max(lower.X, upper.X),
+                        Math.Max(lower.Y, upper.Y));
+                }
+            }
+
+            BoundingBox2D? bounds = null;
+
+            foreach (var posListElement in element
+                         .Descendants()
+                         .Where(candidate => string.Equals(candidate.Name.LocalName, "posList", StringComparison.OrdinalIgnoreCase)))
+            {
+                var srsName = FindSrsName(posListElement);
+                var rawValues = posListElement.Value.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                var dimension = GetCoordinateDimension(posListElement, srsName, rawValues);
+                bounds = AccumulateCoordinateBounds(bounds, rawValues, dimension, srsName);
+            }
+
+            foreach (var posElement in element
+                         .Descendants()
+                         .Where(candidate => string.Equals(candidate.Name.LocalName, "pos", StringComparison.OrdinalIgnoreCase)))
+            {
+                var srsName = FindSrsName(posElement);
+                var rawValues = posElement.Value.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                bounds = AccumulateCoordinateBounds(bounds, rawValues, rawValues.Length >= 3 ? 3 : 2, srsName);
+            }
+
+            return bounds;
+        }
+
+        private static BoundingBox2D? AccumulateCoordinateBounds(BoundingBox2D? bounds, IReadOnlyList<string> rawValues, int dimension, string srsName)
+        {
+            for (int valueIndex = 0; valueIndex + 1 < rawValues.Count; valueIndex += dimension)
+            {
+                if (!double.TryParse(rawValues[valueIndex], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var firstValue) ||
+                    !double.TryParse(rawValues[valueIndex + 1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var secondValue))
+                {
+                    continue;
+                }
+
+                var point = CreateCoordinate(firstValue, secondValue, 0.0, srsName);
+                bounds = bounds is null
+                    ? new BoundingBox2D(point.X, point.Y, point.X, point.Y)
+                    : new BoundingBox2D(
+                        Math.Min(bounds.MinX, point.X),
+                        Math.Min(bounds.MinY, point.Y),
+                        Math.Max(bounds.MaxX, point.X),
+                        Math.Max(bounds.MaxY, point.Y));
+            }
+
+            return bounds;
+        }
+
+        private static bool DoBoundingBoxesIntersect(BoundingBox2D left, BoundingBox2D? right)
+        {
+            return right is null ||
+                   left.MinX <= right.MaxX &&
+                   left.MaxX >= right.MinX &&
+                   left.MinY <= right.MaxY &&
+                   left.MaxY >= right.MinY;
+        }
+
+        private static bool TryReadEnvelopeCorner(string text, string srsName, out Coordinate3D corner)
+        {
+            corner = new Coordinate3D(0.0, 0.0, 0.0);
+
+            var rawValues = text.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            if (rawValues.Length < 2)
+            {
+                return false;
+            }
+
+            if (!double.TryParse(rawValues[0], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var firstValue) ||
+                !double.TryParse(rawValues[1], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var secondValue))
+            {
+                return false;
+            }
+
+            var thirdValue = 0.0;
+            if (rawValues.Length >= 3)
+            {
+                double.TryParse(rawValues[2], NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out thirdValue);
+            }
+
+            corner = CreateCoordinate(firstValue, secondValue, thirdValue, srsName);
+            return true;
+        }
+
+        private static IEnumerable<XElement> EnumerateCityGmlBuildingElements(XElement root)
+        {
+            var buildingElements = root
+                .DescendantsAndSelf()
+                .Where(element => string.Equals(element.Name.LocalName, "Building", StringComparison.OrdinalIgnoreCase))
+                .Where(element => !element.Ancestors().Any(ancestor => string.Equals(ancestor.Name.LocalName, "Building", StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+
+            if (buildingElements.Count > 0)
+            {
+                return buildingElements;
+            }
+
+            return root
+                .DescendantsAndSelf()
+                .Where(element => string.Equals(element.Name.LocalName, "BuildingPart", StringComparison.OrdinalIgnoreCase))
+                .Where(element => !element.Ancestors().Any(ancestor => string.Equals(ancestor.Name.LocalName, "BuildingPart", StringComparison.OrdinalIgnoreCase)));
         }
 
         private static Lod2Building ReadBuilding(XElement featureElement, string sourceLayerName)

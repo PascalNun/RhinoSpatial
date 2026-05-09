@@ -7,7 +7,7 @@ It is intentionally small and practical. The point is to confirm that the core s
 ## General Checks
 
 - RhinoSpatial builds cleanly from `RhinoSpatial.sln`
-- component grouping still reads as `Context / Layers / Sources`
+- component grouping still reads as `Context / Layers / Sources / Viewers`
 - icons load correctly for all components
 - `Spatial Context` still acts as the shared starting point
 - source outputs still align correctly when used together
@@ -45,6 +45,9 @@ It is intentionally small and practical. The point is to confirm that the core s
 
 - connect a LoD2 WFS source
 - load buildings through `Load LoD2 Buildings`
+- test a local CityGML/GML/XML building file through the same `LoD2 Source` input when available
+- test a folder or ZIP archive of CityGML/GML/XML tiles and confirm out-of-context files are skipped when bounds are available
+- test a dense single CityGML tile with a small Spatial Context and confirm building-level prefiltering avoids parsing/converting the whole tile
 - confirm the building output still aligns to the same `Spatial Context`
 - confirm localized mode still behaves consistently with terrain
 - confirm obvious missing-face regressions are not reintroduced
@@ -87,6 +90,8 @@ It is intentionally small and practical. The point is to confirm that the core s
 - confirm the component remains disabled and quiet when Enable is false
 - confirm the component is presented as a viewer/reference workflow, not as a bake/export/import workflow
 - confirm older definitions no longer expose the removed browser/viewer-window inputs or `Viewer URL` output after replacing the component
+- confirm the status reports selected tile URLs, candidate URLs, output bounds, and parent fallback behavior when fallback parent tiles are used
+- confirm small over-coverage is acceptable when it prevents missing chunks inside the selected reference area
 
 ## Combined Workflow
 

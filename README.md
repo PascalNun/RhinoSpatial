@@ -237,7 +237,7 @@ The Grasshopper tab is organized as:
   Loads lightweight, curated urban context for fast study workflows.
 
 - `3D Tiles Viewer (Google)`
-  Views bounded Google Photorealistic 3D Tiles as contextual preview meshes aligned to the same Spatial Context. This component requires the user's own Google Maps API key and is treated as a viewer, not as a normal editable source/import workflow.
+  Views bounded Google Photorealistic 3D Tiles as contextual preview meshes aligned to the same Spatial Context. This component requires the user's own Google Maps API key and is treated as a reference viewer, not as a normal editable source/import/export workflow.
 
 ## OSM Direction
 
@@ -274,12 +274,14 @@ OSM is part of the core RhinoSpatial scope, and it is expected to keep evolving 
 
 ### Typical LoD2 workflow
 
-1. Connect the LoD2 WFS URL to `List WFS Layers`
-2. Choose the building layer if needed
-3. Use the same `Spatial Context`
-4. Connect `Spatial Context` into `Load LoD2 Buildings`
+1. Connect one `LoD2 Source` into `Load LoD2 Buildings`
+2. Use a LoD2 WFS URL, local `.gml` / `.xml` / `.citygml` file, folder, or `.zip` archive
+3. Choose the WFS building layer if needed, or use `Layer` as an optional label for local sources
+4. Use the same `Spatial Context`
 
-`Load LoD2 Buildings` requests a small buffered area from the WFS service, then keeps the returned buildings that intersect the actual Spatial Context. This helps with provider BBOX edge cases without changing the selected study area. The `Status` output reports returned buildings, kept buildings, request/query bounds, converted surfaces, skipped surfaces, and output bounds so provider coverage gaps can be separated from conversion problems.
+`Load LoD2 Buildings` can load from a LoD2 WFS service or from local CityGML/GML/XML building data. Local sources can be a single file, a folder, or a ZIP archive containing multiple CityGML/GML/XML files. WFS mode requests a small buffered area from the service, then keeps the returned buildings that intersect the actual Spatial Context. Local CityGML mode scans the source, skips files outside the Spatial Context when file bounds are available, filters buildings against the same Spatial Context, and uses the same Brep conversion and elevation alignment path. The `Status` output reports returned buildings, kept buildings, request/query or source bounds, converted surfaces, skipped surfaces, and output bounds so provider coverage gaps can be separated from conversion problems.
+
+For local folders and ZIP archives, RhinoSpatial first tries to use file-level and building-level bounds so it can avoid converting CityGML geometry outside the selected area. Very large single files can still take longer than a WFS request because the file has to be inspected locally before geometry can be filtered.
 
 ### Typical terrain workflow
 
@@ -301,6 +303,10 @@ The built-in fallback is intentionally limited to small study areas and short re
 2. Connect your own Google Maps API key to `3D Tiles Viewer (Google)`
 3. Enable the viewer only for the bounded area you want to inspect
 4. Use the preview meshes/materials as visual context alongside the other aligned RhinoSpatial sources
+
+The Google component is intentionally a viewer/reference workflow. It requests Google Map Tiles API content directly for the current Grasshopper preview, outputs temporary preview meshes/materials, and does not promise offline caching, export, baking, or reuse as editable project geometry. Users are responsible for their own Google Maps Platform project, billing, API key, and compliance with the current [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms) and [Map Tiles API Policies](https://developers.google.com/maps/documentation/tile/policies).
+
+To avoid visible holes where fine 3D tile coverage is incomplete, RhinoSpatial may keep coarser parent tile content as a fallback behind refined tiles. This can make the preview extend slightly beyond the selected Spatial Context, which is preferred for visual checking over under-loading missing chunks inside the reference area.
 
 ## Default Behavior
 
@@ -351,10 +357,11 @@ This shared spatial logic is the core architectural rule for:
 - `Load WFS`, `Load WMS`, `Load LoD2 Buildings`, `Load Terrain`, `Load GeoTIFF`, and `Load OSM` are all intended to work within the same shared spatial workflow.
 - `Load Terrain` and `Load LoD2 Buildings` share the same localized elevation baseline when absolute coordinates are off, so terrain and buildings sit on the same local Z reference.
 - `Load Terrain` is a separate aligned source and is not treated as part of LoD2 loading. If no terrain URL is provided, it uses a quick global land-elevation fallback for small-context orientation; project work should still prefer user-provided or official terrain where available.
-- `Load LoD2 Buildings` uses a small internal WFS request buffer and exposes detailed status diagnostics to make provider coverage, bbox filtering, duplicate surfaces, and conversion failures easier to distinguish.
-- The Google 3D Tiles component is an optional viewer with user-managed API access. It outputs contextual preview meshes/materials for viewing, but should not be treated as a substitute for official editable project data.
+- `Load LoD2 Buildings` uses one source input for WFS URLs, local CityGML/GML/XML files, folders, and ZIP archives. It exposes detailed status diagnostics to make provider coverage, local tile filtering, bbox filtering, duplicate surfaces, and conversion failures easier to distinguish.
+- The Google 3D Tiles component is an optional reference viewer with user-managed API access. It outputs temporary contextual preview meshes/materials for viewing, but should not be treated as a substitute for official editable project data, and should not be used as an offline cache/export workflow.
 - The map helper currently supports the SRS values that have come up most often in testing so far, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, `EPSG:3857`, `EPSG:27700`, `EPSG:4283`, `EPSG:7423`, and `EPSG:7844`.
 - `Load LoD2 Buildings` is still experimental and provider compatibility will need more real-world testing.
+- Shapefile building import is not part of the LoD2 source input yet; it is planned as a later vector/building-file source because shapefiles may contain 2D footprints, attributes, or 3D geometry depending on the provider.
 - Some providers behave differently, so more compatibility improvements will likely be added over time.
 
 ## License
