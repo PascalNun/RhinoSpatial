@@ -72,7 +72,7 @@ The following source / component types are considered part of the core RhinoSpat
 - **Load OSM**
 - **3D Tiles Viewer (Google)** as an optional viewer, not a normal source/import workflow
 
-These form the core source ecosystem of the project and are considered stable at the source-category level. The `v0.3.0-alpha` release is the first release where this planned source set is present together; future work should mainly refine robustness, quality, provider compatibility, examples, and documentation inside this scope.
+These form the core source ecosystem of the project and are considered stable at the source-category level. The `v0.3.1-alpha` release continues the first complete alpha line where this planned source set is present together; future work should mainly refine robustness, quality, provider compatibility, examples, and documentation inside this scope.
 
 ## Meaning of the Core Source Types
 

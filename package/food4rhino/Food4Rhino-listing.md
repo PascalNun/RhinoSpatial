@@ -45,7 +45,7 @@ The optional Google 3D Tiles component is a viewer/reference workflow. It requir
 
 RhinoSpatial is currently still in an alpha stage.
 
-The `0.3.0-alpha` release is the first release where the planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
+The `0.3.1-alpha` release continues the first complete alpha line where the planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
 
 Feedback, edge cases, and additional test links are very welcome.
 
@@ -53,7 +53,7 @@ Feedback, edge cases, and additional test links are very welcome.
 
 Current release package:
 
-- `RhinoSpatial-0.3.0-alpha.zip`
+- `RhinoSpatial-0.3.1-alpha.zip`
 
 ## Repository
 
