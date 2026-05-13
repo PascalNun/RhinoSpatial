@@ -8,9 +8,21 @@ namespace RhinoSpatial.Sandbox
     {
         static async Task Main(string[] args)
         {
+            if (args.Length > 0 && string.Equals(args[0], "probe", StringComparison.OrdinalIgnoreCase))
+            {
+                await RunProbeAsync(args);
+                return;
+            }
+
             if (args.Length > 0 && string.Equals(args[0], "lod2file", StringComparison.OrdinalIgnoreCase))
             {
                 RunLod2File(args);
+                return;
+            }
+
+            if (args.Length > 0 && string.Equals(args[0], "geotiff", StringComparison.OrdinalIgnoreCase))
+            {
+                RunGeoTiff(args);
                 return;
             }
 
@@ -62,6 +74,124 @@ namespace RhinoSpatial.Sandbox
             }
         }
 
+        private static async Task RunProbeAsync(string[] args)
+        {
+            if (args.Length < 3)
+            {
+                Console.WriteLine("Usage: probe <wfs|wms|wcs> <GetCapabilities URL>");
+                return;
+            }
+
+            var kind = args[1].Trim().ToLowerInvariant();
+            var url = args[2];
+
+            switch (kind)
+            {
+                case "wfs":
+                    await ProbeSafeAsync("WFS", url, () => ProbeWfsAsync(url));
+                    break;
+                case "wms":
+                    await ProbeSafeAsync("WMS", url, () => ProbeWmsAsync(url));
+                    break;
+                case "wcs":
+                    await ProbeSafeAsync("WCS", url, () => ProbeWcsAsync(url));
+                    break;
+                default:
+                    Console.WriteLine("Unknown probe type. Use one of: wfs, wms, wcs.");
+                    break;
+            }
+        }
+
+        private static async Task ProbeSafeAsync(string kind, string url, Func<Task> probe)
+        {
+            try
+            {
+                await probe();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{kind} capabilities probe failed");
+                Console.WriteLine($"URL: {url}");
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private static async Task ProbeWfsAsync(string url)
+        {
+            var startedAt = DateTime.UtcNow;
+            var capabilities = await new WfsClient().LoadCapabilitiesAsync(url);
+            Console.WriteLine("WFS capabilities probe");
+            Console.WriteLine($"URL: {url}");
+            Console.WriteLine($"Version: {capabilities.ServiceVersion}");
+            Console.WriteLine($"Layer count: {capabilities.Layers.Count}");
+            Console.WriteLine($"GetFeature URL: {capabilities.GetFeatureUrl}");
+            PrintLayers(capabilities.Layers.Take(12));
+            Console.WriteLine($"Elapsed: {(DateTime.UtcNow - startedAt).TotalSeconds:0.###} s");
+        }
+
+        private static async Task ProbeWmsAsync(string url)
+        {
+            var startedAt = DateTime.UtcNow;
+            var capabilities = await new WmsClient().LoadCapabilitiesAsync(url);
+            Console.WriteLine("WMS capabilities probe");
+            Console.WriteLine($"URL: {url}");
+            Console.WriteLine($"Version: {capabilities.ServiceVersion}");
+            Console.WriteLine($"Layer count: {capabilities.Layers.Count}");
+            Console.WriteLine($"GetMap URL: {capabilities.GetMapUrl}");
+            Console.WriteLine($"Max size: {capabilities.MaxWidth?.ToString() ?? "?"} x {capabilities.MaxHeight?.ToString() ?? "?"}");
+            PrintLayers(capabilities.Layers.Take(12));
+            Console.WriteLine($"Elapsed: {(DateTime.UtcNow - startedAt).TotalSeconds:0.###} s");
+        }
+
+        private static async Task ProbeWcsAsync(string url)
+        {
+            var startedAt = DateTime.UtcNow;
+            var capabilities = await new WcsClient().LoadCapabilitiesAsync(url);
+            Console.WriteLine("WCS capabilities probe");
+            Console.WriteLine($"URL: {url}");
+            Console.WriteLine($"Version: {capabilities.ServiceVersion}");
+            Console.WriteLine($"Coverage count: {capabilities.Coverages.Count}");
+            Console.WriteLine($"GetCoverage URL: {capabilities.GetCoverageUrl}");
+            Console.WriteLine($"DescribeCoverage URL: {capabilities.DescribeCoverageUrl}");
+            foreach (var coverage in capabilities.Coverages.Take(12))
+            {
+                Console.WriteLine($"- {coverage.CoverageId} | {coverage.Title} | bbox {FormatBounds(coverage.Wgs84BoundingBox)}");
+            }
+            Console.WriteLine($"Elapsed: {(DateTime.UtcNow - startedAt).TotalSeconds:0.###} s");
+        }
+
+        private static void PrintLayers(IEnumerable<WfsLayerInfo> layers)
+        {
+            foreach (var layer in layers)
+            {
+                Console.WriteLine($"- {layer.Name} | {layer.Title} | default {layer.DefaultSrs} | bbox {FormatBounds(layer.Wgs84BoundingBox)}");
+            }
+        }
+
+        private static void PrintLayers(IEnumerable<WmsLayerInfo> layers)
+        {
+            foreach (var layer in layers)
+            {
+                var srsPreview = layer.SupportedSrs.Count == 0
+                    ? "?"
+                    : string.Join(",", layer.SupportedSrs.Take(4));
+                Console.WriteLine($"- {layer.Name} | {layer.Title} | srs {srsPreview} | bbox {FormatBounds(layer.Wgs84BoundingBox)}");
+            }
+        }
+
+        private static string FormatBounds(BoundingBox2D? bounds)
+        {
+            return bounds is null
+                ? "?"
+                : string.Format(
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    "{0:0.####},{1:0.####},{2:0.####},{3:0.####}",
+                    bounds.MinX,
+                    bounds.MinY,
+                    bounds.MaxX,
+                    bounds.MaxY);
+        }
+
         private static void RunLod2File(string[] args)
         {
             if (args.Length < 2)
@@ -95,6 +225,26 @@ namespace RhinoSpatial.Sandbox
             Console.WriteLine($"Parsed surfaces: {buildings.Sum(building => building.Surfaces.Count)}");
             Console.WriteLine($"Metadata elapsed: {metadataElapsed.TotalSeconds:0.###} s");
             Console.WriteLine($"Parse elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static void RunGeoTiff(string[] args)
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: geotiff <path>");
+                return;
+            }
+
+            var startedAt = DateTime.UtcNow;
+            var info = GeoTiffReader.ReadImageInfo(args[1]);
+            var elapsed = DateTime.UtcNow - startedAt;
+
+            Console.WriteLine($"File: {args[1]}");
+            Console.WriteLine($"SRS: {info.SrsName}");
+            Console.WriteLine($"Size: {info.Width} x {info.Height}");
+            Console.WriteLine($"Bounds: {FormatBounds(info.BoundingBox)}");
+            Console.WriteLine($"File size: {info.FileSizeBytes} bytes");
+            Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
         }
 
         private static bool TryParseBoundingBox(string text, out BoundingBox2D? boundingBox)

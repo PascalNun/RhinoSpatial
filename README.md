@@ -39,6 +39,7 @@ A small example and regression baseline now lives in:
 - `examples/VALIDATION.md`
 - `examples/sources.json`
 - `docs/SHOWCASE.md`
+- `docs/TEST_SOURCES.md`
 
 ## Download
 
@@ -78,6 +79,7 @@ For example sources and validation checks, see:
 - `examples/README.md`
 - `examples/VALIDATION.md`
 - `examples/sources.json`
+- `docs/TEST_SOURCES.md`
 
 For screenshots and example workflows, see:
 

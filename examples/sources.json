@@ -77,6 +77,39 @@
       ]
     },
     {
+      "id": "wfs-france-geopf-adminexpress",
+      "type": "WFS",
+      "purpose": "France and overseas-territory administrative boundary reference",
+      "url": "https://data.geopf.fr/wfs/ows?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with layer ADMINEXPRESS-COG-CARTO-PE.2025:commune",
+        "Good non-German WFS polygon reference",
+        "Useful for EPSG:4326 and larger provider capability testing"
+      ]
+    },
+    {
+      "id": "wfs-netherlands-pdok-boundaries",
+      "type": "WFS",
+      "purpose": "Netherlands administrative boundary reference",
+      "url": "https://service.pdok.nl/kadaster/bestuurlijkegebieden/wfs/v1_0?service=WFS&version=2.0.0&request=GetCapabilities",
+      "notes": [
+        "Tested with layer bestuurlijkegebieden:Gemeentegebied",
+        "Good non-German WFS polygon reference",
+        "Useful for EPSG:28992 provider behavior and EPSG:4326 request checks"
+      ]
+    },
+    {
+      "id": "wfs-mapserver-demo-world",
+      "type": "WFS",
+      "purpose": "Lightweight global WFS parser smoke test",
+      "url": "https://demo.mapserver.org/cgi-bin/wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with layers ms:cities and ms:continents",
+        "Useful for quick point and polygon parser checks",
+        "Demo service only; not a project-data recommendation"
+      ]
+    },
+    {
       "id": "wms-hessen-imagery",
       "type": "WMS",
       "purpose": "Official imagery / orthophoto alignment testing",
@@ -84,6 +117,58 @@
       "notes": [
         "Use with List WMS Layers first",
         "Good reference for imagery alignment against WFS and LoD2"
+      ]
+    },
+    {
+      "id": "wms-nasa-gibs",
+      "type": "WMS",
+      "purpose": "Global satellite / earth-observation WMS reference",
+      "url": "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Large global WMS capability document",
+        "Good EPSG:4326 WMS parser and layer-list stress test",
+        "Use a visually simple layer when doing manual GetMap checks"
+      ]
+    },
+    {
+      "id": "wms-switzerland-geoadmin",
+      "type": "WMS",
+      "purpose": "Swiss national WMS reference",
+      "url": "https://wms.geo.admin.ch/?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Good non-German national mapping WMS reference",
+        "Useful for EPSG:2056, EPSG:4326, and EPSG:3857 support checks"
+      ]
+    },
+    {
+      "id": "wms-netherlands-pdok-aerial",
+      "type": "WMS",
+      "purpose": "Netherlands aerial imagery WMS reference",
+      "url": "https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?service=WMS&request=GetCapabilities",
+      "notes": [
+        "Good non-German imagery alignment reference",
+        "Useful for EPSG:28992 and high-resolution aerial layer testing"
+      ]
+    },
+    {
+      "id": "wms-usgs-topo",
+      "type": "WMS",
+      "purpose": "United States topographic WMS reference",
+      "url": "https://basemap.nationalmap.gov/arcgis/services/USGSTopo/MapServer/WMSServer?request=GetCapabilities&service=WMS",
+      "notes": [
+        "Good ArcGIS-backed WMS reference",
+        "Useful for EPSG:4326 and EPSG:3857 map context testing"
+      ]
+    },
+    {
+      "id": "wms-terrestris-osm",
+      "type": "WMS",
+      "purpose": "Global OSM-style WMS reference",
+      "url": "https://ows.terrestris.de/osm/service?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Useful global WMS fallback/context reference",
+        "Includes OSM and SRTM-style map layers",
+        "Public demo-style service; use politely for testing"
       ]
     },
     {
@@ -97,6 +182,28 @@
       ]
     },
     {
+      "id": "citygml-ogc-building-lod2",
+      "type": "LoD2 Buildings",
+      "purpose": "OGC CityGML 2.0 LoD2 format sample",
+      "url": "https://schemas.opengis.net/citygml/examples/2.0/building/Building_LOD2-EPSG25832.gml",
+      "notes": [
+        "Tested with sandbox lod2file command",
+        "Parses as one building with seven source surfaces",
+        "Useful local-file parser smoke test after download"
+      ]
+    },
+    {
+      "id": "citygml-ogc-building-garage-lod2",
+      "type": "LoD2 Buildings",
+      "purpose": "OGC CityGML 2.0 LoD2 building and garage format sample",
+      "url": "https://schemas.opengis.net/citygml/examples/2.0/building/Building_and_garage_LOD2-EPSG25832.gml",
+      "notes": [
+        "Tested with sandbox lod2file command",
+        "Parses as one building with thirteen source surfaces",
+        "Useful local-file parser smoke test after download"
+      ]
+    },
+    {
       "id": "terrain-nrw-dgm",
       "type": "Terrain",
       "purpose": "Official NRW terrain reference outside Hessen",
@@ -104,6 +211,17 @@
       "notes": [
         "Official NRW terrain WCS",
         "Useful for comparing state-level terrain workflows beyond Hessen"
+      ]
+    },
+    {
+      "id": "wcs-rasdaman-demo",
+      "type": "Terrain",
+      "purpose": "Non-German WCS parser and provider-behavior stress test",
+      "url": "https://ows.rasdaman.org/rasdaman/ows?SERVICE=WCS&REQUEST=GetCapabilities",
+      "notes": [
+        "Public OGC WCS demo with many coverages",
+        "Useful for capabilities parsing and WCS 2.1 behavior checks",
+        "Not a project-data recommendation"
       ]
     },
     {
@@ -184,6 +302,28 @@
       "notes": [
         "Bring your own georeferenced raster file",
         "Use as a file-based raster alignment regression check"
+      ]
+    },
+    {
+      "id": "geotiff-osgeo-byte",
+      "type": "GeoTIFF",
+      "purpose": "Small projected GeoTIFF parser smoke test",
+      "url": "https://raw.githubusercontent.com/OSGeo/gdal/master/autotest/gcore/data/byte.tif",
+      "notes": [
+        "Download before using with Load GeoTIFF",
+        "Tested with sandbox geotiff command",
+        "EPSG:26711, 20 x 20 pixels"
+      ]
+    },
+    {
+      "id": "geotiff-osgeo-rgbsmall",
+      "type": "GeoTIFF",
+      "purpose": "Small WGS84 RGB GeoTIFF parser smoke test",
+      "url": "https://raw.githubusercontent.com/OSGeo/gdal/master/autotest/gcore/data/rgbsmall.tif",
+      "notes": [
+        "Download before using with Load GeoTIFF",
+        "Tested with sandbox geotiff command",
+        "EPSG:4326, 50 x 50 pixels"
       ]
     },
     {

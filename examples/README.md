@@ -18,6 +18,8 @@ RhinoSpatial is built around one shared `Spatial Context` and multiple aligned s
   Manual regression checklist for the current core source ecosystem
 - `sources.json`
   Curated reference sources and notes for repeatable testing
+- `docs/TEST_SOURCES.md`
+  Sorted provider/source catalogue with current probe notes and future format candidates
 - `gh/`
   Example Grasshopper definitions for the current showcase/regression workflows
 
@@ -71,10 +73,11 @@ The Google 3D Tiles workflow is optional because it requires the user's own Goog
 The current source manifest mixes:
 
 - broad fallback references that make RhinoSpatial easier to try without local setup
+- non-German public WFS/WMS/WCS and sample-file references for provider compatibility
 - Hessen-specific deep-dive references that have been useful during development
 - Germany-wide official references where they fit the RhinoSpatial workflow well
 
-That balance is intentional, but local references should be understood as test fixtures and examples. The main RhinoSpatial workflow should continue to prefer user-provided project data, with generic fallbacks used only for convenience and orientation.
+That balance is intentional, but local references should be understood as test fixtures and examples. The main RhinoSpatial workflow should continue to prefer user-provided project data, with generic fallbacks and public regression links used only for convenience, orientation, and compatibility testing.
 
 Hessen remains a strong practical test bed for:
 

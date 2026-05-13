@@ -7,6 +7,7 @@ It is intentionally small and practical. The point is to confirm that the core s
 ## General Checks
 
 - RhinoSpatial builds cleanly from `RhinoSpatial.sln`
+- sandbox probes from `docs/TEST_SOURCES.md` still run for at least one WFS, one WMS, one WCS, one CityGML file, and one GeoTIFF file
 - component grouping still reads as `Context / Layers / Sources / Viewers`
 - icons load correctly for all components
 - `Spatial Context` still acts as the shared starting point

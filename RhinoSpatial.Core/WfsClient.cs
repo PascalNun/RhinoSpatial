@@ -103,7 +103,11 @@ namespace RhinoSpatial.Core
         public async Task<WfsCapabilitiesInfo> LoadCapabilitiesAsync(string baseUrl)
         {
             var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(baseUrl, ReservedQueryKeys);
-            var loadTask = CapabilitiesCache.GetOrAdd(normalizedBaseUrl, LoadCapabilitiesUncachedAsync);
+            var requestedVersion = TryReadQueryValue(baseUrl, "VERSION");
+            var cacheKey = string.IsNullOrWhiteSpace(requestedVersion)
+                ? normalizedBaseUrl
+                : $"{normalizedBaseUrl}|VERSION={requestedVersion}";
+            var loadTask = CapabilitiesCache.GetOrAdd(cacheKey, _ => LoadCapabilitiesUncachedAsync(normalizedBaseUrl, requestedVersion));
 
             try
             {
@@ -171,13 +175,19 @@ namespace RhinoSpatial.Core
             return builder.ToString();
         }
 
-        public static string BuildGetCapabilitiesRequestUrl(string baseUrl)
+        public static string BuildGetCapabilitiesRequestUrl(
+            string baseUrl,
+            string? version = null,
+            bool useDefaultVersion = true)
         {
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
                 throw new ArgumentException("BaseUrl is required.", nameof(baseUrl));
             }
 
+            var requestedVersion = string.IsNullOrWhiteSpace(version)
+                ? TryReadQueryValue(baseUrl, "VERSION")
+                : version.Trim();
             var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(baseUrl, ReservedQueryKeys);
             var queryPrefix = normalizedBaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
             var builder = new StringBuilder();
@@ -185,16 +195,40 @@ namespace RhinoSpatial.Core
             builder.Append(normalizedBaseUrl);
             builder.Append(queryPrefix);
             builder.Append("SERVICE=WFS");
+            if (!string.IsNullOrWhiteSpace(requestedVersion) || useDefaultVersion)
+            {
+                builder.Append("&VERSION=");
+                builder.Append(Uri.EscapeDataString(string.IsNullOrWhiteSpace(requestedVersion) ? "2.0.0" : requestedVersion));
+            }
+
             builder.Append("&REQUEST=GetCapabilities");
 
             return builder.ToString();
         }
 
-        private async Task<WfsCapabilitiesInfo> LoadCapabilitiesUncachedAsync(string normalizedBaseUrl)
+        private async Task<WfsCapabilitiesInfo> LoadCapabilitiesUncachedAsync(string normalizedBaseUrl, string? requestedVersion)
         {
-            var requestUrl = BuildGetCapabilitiesRequestUrl(normalizedBaseUrl);
-            var response = await GetStringAsync(requestUrl);
-            return WfsCapabilitiesReader.ReadCapabilities(response);
+            Exception? lastException = null;
+
+            foreach (var versionCandidate in CreateCapabilitiesVersionCandidates(requestedVersion))
+            {
+                var requestUrl = BuildGetCapabilitiesRequestUrl(
+                    normalizedBaseUrl,
+                    versionCandidate,
+                    useDefaultVersion: false);
+
+                try
+                {
+                    var response = await GetStringAsync(requestUrl);
+                    return WfsCapabilitiesReader.ReadCapabilities(response);
+                }
+                catch (Exception ex) when (requestedVersion is null && IsCapabilitiesVersionRetryCandidate(ex))
+                {
+                    lastException = ex;
+                }
+            }
+
+            throw lastException ?? new InvalidOperationException("The WFS capabilities request sequence did not produce a capabilities response.");
         }
 
         private async Task<WfsFeatureResponse> LoadFeatureResponseUncachedAsync(WfsRequestOptions options)
@@ -411,6 +445,61 @@ namespace RhinoSpatial.Core
 
             response = entry.Response;
             return true;
+        }
+
+        private static string? TryReadQueryValue(string url, string key)
+        {
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return null;
+            }
+
+            var queryStart = url.IndexOf('?');
+            if (queryStart < 0 || queryStart == url.Length - 1)
+            {
+                return null;
+            }
+
+            var query = url[(queryStart + 1)..];
+            foreach (var queryPart in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var equalsIndex = queryPart.IndexOf('=');
+                if (equalsIndex <= 0)
+                {
+                    continue;
+                }
+
+                var rawKey = queryPart[..equalsIndex];
+                var queryKey = Uri.UnescapeDataString(rawKey.Replace('+', ' '));
+                if (!string.Equals(queryKey, key, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var rawValue = queryPart[(equalsIndex + 1)..];
+                return Uri.UnescapeDataString(rawValue.Replace('+', ' ')).Trim();
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<string?> CreateCapabilitiesVersionCandidates(string? requestedVersion)
+        {
+            if (!string.IsNullOrWhiteSpace(requestedVersion))
+            {
+                yield return requestedVersion.Trim();
+                yield break;
+            }
+
+            yield return "2.0.0";
+            yield return "1.1.0";
+            yield return "1.0.0";
+            yield return null;
+        }
+
+        private static bool IsCapabilitiesVersionRetryCandidate(Exception ex)
+        {
+            return ex is HttpRequestException or TimeoutException or TaskCanceledException;
         }
 
         private static bool IsTransientFailure(Exception ex)
