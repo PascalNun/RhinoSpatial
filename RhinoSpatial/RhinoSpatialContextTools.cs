@@ -389,7 +389,8 @@ namespace RhinoSpatial
                 return "EPSG:27700";
             }
 
-            if (srsName.Contains("3857", System.StringComparison.OrdinalIgnoreCase))
+            if (srsName.Contains("3857", System.StringComparison.OrdinalIgnoreCase) ||
+                srsName.Contains("900913", System.StringComparison.OrdinalIgnoreCase))
             {
                 return "EPSG:3857";
             }
@@ -409,7 +410,8 @@ namespace RhinoSpatial
                 return "EPSG:7844";
             }
 
-            if (srsName.Contains("4326", System.StringComparison.OrdinalIgnoreCase))
+            if (srsName.Contains("4326", System.StringComparison.OrdinalIgnoreCase) ||
+                srsName.Contains("CRS:84", System.StringComparison.OrdinalIgnoreCase))
             {
                 return "EPSG:4326";
             }

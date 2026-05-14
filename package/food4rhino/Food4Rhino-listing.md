@@ -21,6 +21,8 @@ RhinoSpatial currently supports workflows for:
 - `LoD2 buildings`
 - `terrain`
 - `GeoTIFF-based raster placement`
+- local Shapefile vector loading
+- local CityGML / CityJSON building loading
 - `lightweight OSM context`
 - optional Google 3D Tiles reference viewing with a user-managed API key
 
@@ -37,7 +39,9 @@ Typical workflow:
 
 Built-in fallbacks currently include global imagery for WMS-style context, a quick global land-elevation fallback for small terrain previews, and public OSM access for lightweight urban context. Fallbacks are convenience/context tools; official or project-specific sources remain the preferred path for production work.
 
-`Load LoD2 Buildings` accepts one source input for LoD2 WFS URLs, local CityGML/GML/XML files, folders, and ZIP archives. Local file loading is filtered by the selected Spatial Context where metadata and building bounds make that possible, but very large local tiles may still take longer than service-based requests.
+`Load WFS` accepts WFS URLs and local `.shp` files for vector context.
+
+`Load LoD2 Buildings` accepts one source input for LoD2 WFS URLs, local CityGML/GML/XML/CityJSON files, folders, and ZIP archives. Local file loading is filtered by the selected Spatial Context where metadata and building bounds make that possible, but very large local tiles may still take longer than service-based requests.
 
 The optional Google 3D Tiles component is a viewer/reference workflow. It requires the user's own Google Maps Platform API key and billing setup, and should not be treated as an editable project-data source, offline cache, bake, or export workflow.
 

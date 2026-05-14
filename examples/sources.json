@@ -99,6 +99,28 @@
       ]
     },
     {
+      "id": "wfs-netherlands-pdok-bag",
+      "type": "WFS",
+      "purpose": "Netherlands BAG official building/address provider reference",
+      "url": "https://service.pdok.nl/kadaster/bag/wfs/v2_0?request=getCapabilities&service=WFS",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Exposes layers such as bag:pand",
+        "Useful EPSG:28992 provider compatibility source"
+      ]
+    },
+    {
+      "id": "wfs-belgium-vlaanderen-grb",
+      "type": "WFS",
+      "purpose": "Belgium / Flanders GRB official vector provider reference",
+      "url": "https://geo.api.vlaanderen.be/GRB/wfs?SERVICE=WFS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Advertises EPSG:31370 by default",
+        "Good watch source for providers outside the currently common Spatial Context SRS set"
+      ]
+    },
+    {
       "id": "wfs-mapserver-demo-world",
       "type": "WFS",
       "purpose": "Lightweight global WFS parser smoke test",
@@ -106,6 +128,28 @@
       "notes": [
         "Tested with layers ms:cities and ms:continents",
         "Useful for quick point and polygon parser checks",
+        "Demo service only; not a project-data recommendation"
+      ]
+    },
+    {
+      "id": "shapefile-naturalearth-countries",
+      "type": "Shapefile",
+      "purpose": "Local Shapefile vector parser smoke test",
+      "url": "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip",
+      "notes": [
+        "Download and unzip before using with Load WFS local Shapefile mode",
+        "Tested with sandbox shapefile command",
+        "EPSG:4326, 177 country features"
+      ]
+    },
+    {
+      "id": "wfs-geoserver-demo-naturalearth",
+      "type": "WFS",
+      "purpose": "Lightweight GeoServer / Natural Earth parser smoke test",
+      "url": "https://ahocevar.com/geoserver/wfs?SERVICE=WFS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Good GeoServer service-stack reference",
         "Demo service only; not a project-data recommendation"
       ]
     },
@@ -166,9 +210,98 @@
       "purpose": "Global OSM-style WMS reference",
       "url": "https://ows.terrestris.de/osm/service?SERVICE=WMS&REQUEST=GetCapabilities",
       "notes": [
-        "Useful global WMS fallback/context reference",
+        "Current first built-in WMS fallback/context reference",
         "Includes OSM and SRTM-style map layers",
+        "Layer OSM-WMS supports EPSG:3857 and advertises 8000 x 8000 maximum images",
         "Public demo-style service; use politely for testing"
+      ]
+    },
+    {
+      "id": "wms-terrestris-osm-gray",
+      "type": "WMS",
+      "purpose": "Alternate global OSM-style WMS reference",
+      "url": "https://ows.terrestris.de/osm-gray/service?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Useful alternate map-context fallback candidate",
+        "Public demo-style service; use politely for testing"
+      ]
+    },
+    {
+      "id": "wms-mundialis-osm",
+      "type": "WMS",
+      "purpose": "Alternate global OSM-style WMS reference",
+      "url": "https://ows.mundialis.de/services/service?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Useful alternate global OSM-style WMS reference",
+        "Public demo-style service; use politely for testing"
+      ]
+    },
+    {
+      "id": "wms-belgium-vlaanderen-grb",
+      "type": "WMS",
+      "purpose": "Belgium / Flanders GRB WMS reference",
+      "url": "https://geo.api.vlaanderen.be/GRB/wms?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Advertises EPSG:4326, EPSG:4258, EPSG:31370, and EPSG:3812",
+        "Good alternate-CRS request behavior test"
+      ]
+    },
+    {
+      "id": "wms-estonia-maaamet-base",
+      "type": "WMS",
+      "purpose": "Estonia Maa-amet base map WMS watch source",
+      "url": "https://kaart.maaamet.ee/wms/alus?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "EPSG:3301-only source",
+        "Keep as a known limitation/watch source until broader CRS support exists"
+      ]
+    },
+    {
+      "id": "wms-spain-pnoa",
+      "type": "WMS",
+      "purpose": "Spain orthophoto WMS reference",
+      "url": "https://www.ign.es/wms-inspire/pnoa-ma?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Good non-German orthophoto source",
+        "Layer OI.OrthoimageCoverage is the main orthophoto layer"
+      ]
+    },
+    {
+      "id": "wms-france-geopf-raster",
+      "type": "WMS",
+      "purpose": "France raster WMS catalogue reference",
+      "url": "https://data.geopf.fr/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Large non-German raster layer catalogue",
+        "Useful for WMS capabilities parser and max-image-size behavior"
+      ]
+    },
+    {
+      "id": "wms-geoserver-demo-naturalearth",
+      "type": "WMS",
+      "purpose": "Lightweight GeoServer WMS smoke test",
+      "url": "https://ahocevar.com/geoserver/wms?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Good global Natural Earth WMS parser reference",
+        "Demo service only; not a project-data recommendation"
+      ]
+    },
+    {
+      "id": "wms-norway-geonorge-topo",
+      "type": "WMS",
+      "purpose": "Norway topographic WMS provider reference",
+      "url": "https://wms.geonorge.no/skwms1/wms.topo?service=WMS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Good Nordic national mapping WMS reference",
+        "Advertises 8192 x 8192 maximum images"
       ]
     },
     {
@@ -204,6 +337,17 @@
       ]
     },
     {
+      "id": "cityjson-local",
+      "type": "LoD2 Buildings",
+      "purpose": "Local CityJSON building import through LoD2 Source",
+      "url": null,
+      "notes": [
+        "Connect a local .json or .cityjson file directly to the LoD2 Source input",
+        "Uses the same Spatial Context, Brep output, and elevation-baseline workflow as local CityGML",
+        "Basic parser support is implemented; collect more real CityJSON files before treating it as mature"
+      ]
+    },
+    {
       "id": "terrain-nrw-dgm",
       "type": "Terrain",
       "purpose": "Official NRW terrain reference outside Hessen",
@@ -211,6 +355,17 @@
       "notes": [
         "Official NRW terrain WCS",
         "Useful for comparing state-level terrain workflows beyond Hessen"
+      ]
+    },
+    {
+      "id": "terrain-netherlands-ahn",
+      "type": "Terrain",
+      "purpose": "Netherlands AHN terrain/surface WCS reference",
+      "url": "https://service.pdok.nl/rws/ahn/wcs/v1_0?service=WCS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WCS probe",
+        "Exposes dsm_05m and dtm_05m coverages",
+        "Good non-German WCS terrain/provider behavior test"
       ]
     },
     {
@@ -295,6 +450,16 @@
       ]
     },
     {
+      "id": "wfs-sachsen-alkis-parcels",
+      "type": "WFS",
+      "purpose": "Sachsen ALKIS simplified parcel/vector provider check",
+      "url": "https://geodienste.sachsen.de/aaa/public_alkis/vereinf/wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities",
+      "notes": [
+        "Useful regression source for WFS version/SRS/provider handling",
+        "Added after direct parcel GetFeature requests exposed 400 Bad Request edge cases"
+      ]
+    },
+    {
       "id": "geotiff-local",
       "type": "GeoTIFF",
       "purpose": "Local georeferenced raster placement",
@@ -311,8 +476,19 @@
       "url": "https://raw.githubusercontent.com/OSGeo/gdal/master/autotest/gcore/data/byte.tif",
       "notes": [
         "Download before using with Load GeoTIFF",
-        "Tested with sandbox geotiff command",
+        "Tested with sandbox geotiff and terrainfile commands",
         "EPSG:26711, 20 x 20 pixels"
+      ]
+    },
+    {
+      "id": "terrainfile-local-geotiff-dem",
+      "type": "Terrain",
+      "purpose": "Local GeoTIFF DEM file input for Load Terrain",
+      "url": null,
+      "notes": [
+        "Connect a local .tif or .tiff DEM path directly to the Terrain URL input",
+        "Uses the same terrain mesh and shared elevation baseline workflow as WCS terrain",
+        "For project work, prefer an official/project DEM with embedded EPSG georeferencing"
       ]
     },
     {

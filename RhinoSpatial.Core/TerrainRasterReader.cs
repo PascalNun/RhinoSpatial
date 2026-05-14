@@ -20,7 +20,7 @@ namespace RhinoSpatial.Core
             var bitsPerSample = tiff.GetField(TiffTag.BITSPERSAMPLE)[0].ToInt();
             var sampleFormatField = tiff.GetField(TiffTag.SAMPLEFORMAT);
             var sampleFormat = sampleFormatField is null || sampleFormatField.Length == 0
-                ? SampleFormat.INT
+                ? SampleFormat.UINT
                 : (SampleFormat)sampleFormatField[0].ToInt();
 
             if (samplesPerPixel != 1)
@@ -146,6 +146,13 @@ namespace RhinoSpatial.Core
                 return sampleFormat == SampleFormat.UINT
                     ? BitConverter.ToUInt16(buffer, offset)
                     : BitConverter.ToInt16(buffer, offset);
+            }
+
+            if (bitsPerSample == 8)
+            {
+                return sampleFormat == SampleFormat.INT
+                    ? unchecked((sbyte)buffer[sampleIndex])
+                    : buffer[sampleIndex];
             }
 
             throw new InvalidOperationException($"Unsupported terrain raster sample format: {bitsPerSample}-bit {sampleFormat}.");

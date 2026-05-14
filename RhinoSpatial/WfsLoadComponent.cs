@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
@@ -39,6 +40,8 @@ namespace RhinoSpatial
             public int MaxFeatures { get; init; }
 
             public SpatialContext2D SpatialContext { get; init; } = null!;
+
+            public bool IsLocalShapefile { get; init; }
         }
 
         public WfsLoadComponent()
@@ -52,8 +55,8 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WFS Service URL", "WFS URL", "Base URL of the WFS service. If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers.", GH_ParamAccess.list);
+            pManager.AddTextParameter("WFS Service URL", "WFS URL", "Base URL of the WFS service, or path to a local Shapefile (.shp). If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers. Optional for local Shapefile sources.", GH_ParamAccess.list);
             pManager.AddIntegerParameter("Max Features", "Max Features", "Maximum number of features to request. Use 0 to request all available features.", GH_ParamAccess.item, 0);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. This is required so WFS, WMS, LoD2, terrain, GeoTIFF, and OSM outputs stay aligned.", GH_ParamAccess.item);
         }
@@ -135,9 +138,17 @@ namespace RhinoSpatial
                 }
             }
 
+            var isLocalShapefile = IsLocalShapefileSource(baseUrl);
+
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "WFS Service URL is required, unless RhinoSpatial can inherit it from the connected Layer input.");
+                return false;
+            }
+
+            if (!IsUrlSource(baseUrl) && !isLocalShapefile)
+            {
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"WFS URL must be a WFS service URL or a local .shp file path. Source was not found or is unsupported: {baseUrl}");
                 return false;
             }
 
@@ -147,6 +158,11 @@ namespace RhinoSpatial
                 .Where(layerName => !string.IsNullOrWhiteSpace(layerName))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            if (requestedLayerNames.Count == 0 && isLocalShapefile)
+            {
+                requestedLayerNames.Add(Path.GetFileNameWithoutExtension(baseUrl));
+            }
 
             if (requestedLayerNames.Count == 0)
             {
@@ -176,7 +192,8 @@ namespace RhinoSpatial
                 BaseUrl = baseUrl,
                 RequestedLayerNames = requestedLayerNames,
                 MaxFeatures = maxFeatures,
-                SpatialContext = spatialContext
+                SpatialContext = spatialContext,
+                IsLocalShapefile = isLocalShapefile
             };
 
             return true;
@@ -184,6 +201,11 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
+            if (requestData.IsLocalShapefile)
+            {
+                return ComputeLocalShapefile(requestData);
+            }
+
             var resolvedSrsName = requestData.SpatialContext.ResolvedSrs;
             var features = new List<WfsFeature>();
             var statusNotes = new List<string>();
@@ -232,6 +254,42 @@ namespace RhinoSpatial
                     statusNotes),
                 MessageLevel = ResolveMessageLevel(features.Count, statusNotes.Count > 0),
                 UsedCachedFallback = statusNotes.Count > 0
+            };
+        }
+
+        private SolveResults ComputeLocalShapefile(RequestData requestData)
+        {
+            var layerName = requestData.RequestedLayerNames[0];
+            var readResult = ShapefileFeatureReader.ReadFeatures(
+                requestData.BaseUrl,
+                layerName,
+                requestData.SpatialContext,
+                requestData.MaxFeatures);
+            var appliedOffset = RhinoSpatialContextTools.ResolvePlacementOrigin(
+                requestData.SpatialContext,
+                requestData.SpatialContext.UseAbsoluteCoordinates,
+                readResult.Features);
+            var geometryTree = RhinoSpatialOutputBuilder.BuildGeometryTree(
+                readResult.Features,
+                requestData.RequestedLayerNames,
+                appliedOffset.X,
+                appliedOffset.Y);
+            var geometryItemCount = geometryTree.DataCount;
+            var maxFeaturesText = requestData.MaxFeatures > 0 ? requestData.MaxFeatures.ToString() : "all available";
+            var coordinateText = requestData.SpatialContext.UseAbsoluteCoordinates
+                ? "using absolute coordinates."
+                : "then localized the geometry near the Rhino origin.";
+            var status = readResult.Features.Count == 0
+                ? $"No features were found in local Shapefile '{Path.GetFileName(requestData.BaseUrl)}' inside the current Spatial Context. Source SRS '{readResult.SourceSrs}'. Scanned {readResult.SourceFeatureCount} feature(s), skipped {readResult.SkippedOutsideContextCount} outside the context, failed {readResult.FailedFeatureCount}."
+                : $"Loaded {readResult.Features.Count} feature(s) and {geometryItemCount} geometry item(s) from local Shapefile '{Path.GetFileName(requestData.BaseUrl)}' with {maxFeaturesText} features, source SRS '{readResult.SourceSrs}', {coordinateText} Scanned {readResult.SourceFeatureCount} feature(s), skipped {readResult.SkippedOutsideContextCount} outside the context, failed {readResult.FailedFeatureCount}.";
+
+            return new SolveResults
+            {
+                GeometryTree = geometryTree,
+                FeatureCount = readResult.Features.Count,
+                GeometryItemCount = geometryItemCount,
+                Status = status,
+                MessageLevel = ResolveMessageLevel(readResult.Features.Count, readResult.FailedFeatureCount > 0)
             };
         }
 
@@ -291,6 +349,24 @@ namespace RhinoSpatial
             }
 
             return null;
+        }
+
+        private static bool IsLocalShapefileSource(string? source)
+        {
+            if (string.IsNullOrWhiteSpace(source))
+            {
+                return false;
+            }
+
+            return File.Exists(source.Trim()) &&
+                   Path.GetExtension(source.Trim()).Equals(".shp", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsUrlSource(string source)
+        {
+            return Uri.TryCreate(source.Trim(), UriKind.Absolute, out var uri) &&
+                   (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                    uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase));
         }
     }
 }

@@ -27,6 +27,26 @@ RhinoSpatial uses BitMiracle.LibTiff.NET for GeoTIFF and TIFF raster handling.
 
 RhinoSpatial uses NetTopologySuite for 2D geometry operations such as buffering, polygon union, and cleanup.
 
+### NetTopologySuite Features
+
+- Package: `NetTopologySuite.Features`
+- Version: `2.0.0`
+- Project URL: https://github.com/NetTopologySuite/NetTopologySuite.Features
+- License: `BSD-3-Clause`
+- SPDX / license URL: https://licenses.nuget.org/BSD-3-Clause
+
+RhinoSpatial uses NetTopologySuite.Features as part of local Shapefile feature parsing.
+
+### NetTopologySuite Esri Shapefile IO
+
+- Package: `NetTopologySuite.IO.Esri.Shapefile`
+- Version: `1.2.0`
+- Project URL: https://github.com/NetTopologySuite/NetTopologySuite.IO.Esri
+- License: `BSD-3-Clause`
+- SPDX / license URL: https://licenses.nuget.org/BSD-3-Clause
+
+RhinoSpatial uses NetTopologySuite.IO.Esri.Shapefile to read local `.shp` vector sources.
+
 ### ProjNET
 
 - Package: `ProjNET`

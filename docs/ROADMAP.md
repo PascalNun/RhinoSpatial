@@ -96,6 +96,7 @@ Raster handling is now part of the project through WMS and GeoTIFF.
 
 This area should continue to improve, including:
 - better fallback imagery strategies
+- keep WMS fallback as an ordered source sequence, preferring sharper global map context before broad low-resolution imagery
 - stronger raster alignment behavior
 - transparency / alpha handling
 - more consistent image/material behavior
@@ -136,15 +137,17 @@ This includes:
 - continue improving terrain behavior
 - keep the built-in terrain fallback broad and generic rather than tied to one local provider
 - keep fallback terrain responsive by limiting it to small study areas, short request times, and clear failure messages
+- support local GeoTIFF DEM paths as a first file-based terrain source, then evaluate Esri ASCII Grid or XYZ/CSV grids only if real test data makes that useful
 - strengthen vertical consistency across terrain, buildings, and contextual outputs
 - make elevation handling more robust without overcomplicating the workflow
 
 ### LoD2 diagnostics and provider compatibility
 - keep the small internal WFS request buffer for provider BBOX edge cases
-- support one `LoD2 Source` input for LoD2 WFS URLs, local CityGML/GML/XML files, folders, and ZIP archives
+- support one `LoD2 Source` input for LoD2 WFS URLs, local CityGML/GML/XML files, local CityJSON files, folders, and ZIP archives
 - keep local CityGML folder/ZIP loading bounded by Spatial Context where file bounds are available
 - keep local CityGML performance honest: scan metadata first, filter buildings before conversion where possible, and report when large single files still dominate load time
-- evaluate shapefile or GeoPackage building import as a later vector/building-file source
+- keep local Shapefile support in `Load WFS` focused on vector/source context first; evaluate whether a renamed future vector component is worth the Grasshopper compatibility cost later
+- evaluate GeoPackage as a later local vector/project-data source once the dependency/parser choice is clear
 - use the `Status` output to distinguish provider coverage gaps from conversion failures
 - continue reducing invalid or duplicate LoD2 surfaces without inventing false building faces
 - collect more cross-provider LoD2 examples before adding heavier repair or clipping behavior
@@ -192,6 +195,7 @@ This may include:
 - stronger source hierarchy
 - clearer fallback communication
 - better generic imagery fallback behavior
+- keep WMS request CRS selection tolerant of providers that advertise a usable alternate CRS rather than the Spatial Context's primary SRS
 - more robust global terrain fallback behavior, with fast failure when a fallback cannot serve the selected context cleanly
 - clearer use of OSM as a contextual fallback where richer official data is missing
 
@@ -202,6 +206,23 @@ As the codebase matures, further work should continue on:
 - strengthening shared spatial logic
 - improving maintainability
 - making the project easier to extend without bloating it
+
+### Dependency and package lean-up
+RhinoSpatial should stay careful about every dependency it ships.
+
+Current dependency posture:
+- keep `BitMiracle.LibTiff.NET` while GeoTIFF / TIFF raster support is active; replacing TIFF parsing with custom code would be high risk and low value
+- keep `ProjNET` for CRS transformation until a clearly smaller, reliable replacement exists
+- keep `SharpGLTF.Core` while the Google 3D Tiles viewer decodes GLB content; replacing glTF parsing with custom code would be fragile
+- keep `NetTopologySuite` while OSM polygon cleanup/buffering/union and Shapefile geometry conversion depend on it
+- keep `NetTopologySuite.IO.Esri.Shapefile` only in `RhinoSpatial.Core`; avoid duplicate top-level references in the Grasshopper UI project
+- do not add GeoPackage or other broad source dependencies until there is real test data and a clear workflow need
+
+Future lean-up checks:
+- measure the actual Food4Rhino/Yak package size before each release
+- keep third-party license notices current whenever a package is added, removed, or upgraded
+- prefer small, well-tested internal code for simple parsing tasks, but avoid reimplementing complex spatial, TIFF, CRS, glTF, or topology libraries unless the dependency cost clearly outweighs the maintenance risk
+- remove experimental references immediately if a format decision is deferred
 
 ---
 

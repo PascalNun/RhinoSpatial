@@ -51,7 +51,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WMS Service URL", "WMS URL", "Base URL of the WMS service. Leave empty to use the global NASA GIBS fallback imagery source.", GH_ParamAccess.item);
+            pManager.AddTextParameter("WMS Service URL", "WMS URL", "Base URL of the WMS service. Leave empty to use the built-in fallback map/imagery source sequence.", GH_ParamAccess.item);
             pManager.AddTextParameter("Layer", "Layer", "Optional WMS layer name to request. Leave empty to let RhinoSpatial choose a usable requestable layer automatically.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component. No WFS inputs are required for the WMS workflow.", GH_ParamAccess.item);
             pManager.AddTextParameter("Format", "Format", "Requested image format.", GH_ParamAccess.item, "image/png");
@@ -135,7 +135,7 @@ namespace RhinoSpatial
 
         private sealed class RequestData
         {
-            public ResolvedImagerySource Source { get; init; } = null!;
+            public IReadOnlyList<ResolvedImagerySource> Sources { get; init; } = Array.Empty<ResolvedImagerySource>();
 
             public SpatialContext2D SpatialContext { get; init; } = null!;
 
@@ -181,7 +181,7 @@ namespace RhinoSpatial
 
             requestData = new RequestData
             {
-                Source = RhinoSpatialSourceFallbacks.ResolveImagerySource(baseUrl, layerName),
+                Sources = RhinoSpatialSourceFallbacks.ResolveImagerySources(baseUrl, layerName),
                 SpatialContext = spatialContext,
                 Format = string.IsNullOrWhiteSpace(format) ? "image/png" : format.Trim()
             };
@@ -192,15 +192,22 @@ namespace RhinoSpatial
         private sealed class ResolvedLayer
         {
             public string LayerName { get; init; } = string.Empty;
+
+            public WmsLayerInfo? LayerInfo { get; init; }
         }
 
         private ResolvedLayer ResolveLayerName(WmsCapabilitiesInfo capabilities, string? requestedLayerName)
         {
             if (!string.IsNullOrWhiteSpace(requestedLayerName))
             {
+                var trimmedLayerName = requestedLayerName.Trim();
+                var layerInfo = capabilities.Layers.FirstOrDefault(layer =>
+                    string.Equals(layer.Name, trimmedLayerName, StringComparison.OrdinalIgnoreCase));
+
                 return new ResolvedLayer
                 {
-                    LayerName = requestedLayerName.Trim()
+                    LayerName = trimmedLayerName,
+                    LayerInfo = layerInfo
                 };
             }
 
@@ -213,7 +220,8 @@ namespace RhinoSpatial
             {
                 return new ResolvedLayer
                 {
-                    LayerName = capabilities.Layers[0].Name
+                    LayerName = capabilities.Layers[0].Name,
+                    LayerInfo = capabilities.Layers[0]
                 };
             }
 
@@ -221,7 +229,8 @@ namespace RhinoSpatial
 
             return new ResolvedLayer
             {
-                LayerName = preferredLayer.Name
+                LayerName = preferredLayer.Name,
+                LayerInfo = preferredLayer
             };
         }
 
@@ -295,37 +304,64 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            SpatialContext2D requestSpatialContext = requestData.SpatialContext;
+            var failures = new List<string>();
+
+            foreach (var source in requestData.Sources)
+            {
+                try
+                {
+                    return ComputeForSource(source, requestData.SpatialContext, requestData.Format);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{source.DisplayName}: {ex.Message}");
+                }
+            }
+
+            return new SolveResults
+            {
+                Status = failures.Count == 0
+                    ? "No WMS source was available."
+                    : $"No WMS source could load the selected area. {string.Join(" ", failures)}",
+                MessageLevel = GH_RuntimeMessageLevel.Error
+            };
+        }
+
+        private SolveResults ComputeForSource(ResolvedImagerySource source, SpatialContext2D spatialContext, string format)
+        {
+            var capabilities = _wmsClient.LoadCapabilitiesAsync(source.BaseUrl).GetAwaiter().GetResult();
+            var resolvedLayer = ResolveLayerName(capabilities, source.PreferredLayerName);
+            if (string.IsNullOrWhiteSpace(resolvedLayer.LayerName))
+            {
+                throw new InvalidOperationException("No usable WMS layer could be resolved automatically. Connect a specific requestable WMS layer if this service needs one.");
+            }
+
+            SpatialContext2D requestSpatialContext = spatialContext;
             if (!RhinoSpatialSourceFallbacks.TryCreateRequestSpatialContext(
-                    requestData.SpatialContext,
-                    requestData.Source.RequiredQuerySrs,
+                    spatialContext,
+                    source.RequiredQuerySrs,
                     out requestSpatialContext,
                     out var fallbackError))
             {
-                return new SolveResults
-                {
-                    Status = fallbackError,
-                    MessageLevel = GH_RuntimeMessageLevel.Error
-                };
+                throw new InvalidOperationException(fallbackError);
             }
 
-            var capabilities = _wmsClient.LoadCapabilitiesAsync(requestData.Source.BaseUrl).GetAwaiter().GetResult();
-            var resolvedLayer = ResolveLayerName(capabilities, requestData.Source.PreferredLayerName);
-            if (string.IsNullOrWhiteSpace(resolvedLayer.LayerName))
+            if (string.IsNullOrWhiteSpace(source.RequiredQuerySrs) &&
+                !TryCreateSupportedWmsRequestSpatialContext(
+                    spatialContext,
+                    resolvedLayer.LayerInfo,
+                    out requestSpatialContext,
+                    out var supportedSrsError))
             {
-                return new SolveResults
-                {
-                    Status = "No usable WMS layer could be resolved automatically. Connect a specific requestable WMS layer if this service needs one.",
-                    MessageLevel = GH_RuntimeMessageLevel.Error
-                };
+                throw new InvalidOperationException(supportedSrsError);
             }
 
             var requestOptions = RhinoSpatialContextTools.CreateWmsRequestOptions(
-                requestData.Source.BaseUrl,
+                source.BaseUrl,
                 resolvedLayer.LayerName,
                 requestSpatialContext,
                 capabilities,
-                requestData.Format);
+                format);
 
             var imageResult = _wmsClient.DownloadImageAsync(requestOptions).GetAwaiter().GetResult();
             var imageMesh = RhinoSpatialContextTools.CreateBoundingBoxMesh(
@@ -333,7 +369,7 @@ namespace RhinoSpatial
                 requestSpatialContext.PlacementOrigin,
                 requestSpatialContext.UseAbsoluteCoordinates);
 
-            var statusPrefix = requestData.Source.CreateStatusPrefix();
+            var statusPrefix = source.CreateStatusPrefix();
 
             return new SolveResults
             {
@@ -341,7 +377,7 @@ namespace RhinoSpatial
                 ImageMesh = imageMesh,
                 GetMapUrl = imageResult.RequestUrl,
                 Status = BuildStatusMessage(statusPrefix, imageResult),
-                MessageLevel = requestData.Source.UsesFallback ? GH_RuntimeMessageLevel.Remark : null
+                MessageLevel = source.UsesFallback ? GH_RuntimeMessageLevel.Remark : null
             };
         }
 
@@ -349,6 +385,78 @@ namespace RhinoSpatial
         {
             var action = imageResult.UsedCachedFile ? "Using cached WMS image" : "Downloaded WMS image";
             return $"{statusPrefix}{action} at '{imageResult.LocalFilePath}'.";
+        }
+
+        private static bool TryCreateSupportedWmsRequestSpatialContext(
+            SpatialContext2D spatialContext,
+            WmsLayerInfo? layerInfo,
+            out SpatialContext2D requestSpatialContext,
+            out string errorMessage)
+        {
+            requestSpatialContext = spatialContext;
+            errorMessage = string.Empty;
+
+            if (layerInfo is null || layerInfo.SupportedSrs.Count == 0)
+            {
+                return true;
+            }
+
+            var supportedSrs = layerInfo.SupportedSrs
+                .Select(RhinoSpatialContextTools.NormalizeSrsKey)
+                .Where(srs => !string.IsNullOrWhiteSpace(srs))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (supportedSrs.Count == 0)
+            {
+                return true;
+            }
+
+            var contextSrs = RhinoSpatialContextTools.NormalizeSrsKey(spatialContext.ResolvedSrs);
+            if (supportedSrs.Contains(contextSrs, StringComparer.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var candidateSrs = new List<string>
+            {
+                "EPSG:3857",
+                "EPSG:4326",
+                "EPSG:7423",
+                "EPSG:25832",
+                "EPSG:25833",
+                "EPSG:27700",
+                "EPSG:4283",
+                "EPSG:7844"
+            };
+
+            candidateSrs.AddRange(supportedSrs);
+
+            foreach (var candidate in candidateSrs.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!supportedSrs.Contains(candidate, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (!RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(spatialContext, candidate, out var requestedBoundingBox, out _))
+                {
+                    continue;
+                }
+
+                requestSpatialContext = new SpatialContext2D(
+                    candidate,
+                    requestedBoundingBox,
+                    spatialContext.PlacementBoundingBox,
+                    spatialContext.Wgs84BoundingBox,
+                    spatialContext.PlacementOrigin,
+                    spatialContext.UseAbsoluteCoordinates,
+                    spatialContext.BoundingBoxesBySrs);
+                return true;
+            }
+
+            errorMessage = $"The WMS layer '{layerInfo.Name}' does not advertise a CRS that RhinoSpatial can request from the current Spatial Context. Advertised CRS values: {string.Join(", ", supportedSrs)}.";
+            return false;
         }
 
         private SolveResults ComputeSafe(RequestData requestData)

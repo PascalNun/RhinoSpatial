@@ -7,7 +7,7 @@ It is intentionally small and practical. The point is to confirm that the core s
 ## General Checks
 
 - RhinoSpatial builds cleanly from `RhinoSpatial.sln`
-- sandbox probes from `docs/TEST_SOURCES.md` still run for at least one WFS, one WMS, one WCS, one CityGML file, and one GeoTIFF file
+- sandbox probes from `docs/TEST_SOURCES.md` still run for at least one WFS, one WMS, one WCS, one CityGML file, one Shapefile, and one GeoTIFF file
 - component grouping still reads as `Context / Layers / Sources / Viewers`
 - icons load correctly for all components
 - `Spatial Context` still acts as the shared starting point
@@ -32,6 +32,7 @@ It is intentionally small and practical. The point is to confirm that the core s
 - use `List WFS Layers`
 - load one selected layer through `Load WFS`
 - load multiple layers directly and confirm output branches stay grouped by layer
+- connect a local `.shp` file path directly to `Load WFS` and confirm vector geometry aligns to the same `Spatial Context`
 - confirm localized placement still works
 
 ## WMS
@@ -40,13 +41,15 @@ It is intentionally small and practical. The point is to confirm that the core s
 - use `List WMS Layers`
 - load one selected layer through `Load WMS`
 - confirm the image aligns to the same `Spatial Context`
-- confirm fallback imagery still works when no custom source is provided
+- confirm fallback imagery still works when no custom source is provided; the default should try the sharper OSM-style WMS fallback before the broader NASA imagery fallback
+- test at least one WMS layer whose advertised CRS differs from the Spatial Context primary SRS and confirm RhinoSpatial can request a supported alternate CRS when the context provides one
 
 ## LoD2 Buildings
 
 - connect a LoD2 WFS source
 - load buildings through `Load LoD2 Buildings`
 - test a local CityGML/GML/XML building file through the same `LoD2 Source` input when available
+- test a local CityJSON building file through the same `LoD2 Source` input when available
 - test a folder or ZIP archive of CityGML/GML/XML tiles and confirm out-of-context files are skipped when bounds are available
 - test a dense single CityGML tile with a small Spatial Context and confirm building-level prefiltering avoids parsing/converting the whole tile
 - confirm the building output still aligns to the same `Spatial Context`
@@ -65,6 +68,7 @@ It is intentionally small and practical. The point is to confirm that the core s
 - leave the Terrain URL empty and confirm the global fallback returns usable context terrain for a small study area
 - try an intentionally large Spatial Context and confirm the fallback fails quickly with a clear status message instead of hanging Grasshopper
 - connect a user-provided WCS terrain source and confirm explicit source data still wins over fallback behavior
+- connect a local `.tif` / `.tiff` DEM path to `Load Terrain` and confirm it produces an aligned terrain mesh or a clear non-overlap warning
 
 ## GeoTIFF
 

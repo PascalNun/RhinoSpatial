@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using RhinoSpatial.Core;
 
 namespace RhinoSpatial
@@ -6,6 +7,7 @@ namespace RhinoSpatial
     internal enum TerrainSourceKind
     {
         Wcs,
+        LocalGeoTiffDem,
         GlobalSkadiTiles
     }
 
@@ -58,28 +60,47 @@ namespace RhinoSpatial
 
     internal static class RhinoSpatialSourceFallbacks
     {
-        private const string DefaultWmsUrl = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
-        private const string DefaultWmsLayer = "BlueMarble_ShadedRelief_Bathymetry";
+        private const string DefaultWmsUrl = "https://ows.terrestris.de/osm/service";
+        private const string DefaultWmsLayer = "OSM-WMS";
+        private const string BackupWmsUrl = "https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi";
+        private const string BackupWmsLayer = "BlueMarble_ShadedRelief_Bathymetry";
         private const string GlobalTerrainTilesUrl = "https://s3.amazonaws.com/elevation-tiles-prod/skadi";
         private const string GlobalTerrainCoverageId = "Mapzen Skadi HGT";
 
         public static ResolvedImagerySource ResolveImagerySource(string? baseUrl, string? layerName)
         {
+            return ResolveImagerySources(baseUrl, layerName)[0];
+        }
+
+        public static IReadOnlyList<ResolvedImagerySource> ResolveImagerySources(string? baseUrl, string? layerName)
+        {
             if (!string.IsNullOrWhiteSpace(baseUrl))
             {
-                return new ResolvedImagerySource(
-                    baseUrl.Trim(),
-                    string.IsNullOrWhiteSpace(layerName) ? null : layerName.Trim(),
-                    RhinoSpatialSourceTier.UserProvided,
-                    "user-provided imagery source");
+                return new[]
+                {
+                    new ResolvedImagerySource(
+                        baseUrl.Trim(),
+                        string.IsNullOrWhiteSpace(layerName) ? null : layerName.Trim(),
+                        RhinoSpatialSourceTier.UserProvided,
+                        "user-provided imagery source")
+                };
             }
 
-            return new ResolvedImagerySource(
-                DefaultWmsUrl,
-                string.IsNullOrWhiteSpace(layerName) ? DefaultWmsLayer : layerName.Trim(),
-                RhinoSpatialSourceTier.BuiltInGlobalFallback,
-                "NASA GIBS low-resolution global imagery",
-                "EPSG:4326");
+            return new[]
+            {
+                new ResolvedImagerySource(
+                    DefaultWmsUrl,
+                    string.IsNullOrWhiteSpace(layerName) ? DefaultWmsLayer : layerName.Trim(),
+                    RhinoSpatialSourceTier.BuiltInGlobalFallback,
+                    "terrestris OpenStreetMap WMS",
+                    "EPSG:3857"),
+                new ResolvedImagerySource(
+                    BackupWmsUrl,
+                    string.IsNullOrWhiteSpace(layerName) ? BackupWmsLayer : layerName.Trim(),
+                    RhinoSpatialSourceTier.BuiltInGlobalFallback,
+                    "NASA GIBS global imagery",
+                    "EPSG:4326")
+            };
         }
 
         public static ResolvedTerrainSource ResolveTerrainSource(string? serviceUrl, string? coverageId)
@@ -90,7 +111,12 @@ namespace RhinoSpatial
                     serviceUrl.Trim(),
                     string.IsNullOrWhiteSpace(coverageId) ? string.Empty : coverageId.Trim(),
                     RhinoSpatialSourceTier.UserProvided,
-                    "user-provided terrain source");
+                    IsLocalGeoTiffTerrainSource(serviceUrl)
+                        ? "user-provided local GeoTIFF DEM"
+                        : "user-provided terrain source",
+                    IsLocalGeoTiffTerrainSource(serviceUrl)
+                        ? TerrainSourceKind.LocalGeoTiffDem
+                        : TerrainSourceKind.Wcs);
             }
 
             return new ResolvedTerrainSource(
@@ -120,6 +146,19 @@ namespace RhinoSpatial
                     "Mapzen/AWS Skadi global elevation tiles",
                     TerrainSourceKind.GlobalSkadiTiles)
             };
+        }
+
+        private static bool IsLocalGeoTiffTerrainSource(string source)
+        {
+            var trimmedSource = source.Trim();
+            if (!File.Exists(trimmedSource))
+            {
+                return false;
+            }
+
+            var extension = Path.GetExtension(trimmedSource);
+            return extension.Equals(".tif", System.StringComparison.OrdinalIgnoreCase) ||
+                   extension.Equals(".tiff", System.StringComparison.OrdinalIgnoreCase);
         }
 
         public static bool TryCreateRequestSpatialContext(

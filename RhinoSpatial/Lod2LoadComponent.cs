@@ -215,6 +215,11 @@ namespace RhinoSpatial
             var sourceKind = ResolveSourceKind(requestData.Source);
             if (sourceKind != Lod2SourceKind.Url)
             {
+                if (LocalSourceContainsCityJson(requestData.Source, sourceKind))
+                {
+                    return ComputeLocalCityJsonSource(requestData, sourceKind);
+                }
+
                 return ComputeLocalCityGmlSource(requestData, sourceKind);
             }
 
@@ -453,6 +458,169 @@ namespace RhinoSpatial
                     MessageLevel = GH_RuntimeMessageLevel.Error
                 };
             }
+        }
+
+        private SolveResults ComputeLocalCityJsonSource(RequestData requestData, Lod2SourceKind sourceKind)
+        {
+            var sourceFiles = EnumerateLocalCityJsonSourceFiles(requestData.Source, sourceKind).ToList();
+            if (sourceFiles.Count == 0)
+            {
+                return new SolveResults
+                {
+                    Status = "No CityJSON files were found in the local LoD2 source.",
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                };
+            }
+
+            var candidates = new List<(LocalCityGmlSourceFile File, string SourceSrs, CityJsonSourceMetadata Metadata)>();
+            var skippedByBoundsCount = 0;
+            var failedFileNames = new List<string>();
+
+            foreach (var sourceFile in sourceFiles)
+            {
+                CityJsonSourceMetadata metadata;
+                try
+                {
+                    var jsonText = sourceFile.ReadText();
+                    metadata = CityJsonReader.ReadSourceMetadata(jsonText);
+                }
+                catch
+                {
+                    if (failedFileNames.Count < 5)
+                    {
+                        failedFileNames.Add(sourceFile.DisplayName);
+                    }
+
+                    continue;
+                }
+
+                var candidateSrs = ResolveLocalCityGmlSrs(metadata.SrsName, requestData.SpatialContext);
+
+                if (metadata.BoundingBox is not null &&
+                    RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
+                        requestData.SpatialContext,
+                        candidateSrs,
+                        out var contextBoundingBox,
+                        out _) &&
+                    !RhinoSpatialContextTools.DoBoundingBoxesIntersect(metadata.BoundingBox, contextBoundingBox))
+                {
+                    skippedByBoundsCount++;
+                    continue;
+                }
+
+                candidates.Add((sourceFile, candidateSrs, metadata));
+            }
+
+            if (candidates.Count == 0)
+            {
+                return new SolveResults
+                {
+                    Status = $"No CityJSON building files intersecting the current Spatial Context were found in the LoD2 Source. Scanned {sourceFiles.Count} file(s); skipped {skippedByBoundsCount} outside the Spatial Context using file bounds.",
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                };
+            }
+
+            var candidateSrsValues = candidates
+                .Select(candidate => candidate.SourceSrs)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (candidateSrsValues.Count > 1)
+            {
+                return new SolveResults
+                {
+                    Status = $"The local CityJSON source contains files with multiple source SRS values ({string.Join(", ", candidateSrsValues)}). Split the source into matching CRS groups for now.",
+                    MessageLevel = GH_RuntimeMessageLevel.Error
+                };
+            }
+
+            var sourceSrs = candidateSrsValues[0];
+            if (!RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
+                    requestData.SpatialContext,
+                    sourceSrs,
+                    out var requestBoundingBox,
+                    out _))
+            {
+                var availableSrs = requestData.SpatialContext.BoundingBoxesBySrs.Count == 0
+                    ? "none"
+                    : string.Join(", ", requestData.SpatialContext.BoundingBoxesBySrs.Keys.OrderBy(key => key));
+
+                return new SolveResults
+                {
+                    Status = $"The Spatial Context does not include a bounding box for the CityJSON source SRS '{sourceSrs}'. Available SRS values: {availableSrs}.",
+                    MessageLevel = GH_RuntimeMessageLevel.Error
+                };
+            }
+
+            var returnedBuildings = new List<Lod2Building>();
+            var parsedFileCount = 0;
+            long totalByteCount = 0;
+
+            foreach (var candidate in candidates)
+            {
+                try
+                {
+                    var jsonText = candidate.File.ReadText();
+                    var displayName = string.IsNullOrWhiteSpace(requestData.LayerName)
+                        ? candidate.File.DisplayName
+                        : requestData.LayerName;
+                    returnedBuildings.AddRange(CityJsonReader.ReadBuildings(jsonText, displayName, requestBoundingBox));
+                    parsedFileCount++;
+                    totalByteCount += candidate.File.ByteLength > 0
+                        ? candidate.File.ByteLength
+                        : Encoding.UTF8.GetByteCount(jsonText);
+                }
+                catch
+                {
+                    if (failedFileNames.Count < 5)
+                    {
+                        failedFileNames.Add(candidate.File.DisplayName);
+                    }
+                }
+            }
+
+            var buildings = FilterBuildingSurfacesToRequestBounds(returnedBuildings, requestBoundingBox);
+            var targetBoundingBox = requestData.SpatialContext.RequestBoundingBox;
+            var placementPoint = new Point3d(requestData.SpatialContext.PlacementOrigin.X, requestData.SpatialContext.PlacementOrigin.Y, 0.0);
+            var elevationBase = requestData.SpatialContext.UseAbsoluteCoordinates
+                ? 0.0
+                : SpatialElevationBaselineCache.ResolveOrStore(
+                    requestData.SpatialContext,
+                    RhinoSpatialLod2OutputBuilder.CalculateElevationBase(buildings));
+            var layerOrder = candidates
+                .Select(candidate => string.IsNullOrWhiteSpace(requestData.LayerName) ? candidate.File.DisplayName : requestData.LayerName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var brepTree = RhinoSpatialLod2OutputBuilder.BuildBrepTree(
+                buildings,
+                layerOrder,
+                sourceSrs,
+                requestData.SpatialContext.ResolvedSrs,
+                requestBoundingBox,
+                targetBoundingBox,
+                placementPoint,
+                requestData.SpatialContext.UseAbsoluteCoordinates,
+                elevationBase,
+                out var buildReport,
+                skipBuildingShellPostProcessing: true);
+
+            var alignmentNote = requestData.SpatialContext.UseAbsoluteCoordinates
+                ? "with absolute elevation."
+                : "and aligned them to the shared local terrain/building elevation baseline.";
+            var failedNote = failedFileNames.Count == 0
+                ? string.Empty
+                : $" Example failed file(s): {string.Join(", ", failedFileNames)}.";
+
+            return new SolveResults
+            {
+                BrepTree = brepTree,
+                BuildingCount = buildings.Count,
+                Status = $"Loaded {buildings.Count} local CityJSON building Brep set(s) from {FormatLocalSourceKind(sourceKind)} '{BuildLocalSourceLabel(requestData.Source, sourceKind)}' using source SRS '{sourceSrs}' {alignmentNote} Parsed {buildReport.ParsedBuildingCount} building(s), {buildReport.ParsedSurfaceCount} source surface(s); created {buildReport.OutputBrepCount} Brep object(s) from {buildReport.ConstructedSurfaceCount} converted surface(s). Source files: scanned {sourceFiles.Count}, selected {candidates.Count}, parsed {parsedFileCount}, skipped {skippedByBoundsCount} outside the Spatial Context by file bounds, failed {failedFileNames.Count}. Parsed source size: {FormatByteLength(totalByteCount)}. Request bounds {sourceSrs}: {FormatBoundingBox2D(requestBoundingBox)}.{failedNote}",
+                MessageLevel = buildings.Count == 0
+                    ? GH_RuntimeMessageLevel.Warning
+                    : buildReport.FailedSurfaceBrepCount > 0 || buildReport.MalformedLoopSurfaceCount > 0 || buildReport.BuildingsWithoutOutputCount > 0 || failedFileNames.Count > 0
+                        ? GH_RuntimeMessageLevel.Remark
+                        : null
+            };
         }
 
         private static string BuildStatusSuffix(string statusNote)
@@ -843,6 +1011,70 @@ namespace RhinoSpatial
             return extension.Equals(".gml", StringComparison.OrdinalIgnoreCase) ||
                    extension.Equals(".xml", StringComparison.OrdinalIgnoreCase) ||
                    extension.Equals(".citygml", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsCityJsonFileName(string fileName)
+        {
+            var extension = Path.GetExtension(fileName);
+            return extension.Equals(".json", StringComparison.OrdinalIgnoreCase) ||
+                   extension.Equals(".cityjson", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool LocalSourceContainsCityJson(string source, Lod2SourceKind sourceKind)
+        {
+            return EnumerateLocalCityJsonSourceFiles(source, sourceKind).Any();
+        }
+
+        private static IEnumerable<LocalCityGmlSourceFile> EnumerateLocalCityJsonSourceFiles(string source, Lod2SourceKind sourceKind)
+        {
+            if (sourceKind == Lod2SourceKind.File)
+            {
+                if (IsCityJsonFileName(source))
+                {
+                    yield return new LocalCityGmlSourceFile(
+                        Path.GetFileNameWithoutExtension(source),
+                        source,
+                        () => File.OpenRead(source),
+                        () => File.ReadAllText(source),
+                        new FileInfo(source).Length);
+                }
+
+                yield break;
+            }
+
+            if (sourceKind == Lod2SourceKind.Directory)
+            {
+                foreach (var filePath in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories)
+                             .Where(IsCityJsonFileName)
+                             .OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+                {
+                    yield return new LocalCityGmlSourceFile(
+                        Path.GetFileNameWithoutExtension(filePath),
+                        filePath,
+                        () => File.OpenRead(filePath),
+                        () => File.ReadAllText(filePath),
+                        new FileInfo(filePath).Length);
+                }
+
+                yield break;
+            }
+
+            if (sourceKind == Lod2SourceKind.Zip)
+            {
+                using var archive = ZipFile.OpenRead(source);
+                foreach (var entry in archive.Entries
+                             .Where(entry => IsCityJsonFileName(entry.FullName))
+                             .OrderBy(entry => entry.FullName, StringComparer.OrdinalIgnoreCase))
+                {
+                    var entryName = entry.FullName;
+                    yield return new LocalCityGmlSourceFile(
+                        Path.GetFileNameWithoutExtension(entry.FullName),
+                        $"{source}!{entry.FullName}",
+                        () => OpenZipEntryReadStream(source, entryName),
+                        () => ReadZipEntryText(source, entryName),
+                        entry.Length);
+                }
+            }
         }
 
         private static Lod2SourceKind ResolveSourceKind(string source)

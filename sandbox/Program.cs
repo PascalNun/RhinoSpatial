@@ -26,6 +26,18 @@ namespace RhinoSpatial.Sandbox
                 return;
             }
 
+            if (args.Length > 0 && string.Equals(args[0], "terrainfile", StringComparison.OrdinalIgnoreCase))
+            {
+                RunTerrainFile(args);
+                return;
+            }
+
+            if (args.Length > 0 && string.Equals(args[0], "shapefile", StringComparison.OrdinalIgnoreCase))
+            {
+                RunShapefile(args);
+                return;
+            }
+
             if (args.Length > 0 && string.Equals(args[0], "lod2", StringComparison.OrdinalIgnoreCase))
             {
                 await RunLod2Async(args);
@@ -205,19 +217,22 @@ namespace RhinoSpatial.Sandbox
                 ? parsedBounds
                 : null;
             var metadataStartedAt = DateTime.UtcNow;
-            CityGmlSourceMetadata metadata;
-            using (var stream = System.IO.File.OpenRead(filePath))
-            {
-                metadata = Lod2GmlReader.ReadSourceMetadata(stream);
-            }
+            var text = System.IO.File.ReadAllText(filePath);
+            var isCityJson = filePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) ||
+                             filePath.EndsWith(".cityjson", StringComparison.OrdinalIgnoreCase);
+            var metadata = isCityJson
+                ? ConvertCityJsonMetadata(CityJsonReader.ReadSourceMetadata(text))
+                : ReadCityGmlSourceMetadata(filePath);
             var metadataElapsed = DateTime.UtcNow - metadataStartedAt;
 
             var startedAt = DateTime.UtcNow;
-            var text = System.IO.File.ReadAllText(filePath);
-            var buildings = Lod2GmlReader.ReadBuildings(text, System.IO.Path.GetFileNameWithoutExtension(filePath), filterBounds);
+            var buildings = isCityJson
+                ? CityJsonReader.ReadBuildings(text, System.IO.Path.GetFileNameWithoutExtension(filePath), filterBounds)
+                : Lod2GmlReader.ReadBuildings(text, System.IO.Path.GetFileNameWithoutExtension(filePath), filterBounds);
             var elapsed = DateTime.UtcNow - startedAt;
 
             Console.WriteLine($"File: {filePath}");
+            Console.WriteLine($"Source format: {(isCityJson ? "CityJSON" : "CityGML/GML")}");
             Console.WriteLine($"Source SRS: {metadata.SrsName}");
             Console.WriteLine($"File bounds: {metadata.BoundingBox}");
             Console.WriteLine($"Filter active: {filterBounds is not null}");
@@ -225,6 +240,17 @@ namespace RhinoSpatial.Sandbox
             Console.WriteLine($"Parsed surfaces: {buildings.Sum(building => building.Surfaces.Count)}");
             Console.WriteLine($"Metadata elapsed: {metadataElapsed.TotalSeconds:0.###} s");
             Console.WriteLine($"Parse elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static CityGmlSourceMetadata ReadCityGmlSourceMetadata(string filePath)
+        {
+            using var stream = System.IO.File.OpenRead(filePath);
+            return Lod2GmlReader.ReadSourceMetadata(stream);
+        }
+
+        private static CityGmlSourceMetadata ConvertCityJsonMetadata(CityJsonSourceMetadata metadata)
+        {
+            return new CityGmlSourceMetadata(metadata.SrsName, metadata.BoundingBox);
         }
 
         private static void RunGeoTiff(string[] args)
@@ -245,6 +271,124 @@ namespace RhinoSpatial.Sandbox
             Console.WriteLine($"Bounds: {FormatBounds(info.BoundingBox)}");
             Console.WriteLine($"File size: {info.FileSizeBytes} bytes");
             Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static void RunTerrainFile(string[] args)
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: terrainfile <path>");
+                return;
+            }
+
+            var startedAt = DateTime.UtcNow;
+            var info = GeoTiffReader.ReadImageInfo(args[1]);
+            var raster = TerrainRasterReader.ReadRaster(args[1], System.IO.Path.GetFileNameWithoutExtension(args[1]), info.SrsName);
+            var elapsed = DateTime.UtcNow - startedAt;
+            var validCount = 0;
+            var minElevation = double.PositiveInfinity;
+            var maxElevation = double.NegativeInfinity;
+
+            foreach (var elevation in raster.Elevations)
+            {
+                if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                {
+                    continue;
+                }
+
+                validCount++;
+                minElevation = Math.Min(minElevation, elevation);
+                maxElevation = Math.Max(maxElevation, elevation);
+            }
+
+            Console.WriteLine($"File: {args[1]}");
+            Console.WriteLine($"SRS: {info.SrsName}");
+            Console.WriteLine($"Size: {info.Width} x {info.Height}");
+            Console.WriteLine($"Bounds: {FormatBounds(info.BoundingBox)}");
+            Console.WriteLine($"Valid elevations: {validCount}");
+            Console.WriteLine($"Elevation range: {(double.IsInfinity(minElevation) ? "?" : minElevation.ToString("0.###"))}..{(double.IsInfinity(maxElevation) ? "?" : maxElevation.ToString("0.###"))}");
+            Console.WriteLine($"NoData: {raster.NoDataValue?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"}");
+            Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static void RunShapefile(string[] args)
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: shapefile <path>");
+                return;
+            }
+
+            var startedAt = DateTime.UtcNow;
+            var shapefilePath = args[1];
+            var sourceSrs = ResolveSandboxShapefileSrs(shapefilePath);
+            var bounds = ResolveSandboxShapefileBounds(shapefilePath);
+            var spatialContext = new SpatialContext2D(
+                sourceSrs,
+                bounds,
+                bounds,
+                sourceSrs == "EPSG:4326" ? bounds : null,
+                new Coordinate2D(bounds.MinX, bounds.MinY),
+                false,
+                new Dictionary<string, BoundingBox2D>
+                {
+                    [sourceSrs] = bounds
+                });
+            if (sourceSrs == "EPSG:4326")
+            {
+                spatialContext.BoundingBoxesBySrs["EPSG:7423"] = bounds;
+            }
+
+            var result = ShapefileFeatureReader.ReadFeatures(
+                shapefilePath,
+                System.IO.Path.GetFileNameWithoutExtension(shapefilePath),
+                spatialContext,
+                0);
+            var elapsed = DateTime.UtcNow - startedAt;
+
+            Console.WriteLine($"File: {shapefilePath}");
+            Console.WriteLine($"Source SRS: {result.SourceSrs}");
+            Console.WriteLine($"Source bounds: {FormatBounds(result.SourceBoundingBox)}");
+            Console.WriteLine($"Scanned features: {result.SourceFeatureCount}");
+            Console.WriteLine($"Parsed features: {result.Features.Count}");
+            Console.WriteLine($"Skipped outside context: {result.SkippedOutsideContextCount}");
+            Console.WriteLine($"Failed features: {result.FailedFeatureCount}");
+            Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static string ResolveSandboxShapefileSrs(string shapefilePath)
+        {
+            var prjPath = System.IO.Path.ChangeExtension(shapefilePath, ".prj");
+            if (!System.IO.File.Exists(prjPath))
+            {
+                return "EPSG:4326";
+            }
+
+            var text = System.IO.File.ReadAllText(prjPath);
+            if (text.Contains("25832", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:25832";
+            }
+
+            if (text.Contains("25833", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:25833";
+            }
+
+            if (text.Contains("3857", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:3857";
+            }
+
+            return "EPSG:4326";
+        }
+
+        private static BoundingBox2D ResolveSandboxShapefileBounds(string shapefilePath)
+        {
+            var sourceSrs = ResolveSandboxShapefileSrs(shapefilePath);
+            return sourceSrs == "EPSG:4326"
+                ? new BoundingBox2D(-180.0, -90.0, 180.0, 90.0)
+                : new BoundingBox2D(double.MinValue / 4.0, double.MinValue / 4.0, double.MaxValue / 4.0, double.MaxValue / 4.0);
         }
 
         private static bool TryParseBoundingBox(string text, out BoundingBox2D? boundingBox)

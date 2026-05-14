@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
@@ -40,7 +41,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service. Leave empty to use the built-in quick global terrain fallback for small study areas.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service, or path to a local GeoTIFF DEM. Leave empty to use the built-in quick global terrain fallback for small study areas.", GH_ParamAccess.item);
             pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. Leave empty to use the default coverage of the selected terrain source.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
 
@@ -149,6 +150,11 @@ namespace RhinoSpatial
                 return await ComputeGlobalTerrainFallbackAsync(source, spatialContext, cancellationToken);
             }
 
+            if (source.Kind == TerrainSourceKind.LocalGeoTiffDem)
+            {
+                return ComputeLocalGeoTiffTerrain(source, spatialContext);
+            }
+
             try
             {
                 var capabilities = await _wcsClient.LoadCapabilitiesAsync(source.BaseUrl);
@@ -220,6 +226,83 @@ namespace RhinoSpatial
             {
                 throw new InvalidOperationException(ex.Message, ex);
             }
+        }
+
+        private SolveResults ComputeLocalGeoTiffTerrain(
+            ResolvedTerrainSource source,
+            SpatialContext2D spatialContext)
+        {
+            if (!File.Exists(source.BaseUrl))
+            {
+                throw new InvalidOperationException($"Local terrain GeoTIFF was not found: {source.BaseUrl}");
+            }
+
+            var rasterInfo = GeoTiffReader.ReadImageInfo(source.BaseUrl);
+            var coverageId = string.IsNullOrWhiteSpace(source.CoverageId)
+                ? Path.GetFileNameWithoutExtension(source.BaseUrl)
+                : source.CoverageId;
+            var raster = TerrainRasterReader.ReadRaster(source.BaseUrl, coverageId, rasterInfo.SrsName);
+
+            if (RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
+                    spatialContext,
+                    rasterInfo.SrsName,
+                    out var contextBoundsInRasterSrs,
+                    out _) &&
+                !RhinoSpatialContextTools.DoBoundingBoxesIntersect(rasterInfo.BoundingBox, contextBoundsInRasterSrs))
+            {
+                return new SolveResults
+                {
+                    TerrainMeshes = new List<Mesh>(),
+                    Status = $"Loaded local terrain GeoTIFF '{Path.GetFileName(source.BaseUrl)}' ({rasterInfo.Width}x{rasterInfo.Height}, {rasterInfo.SrsName}), but it does not overlap the selected Spatial Context area.",
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                };
+            }
+
+            var elevationBase = spatialContext.UseAbsoluteCoordinates
+                ? 0.0
+                : SpatialElevationBaselineCache.ResolveOrStore(
+                    spatialContext,
+                    ResolveElevationBase(raster));
+
+            Mesh? mesh;
+            if (RhinoSpatialContextTools.NormalizeSrsKey(rasterInfo.SrsName) == "EPSG:4326")
+            {
+                mesh = BuildProjectedTerrainMesh(
+                    raster,
+                    rasterInfo.BoundingBox,
+                    spatialContext,
+                    elevationBase);
+            }
+            else
+            {
+                var placementOrigin = RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
+                    spatialContext,
+                    rasterInfo.SrsName,
+                    out _,
+                    out var resolvedPlacementOrigin)
+                    ? resolvedPlacementOrigin
+                    : spatialContext.PlacementOrigin;
+                mesh = BuildTerrainMesh(
+                    raster,
+                    rasterInfo.BoundingBox,
+                    placementOrigin,
+                    spatialContext.UseAbsoluteCoordinates,
+                    elevationBase);
+            }
+
+            SpatialTerrainCache.Store(
+                spatialContext,
+                rasterInfo.SrsName,
+                rasterInfo.BoundingBox,
+                raster,
+                elevationBase);
+
+            return new SolveResults
+            {
+                TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
+                Status = $"{source.CreateStatusPrefix()}Loaded local terrain GeoTIFF '{Path.GetFileName(source.BaseUrl)}' ({rasterInfo.Width}x{rasterInfo.Height}, {rasterInfo.SrsName}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}",
+                MessageLevel = GH_RuntimeMessageLevel.Remark
+            };
         }
 
         private async Task<SolveResults> ComputeGlobalTerrainFallbackAsync(
@@ -294,11 +377,16 @@ namespace RhinoSpatial
                 return actionPrefix + ".";
             }
 
-            var alignmentNote = useAbsoluteCoordinates
-                ? "with absolute elevation."
-                : "aligned to the shared local terrain/building elevation baseline.";
+            var alignmentNote = BuildTerrainAlignmentNote(useAbsoluteCoordinates);
 
             return $"{actionPrefix}: {coverageId} {alignmentNote}";
+        }
+
+        private static string BuildTerrainAlignmentNote(bool useAbsoluteCoordinates)
+        {
+            return useAbsoluteCoordinates
+                ? "with absolute elevation."
+                : "aligned to the shared local terrain/building elevation baseline.";
         }
 
         private static BoundingBox2D ResolveRequestedBoundingBox(

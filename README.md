@@ -147,12 +147,12 @@ RhinoSpatial should not become a mini GIS desktop application, a giant source br
 
 Current focus and capabilities include:
 
-- WFS loading from user-provided URLs
-- WMS loading from user-provided URLs or fallback imagery sources
+- WFS loading from user-provided URLs, plus local Shapefile vector loading through the same component
+- WMS loading from user-provided URLs or the built-in fallback map/imagery source sequence
 - layer discovery through `GetCapabilities`
 - shared spatial selection and placement through `Spatial Context`
 - automatic SRS handling where possible
-- terrain mesh loading from user-provided WCS services or the built-in quick global land-elevation fallback
+- terrain mesh loading from user-provided WCS services, local GeoTIFF DEM files, or the built-in quick global land-elevation fallback
 - GeoJSON-first parsing with GML fallback when needed
 - early LoD2 multi-surface loading
 - early OSM-based contextual loading
@@ -221,7 +221,7 @@ The Grasshopper tab is organized as:
   Lists available layers from a WMS service.
 
 - `Load WFS`
-  Loads official vector data.
+  Loads official vector data from WFS services or local Shapefile sources.
 
 - `Load WMS`
   Loads imagery, orthophoto, or map context.
@@ -267,6 +267,8 @@ OSM is part of the core RhinoSpatial scope, and it is expected to keep evolving 
 4. Open the map helper and define the area
 5. Connect the `Spatial Context` output into `Load WFS`
 
+For local vector files, connect a `.shp` file path directly to the `WFS URL` input of `Load WFS`. The `Layer` input is optional in this mode and is used only as a label if provided.
+
 ### Typical WMS workflow
 
 1. Connect a WMS URL to `List WMS Layers`
@@ -277,21 +279,21 @@ OSM is part of the core RhinoSpatial scope, and it is expected to keep evolving 
 ### Typical LoD2 workflow
 
 1. Connect one `LoD2 Source` into `Load LoD2 Buildings`
-2. Use a LoD2 WFS URL, local `.gml` / `.xml` / `.citygml` file, folder, or `.zip` archive
+2. Use a LoD2 WFS URL, local `.gml` / `.xml` / `.citygml` / `.cityjson` / `.json` file, folder, or `.zip` archive
 3. Choose the WFS building layer if needed, or use `Layer` as an optional label for local sources
 4. Use the same `Spatial Context`
 
-`Load LoD2 Buildings` can load from a LoD2 WFS service or from local CityGML/GML/XML building data. Local sources can be a single file, a folder, or a ZIP archive containing multiple CityGML/GML/XML files. WFS mode requests a small buffered area from the service, then keeps the returned buildings that intersect the actual Spatial Context. Local CityGML mode scans the source, skips files outside the Spatial Context when file bounds are available, filters buildings against the same Spatial Context, and uses the same Brep conversion and elevation alignment path. The `Status` output reports returned buildings, kept buildings, request/query or source bounds, converted surfaces, skipped surfaces, and output bounds so provider coverage gaps can be separated from conversion problems.
+`Load LoD2 Buildings` can load from a LoD2 WFS service or from local CityGML/GML/XML/CityJSON building data. Local CityGML sources can be a single file, a folder, or a ZIP archive containing multiple CityGML/GML/XML files. WFS mode requests a small buffered area from the service, then keeps the returned buildings that intersect the actual Spatial Context. Local CityGML mode scans the source, skips files outside the Spatial Context when file bounds are available, filters buildings against the same Spatial Context, and uses the same Brep conversion and elevation alignment path. The `Status` output reports returned buildings, kept buildings, request/query or source bounds, converted surfaces, skipped surfaces, and output bounds so provider coverage gaps can be separated from conversion problems.
 
 For local folders and ZIP archives, RhinoSpatial first tries to use file-level and building-level bounds so it can avoid converting CityGML geometry outside the selected area. Very large single files can still take longer than a WFS request because the file has to be inspected locally before geometry can be filtered.
 
 ### Typical terrain workflow
 
 1. Define the area with `Spatial Context`
-2. Connect a terrain WCS source to `Load Terrain`, or leave the URL empty for the built-in global land-elevation fallback
+2. Connect a terrain WCS source or local GeoTIFF DEM file path to `Load Terrain`, or leave the URL empty for the built-in global land-elevation fallback
 3. Load a terrain mesh aligned to the same local study space as the other sources
 
-The built-in fallback is intentionally limited to small study areas and short request times. If the selected area is too large, the fallback service has no usable elevation samples, or the request takes too long, `Load Terrain` fails quickly with a status message instead of blocking Grasshopper for a long time. For project work, connect an explicit official or project-specific terrain source.
+The built-in fallback is intentionally limited to small study areas and short request times. If the selected area is too large, the fallback service has no usable elevation samples, or the request takes too long, `Load Terrain` fails quickly with a status message instead of blocking Grasshopper for a long time. For project work, connect an explicit official or project-specific terrain source. Local `.tif` / `.tiff` DEM files can be connected directly to the same Terrain URL input.
 
 ### Typical OSM workflow
 
@@ -357,13 +359,15 @@ This shared spatial logic is the core architectural rule for:
 - RhinoSpatial tries to prefer a layer's default SRS when possible.
 - `Spatial Context` is the central shared selection and placement component for the whole toolkit.
 - `Load WFS`, `Load WMS`, `Load LoD2 Buildings`, `Load Terrain`, `Load GeoTIFF`, and `Load OSM` are all intended to work within the same shared spatial workflow.
+- `Load WFS` also accepts local `.shp` files as vector sources. The component name stays stable for existing Grasshopper definitions, but the source model is broader than web-only WFS.
 - `Load Terrain` and `Load LoD2 Buildings` share the same localized elevation baseline when absolute coordinates are off, so terrain and buildings sit on the same local Z reference.
-- `Load Terrain` is a separate aligned source and is not treated as part of LoD2 loading. If no terrain URL is provided, it uses a quick global land-elevation fallback for small-context orientation; project work should still prefer user-provided or official terrain where available.
-- `Load LoD2 Buildings` uses one source input for WFS URLs, local CityGML/GML/XML files, folders, and ZIP archives. It exposes detailed status diagnostics to make provider coverage, local tile filtering, bbox filtering, duplicate surfaces, and conversion failures easier to distinguish.
+- `Load WMS` uses explicit user-provided services when connected. If no WMS URL is provided, it tries a sharper global OpenStreetMap WMS fallback first and then falls back to NASA GIBS global imagery if needed. When a selected WMS layer does not support the Spatial Context's primary SRS but does advertise another CRS that the context already knows, RhinoSpatial requests that supported CRS and still places the image in the shared local study area.
+- `Load Terrain` is a separate aligned source and is not treated as part of LoD2 loading. It accepts WCS services and local GeoTIFF DEM files. If no terrain URL is provided, it uses a quick global land-elevation fallback for small-context orientation; project work should still prefer user-provided or official terrain where available.
+- `Load LoD2 Buildings` uses one source input for WFS URLs, local CityGML/GML/XML files, local CityJSON files, folders, and ZIP archives. It exposes detailed status diagnostics to make provider coverage, local tile filtering, bbox filtering, duplicate surfaces, and conversion failures easier to distinguish.
 - The Google 3D Tiles component is an optional reference viewer with user-managed API access. It outputs temporary contextual preview meshes/materials for viewing, but should not be treated as a substitute for official editable project data, and should not be used as an offline cache/export workflow.
 - The map helper currently supports the SRS values that have come up most often in testing so far, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, `EPSG:3857`, `EPSG:27700`, `EPSG:4283`, `EPSG:7423`, and `EPSG:7844`.
 - `Load LoD2 Buildings` is still experimental and provider compatibility will need more real-world testing.
-- Shapefile building import is not part of the LoD2 source input yet; it is planned as a later vector/building-file source because shapefiles may contain 2D footprints, attributes, or 3D geometry depending on the provider.
+- Shapefile is currently supported as a local vector source through `Load WFS`, not as LoD2 building import. GeoPackage remains a later local vector/source candidate.
 - Some providers behave differently, so more compatibility improvements will likely be added over time.
 
 ## License
