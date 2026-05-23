@@ -147,7 +147,7 @@ This includes:
 - keep local CityGML folder/ZIP loading bounded by Spatial Context where file bounds are available
 - keep local CityGML performance honest: scan metadata first, filter buildings before conversion where possible, and report when large single files still dominate load time
 - keep local Shapefile support in `Load WFS` focused on vector/source context first; evaluate whether a renamed future vector component is worth the Grasshopper compatibility cost later
-- keep OGC API Features support focused on simple GeoJSON collection/items endpoints through the existing vector loader path
+- keep OGC API Features and local GeoJSON support focused on simple GeoJSON FeatureCollection sources through the existing vector loader path
 - evaluate GeoPackage as a later local vector/project-data source once the dependency/parser choice is clear
 - use the `Status` output to distinguish provider coverage gaps from conversion failures
 - continue reducing invalid or duplicate LoD2 surfaces without inventing false building faces

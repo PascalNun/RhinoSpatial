@@ -47,6 +47,16 @@ RhinoSpatial uses NetTopologySuite.Features as part of local Shapefile feature p
 
 RhinoSpatial uses NetTopologySuite.IO.Esri.Shapefile to read local `.shp` vector sources.
 
+### SharpGLTF
+
+- Package: `SharpGLTF.Core`
+- Version: `1.0.6`
+- Project URL: https://github.com/vpenades/SharpGLTF
+- License: `MIT`
+- SPDX / license URL: https://licenses.nuget.org/MIT
+
+RhinoSpatial uses SharpGLTF.Core to decode glTF/GLB tile content for the optional Google 3D Tiles reference viewer.
+
 ### ProjNET
 
 - Package: `ProjNET`

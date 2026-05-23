@@ -147,7 +147,7 @@ RhinoSpatial should not become a mini GIS desktop application, a giant source br
 
 Current focus and capabilities include:
 
-- WFS loading from user-provided URLs, plus local Shapefile vector loading through the same component
+- WFS loading from user-provided URLs, plus OGC API Features, local Shapefile, and local GeoJSON vector loading through the same component
 - WMS loading from user-provided URLs or the built-in fallback map/imagery source sequence
 - layer discovery through `GetCapabilities`
 - shared spatial selection and placement through `Spatial Context`
@@ -221,7 +221,7 @@ The Grasshopper tab is organized as:
   Lists available layers from a WMS service.
 
 - `Load WFS`
-  Loads official vector data from WFS services, OGC API Features GeoJSON item endpoints, or local Shapefile sources.
+  Loads official vector data from WFS services, OGC API Features GeoJSON item endpoints, or local Shapefile / GeoJSON sources.
 
 - `Load WMS`
   Loads imagery, orthophoto, or map context.
@@ -267,7 +267,7 @@ OSM is part of the core RhinoSpatial scope, and it is expected to keep evolving 
 4. Open the map helper and define the area
 5. Connect the `Spatial Context` output into `Load WFS`
 
-For local vector files, connect a `.shp` file path directly to the `WFS URL` input of `Load WFS`. The `Layer` input is optional in this mode and is used only as a label if provided. OGC API Features collection/items URLs can also be connected directly to the same input; RhinoSpatial requests GeoJSON features for the Spatial Context bbox and aligns them like the other vector sources.
+For local vector files, connect a `.shp`, `.geojson`, or GeoJSON `.json` file path directly to the `WFS URL` input of `Load WFS`. The `Layer` input is optional in this mode and is used only as a label if provided. OGC API Features collection/items URLs can also be connected directly to the same input; RhinoSpatial requests GeoJSON features for the Spatial Context bbox and aligns them like the other vector sources.
 
 ### Typical WMS workflow
 
@@ -367,7 +367,7 @@ This shared spatial logic is the core architectural rule for:
 - The Google 3D Tiles component is an optional reference viewer with user-managed API access. It outputs temporary contextual preview meshes/materials for viewing, but should not be treated as a substitute for official editable project data, and should not be used as an offline cache/export workflow.
 - The map helper currently supports the SRS values that have come up most often in testing so far, including `EPSG:4326`, `EPSG:25832`, `EPSG:25833`, `EPSG:3857`, `EPSG:27700`, `EPSG:4283`, `EPSG:7423`, and `EPSG:7844`.
 - `Load LoD2 Buildings` is still experimental and provider compatibility will need more real-world testing.
-- Shapefile and OGC API Features are currently supported as vector sources through `Load WFS`, not as LoD2 building import. GeoPackage remains a later local vector/source candidate.
+- Shapefile, local GeoJSON, and OGC API Features are currently supported as vector sources through `Load WFS`, not as LoD2 building import. GeoPackage remains a later local vector/source candidate.
 - Some providers behave differently, so more compatibility improvements will likely be added over time.
 
 ## License

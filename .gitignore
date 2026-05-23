@@ -4,9 +4,11 @@ obj/
 **/obj/
 .DS_Store
 .vscode/
+.local/
 .tmp/
 .tmp-yak/
 package/staging/
 package/yak/*.yak
 package/food4rhino/*.zip
 RhinoSpatial/Resources/wfs_icons.psd
+RhinoSpatial/Resources/wfs_icons.pdf

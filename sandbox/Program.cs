@@ -38,6 +38,12 @@ namespace RhinoSpatial.Sandbox
                 return;
             }
 
+            if (args.Length > 0 && string.Equals(args[0], "geojson", StringComparison.OrdinalIgnoreCase))
+            {
+                RunGeoJson(args);
+                return;
+            }
+
             if (args.Length > 0 && string.Equals(args[0], "ogcapi", StringComparison.OrdinalIgnoreCase))
             {
                 await RunOgcApiFeaturesAsync(args);
@@ -388,6 +394,36 @@ namespace RhinoSpatial.Sandbox
             Console.WriteLine($"Parsed features: {result.Features.Count}");
             Console.WriteLine($"Skipped outside context: {result.SkippedOutsideContextCount}");
             Console.WriteLine($"Failed features: {result.FailedFeatureCount}");
+            Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static void RunGeoJson(string[] args)
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: geojson <path> [sourceSrs]");
+                return;
+            }
+
+            var startedAt = DateTime.UtcNow;
+            var geoJsonPath = args[1];
+            var geoJson = System.IO.File.ReadAllText(geoJsonPath);
+            var sourceSrs = args.Length > 2
+                ? args[2]
+                : GeoJsonReader.TryReadSourceSrs(geoJson) ?? "EPSG:4326";
+            var features = GeoJsonReader.ReadFeatures(
+                geoJson,
+                System.IO.Path.GetFileNameWithoutExtension(geoJsonPath));
+            var geometryItemCount = features.Sum(feature =>
+                feature.Geometry.OuterRings.Count +
+                feature.Geometry.LineStrings.Count +
+                feature.Geometry.Points.Count);
+            var elapsed = DateTime.UtcNow - startedAt;
+
+            Console.WriteLine($"File: {geoJsonPath}");
+            Console.WriteLine($"Source SRS: {sourceSrs}");
+            Console.WriteLine($"Feature count: {features.Count}");
+            Console.WriteLine($"Geometry items: {geometryItemCount}");
             Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
         }
 

@@ -6,6 +6,56 @@ namespace RhinoSpatial.Core
 {
     public static class GeoJsonReader
     {
+        public static string? TryReadSourceSrs(string geoJson)
+        {
+            using var document = JsonDocument.Parse(geoJson);
+            var root = document.RootElement;
+
+            if (!root.TryGetProperty("crs", out var crsElement) ||
+                crsElement.ValueKind != JsonValueKind.Object ||
+                !crsElement.TryGetProperty("properties", out var propertiesElement) ||
+                propertiesElement.ValueKind != JsonValueKind.Object ||
+                !propertiesElement.TryGetProperty("name", out var nameElement))
+            {
+                return null;
+            }
+
+            var name = nameElement.GetString();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return null;
+            }
+
+            if (name.Contains("CRS84", StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:4326";
+            }
+
+            var epsgIndex = name.LastIndexOf("EPSG", StringComparison.OrdinalIgnoreCase);
+            if (epsgIndex >= 0)
+            {
+                var digits = string.Empty;
+                for (var index = epsgIndex + 4; index < name.Length; index++)
+                {
+                    if (char.IsDigit(name[index]))
+                    {
+                        digits += name[index];
+                    }
+                    else if (digits.Length > 0)
+                    {
+                        break;
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(digits))
+                {
+                    return $"EPSG:{digits}";
+                }
+            }
+
+            return name.Trim();
+        }
+
         public static List<WfsFeature> ReadFeatures(string geoJson, string sourceLayerName)
         {
             using var document = JsonDocument.Parse(geoJson);

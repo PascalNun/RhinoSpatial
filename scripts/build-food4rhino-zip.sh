@@ -7,12 +7,11 @@ CONFIGURATION="${1:-Release}"
 FRAMEWORK="net7.0"
 PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoSpatial/bin/$CONFIGURATION/$FRAMEWORK"
 STAGING_DIR="$ROOT_DIR/package/staging/food4rhino"
-VERSION="0.3.1-alpha"
+PROJECT_VERSION="$(sed -nE 's:.*<Version>([^<]+)</Version>.*:\1:p' "$ROOT_DIR/RhinoSpatial/RhinoSpatial.csproj" | head -n 1)"
+VERSION="${PROJECT_VERSION}-alpha"
 ZIP_NAME="RhinoSpatial-${VERSION}.zip"
 
 dotnet build "$ROOT_DIR/RhinoSpatial.sln" -c "$CONFIGURATION"
-
-find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f \( -name 'RhinoWFS*' -o -name 'WfsCore*' \) -delete
 
 rm -rf "$STAGING_DIR"
 mkdir -p "$STAGING_DIR"

@@ -242,6 +242,17 @@
       ]
     },
     {
+      "id": "geojson-local",
+      "type": "GeoJSON",
+      "purpose": "Bring-your-own local GeoJSON vector source",
+      "url": null,
+      "notes": [
+        "Use a .geojson or GeoJSON .json file path directly in the Load WFS URL input",
+        "The Layer input is optional and is used as an output label",
+        "Defaults to EPSG:4326 unless the file advertises an older named CRS"
+      ]
+    },
+    {
       "id": "ogcapi-pygeoapi-lakes",
       "type": "OGC API Features",
       "purpose": "Modern GeoJSON feature endpoint smoke test",

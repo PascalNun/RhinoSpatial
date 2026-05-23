@@ -39,6 +39,8 @@ namespace RhinoSpatial
             public string? LayerName { get; init; }
 
             public SpatialContext2D SpatialContext { get; init; } = null!;
+
+            public Lod2SourceKind SourceKind { get; init; }
         }
 
         private sealed record LocalCityGmlCandidate(
@@ -65,6 +67,13 @@ namespace RhinoSpatial
             public TimeSpan SurfaceFilter { get; set; }
 
             public TimeSpan BrepOutput { get; set; }
+        }
+
+        private sealed class Lod2OutputData
+        {
+            public GH_Structure<GH_Brep> BrepTree { get; init; } = new();
+
+            public RhinoSpatialLod2OutputBuilder.BuildReport BuildReport { get; init; } = null!;
         }
 
         private enum Lod2SourceKind
@@ -94,7 +103,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("LoD2 Source", "LoD2 Source", "LoD2 source URL, local CityGML/GML/XML file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.", GH_ParamAccess.item);
+            pManager.AddTextParameter("LoD2 Source", "LoD2 Source", "LoD2 source URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.", GH_ParamAccess.item);
             pManager.AddTextParameter("Layer", "Layer", "Optional LoD2 building layer name for WFS sources, or local layer label for file/folder/ZIP sources.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. LoD2 requests use EPSG:7423/4326 internally, so any Spatial Context created from the map helper will align correctly.", GH_ParamAccess.item);
 
@@ -194,6 +203,8 @@ namespace RhinoSpatial
                 return false;
             }
 
+            var sourceKind = ResolveSourceKind(trimmedSource);
+
             if (!RhinoSpatialInputParser.TryGetRequiredSpatialContext(spatialContextText, out var spatialContext, out var spatialContextError))
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, spatialContextError);
@@ -204,7 +215,8 @@ namespace RhinoSpatial
             {
                 Source = trimmedSource,
                 LayerName = string.IsNullOrWhiteSpace(layerName) ? null : RhinoSpatialInputParser.ParseLayerName(layerName),
-                SpatialContext = spatialContext
+                SpatialContext = spatialContext,
+                SourceKind = sourceKind
             };
 
             return true;
@@ -212,15 +224,14 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var sourceKind = ResolveSourceKind(requestData.Source);
-            if (sourceKind != Lod2SourceKind.Url)
+            if (requestData.SourceKind != Lod2SourceKind.Url)
             {
-                if (LocalSourceContainsCityJson(requestData.Source, sourceKind))
+                if (LocalSourceContainsCityJson(requestData.Source, requestData.SourceKind))
                 {
-                    return ComputeLocalCityJsonSource(requestData, sourceKind);
+                    return ComputeLocalCityJsonSource(requestData);
                 }
 
-                return ComputeLocalCityGmlSource(requestData, sourceKind);
+                return ComputeLocalCityGmlSource(requestData);
             }
 
             var capabilities = _wfsClient.LoadCapabilitiesAsync(requestData.Source).GetAwaiter().GetResult();
@@ -258,29 +269,16 @@ namespace RhinoSpatial
             var response = _wfsClient.LoadFeatureResponseAsync(requestOptions).GetAwaiter().GetResult();
             var returnedBuildings = Lod2GmlReader.ReadBuildings(response.ResponseText, resolvedLayer.LayerName);
             var buildings = FilterBuildingSurfacesToRequestBounds(returnedBuildings, requestBoundingBox);
-            var targetBoundingBox = requestData.SpatialContext.RequestBoundingBox;
-            var placementPoint = new Point3d(requestData.SpatialContext.PlacementOrigin.X, requestData.SpatialContext.PlacementOrigin.Y, 0.0);
-            var elevationBase = requestData.SpatialContext.UseAbsoluteCoordinates
-                ? 0.0
-                : SpatialElevationBaselineCache.ResolveOrStore(
-                    requestData.SpatialContext,
-                    RhinoSpatialLod2OutputBuilder.CalculateElevationBase(buildings));
-            var brepTree = RhinoSpatialLod2OutputBuilder.BuildBrepTree(
+            var outputData = BuildLod2Output(
+                requestData,
                 buildings,
                 new[] { resolvedLayer.LayerName },
                 requestSrs,
-                requestData.SpatialContext.ResolvedSrs,
-                requestBoundingBox,
-                targetBoundingBox,
-                placementPoint,
-                requestData.SpatialContext.UseAbsoluteCoordinates,
-                elevationBase,
-                out var buildReport,
-                skipBuildingShellPostProcessing: true);
+                requestBoundingBox);
 
             return new SolveResults
             {
-                BrepTree = brepTree,
+                BrepTree = outputData.BrepTree,
                 BuildingCount = buildings.Count,
                 Status = BuildStatusMessage(
                     buildings.Count,
@@ -294,10 +292,10 @@ namespace RhinoSpatial
                     returnedBuildings.Count,
                     response.ResponseText.Length,
                     response.StatusNote,
-                    buildReport),
+                    outputData.BuildReport),
                 MessageLevel = buildings.Count == 0
                     ? GH_RuntimeMessageLevel.Warning
-                    : buildReport.FailedSurfaceBrepCount > 0 || buildReport.MalformedLoopSurfaceCount > 0 || buildReport.BuildingsWithoutOutputCount > 0
+                    : HasLod2BuildWarnings(outputData.BuildReport)
                         ? GH_RuntimeMessageLevel.Remark
                     : string.IsNullOrWhiteSpace(response.StatusNote)
                         ? null
@@ -305,11 +303,11 @@ namespace RhinoSpatial
             };
         }
 
-        private SolveResults ComputeLocalCityGmlSource(RequestData requestData, Lod2SourceKind sourceKind)
+        private SolveResults ComputeLocalCityGmlSource(RequestData requestData)
         {
             var timings = new LocalCityGmlTimings();
             var stopwatch = Stopwatch.StartNew();
-            var candidates = LoadLocalCityGmlCandidates(requestData, sourceKind, out var scannedFileCount, out var skippedByBoundsCount);
+            var candidates = LoadLocalCityGmlCandidates(requestData, requestData.SourceKind, out var scannedFileCount, out var skippedByBoundsCount);
             timings.CandidateScan = stopwatch.Elapsed;
 
             if (candidates.Count == 0)
@@ -386,36 +384,23 @@ namespace RhinoSpatial
             stopwatch.Restart();
             var buildings = FilterBuildingSurfacesToRequestBounds(returnedBuildings, requestBoundingBox);
             timings.SurfaceFilter = stopwatch.Elapsed;
-            var targetBoundingBox = requestData.SpatialContext.RequestBoundingBox;
-            var placementPoint = new Point3d(requestData.SpatialContext.PlacementOrigin.X, requestData.SpatialContext.PlacementOrigin.Y, 0.0);
-            var elevationBase = requestData.SpatialContext.UseAbsoluteCoordinates
-                ? 0.0
-                : SpatialElevationBaselineCache.ResolveOrStore(
-                    requestData.SpatialContext,
-                    RhinoSpatialLod2OutputBuilder.CalculateElevationBase(buildings));
             var layerOrder = candidates
                 .Select(candidate => candidate.DisplayName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             stopwatch.Restart();
-            var brepTree = RhinoSpatialLod2OutputBuilder.BuildBrepTree(
+            var outputData = BuildLod2Output(
+                requestData,
                 buildings,
                 layerOrder,
                 sourceSrs,
-                requestData.SpatialContext.ResolvedSrs,
-                requestBoundingBox,
-                targetBoundingBox,
-                placementPoint,
-                requestData.SpatialContext.UseAbsoluteCoordinates,
-                elevationBase,
-                out var buildReport,
-                skipBuildingShellPostProcessing: true);
+                requestBoundingBox);
             timings.BrepOutput = stopwatch.Elapsed;
-            var sourceLabel = BuildLocalSourceLabel(requestData.Source, sourceKind);
+            var sourceLabel = BuildLocalSourceLabel(requestData.Source, requestData.SourceKind);
 
             return new SolveResults
             {
-                BrepTree = brepTree,
+                BrepTree = outputData.BrepTree,
                 BuildingCount = buildings.Count,
                 Status = BuildLocalCityGmlStatusMessage(
                     buildings.Count,
@@ -427,7 +412,7 @@ namespace RhinoSpatial
                     returnedBuildings.Count,
                     totalByteCount,
                     requestData.Source,
-                    sourceKind,
+                    requestData.SourceKind,
                     scannedFileCount,
                     candidates.Count,
                     parsedFileCount,
@@ -435,10 +420,10 @@ namespace RhinoSpatial
                     failedFileCount,
                     failedFileNames,
                     timings,
-                    buildReport),
+                    outputData.BuildReport),
                 MessageLevel = buildings.Count == 0
                     ? GH_RuntimeMessageLevel.Warning
-                    : buildReport.FailedSurfaceBrepCount > 0 || buildReport.MalformedLoopSurfaceCount > 0 || buildReport.BuildingsWithoutOutputCount > 0
+                    : HasLod2BuildWarnings(outputData.BuildReport)
                         ? GH_RuntimeMessageLevel.Remark
                         : null
             };
@@ -460,9 +445,9 @@ namespace RhinoSpatial
             }
         }
 
-        private SolveResults ComputeLocalCityJsonSource(RequestData requestData, Lod2SourceKind sourceKind)
+        private SolveResults ComputeLocalCityJsonSource(RequestData requestData)
         {
-            var sourceFiles = EnumerateLocalCityJsonSourceFiles(requestData.Source, sourceKind).ToList();
+            var sourceFiles = EnumerateLocalCityJsonSourceFiles(requestData.Source, requestData.SourceKind).ToList();
             if (sourceFiles.Count == 0)
             {
                 return new SolveResults
@@ -579,17 +564,54 @@ namespace RhinoSpatial
             }
 
             var buildings = FilterBuildingSurfacesToRequestBounds(returnedBuildings, requestBoundingBox);
+            var layerOrder = candidates
+                .Select(candidate => string.IsNullOrWhiteSpace(requestData.LayerName) ? candidate.File.DisplayName : requestData.LayerName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var outputData = BuildLod2Output(
+                requestData,
+                buildings,
+                layerOrder,
+                sourceSrs,
+                requestBoundingBox);
+
+            var alignmentNote = requestData.SpatialContext.UseAbsoluteCoordinates
+                ? "with absolute elevation."
+                : "and aligned them to the shared local terrain/building elevation baseline.";
+            var failedNote = failedFileNames.Count == 0
+                ? string.Empty
+                : $" Example failed file(s): {string.Join(", ", failedFileNames)}.";
+
+            return new SolveResults
+            {
+                BrepTree = outputData.BrepTree,
+                BuildingCount = buildings.Count,
+                Status = $"Loaded {buildings.Count} local CityJSON building Brep set(s) from {FormatLocalSourceKind(requestData.SourceKind)} '{BuildLocalSourceLabel(requestData.Source, requestData.SourceKind)}' using source SRS '{sourceSrs}' {alignmentNote} Parsed {outputData.BuildReport.ParsedBuildingCount} building(s), {outputData.BuildReport.ParsedSurfaceCount} source surface(s); created {outputData.BuildReport.OutputBrepCount} Brep object(s) from {outputData.BuildReport.ConstructedSurfaceCount} converted surface(s). Source files: scanned {sourceFiles.Count}, selected {candidates.Count}, parsed {parsedFileCount}, skipped {skippedByBoundsCount} outside the Spatial Context by file bounds, failed {failedFileNames.Count}. Parsed source size: {FormatByteLength(totalByteCount)}. Request bounds {sourceSrs}: {FormatBoundingBox2D(requestBoundingBox)}.{failedNote}",
+                MessageLevel = buildings.Count == 0
+                    ? GH_RuntimeMessageLevel.Warning
+                    : HasLod2BuildWarnings(outputData.BuildReport) || failedFileNames.Count > 0
+                        ? GH_RuntimeMessageLevel.Remark
+                        : null
+            };
+        }
+
+        private static Lod2OutputData BuildLod2Output(
+            RequestData requestData,
+            IReadOnlyList<Lod2Building> buildings,
+            IReadOnlyList<string> layerOrder,
+            string sourceSrs,
+            BoundingBox2D requestBoundingBox)
+        {
             var targetBoundingBox = requestData.SpatialContext.RequestBoundingBox;
-            var placementPoint = new Point3d(requestData.SpatialContext.PlacementOrigin.X, requestData.SpatialContext.PlacementOrigin.Y, 0.0);
+            var placementPoint = new Point3d(
+                requestData.SpatialContext.PlacementOrigin.X,
+                requestData.SpatialContext.PlacementOrigin.Y,
+                0.0);
             var elevationBase = requestData.SpatialContext.UseAbsoluteCoordinates
                 ? 0.0
                 : SpatialElevationBaselineCache.ResolveOrStore(
                     requestData.SpatialContext,
                     RhinoSpatialLod2OutputBuilder.CalculateElevationBase(buildings));
-            var layerOrder = candidates
-                .Select(candidate => string.IsNullOrWhiteSpace(requestData.LayerName) ? candidate.File.DisplayName : requestData.LayerName)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
             var brepTree = RhinoSpatialLod2OutputBuilder.BuildBrepTree(
                 buildings,
                 layerOrder,
@@ -603,24 +625,18 @@ namespace RhinoSpatial
                 out var buildReport,
                 skipBuildingShellPostProcessing: true);
 
-            var alignmentNote = requestData.SpatialContext.UseAbsoluteCoordinates
-                ? "with absolute elevation."
-                : "and aligned them to the shared local terrain/building elevation baseline.";
-            var failedNote = failedFileNames.Count == 0
-                ? string.Empty
-                : $" Example failed file(s): {string.Join(", ", failedFileNames)}.";
-
-            return new SolveResults
+            return new Lod2OutputData
             {
                 BrepTree = brepTree,
-                BuildingCount = buildings.Count,
-                Status = $"Loaded {buildings.Count} local CityJSON building Brep set(s) from {FormatLocalSourceKind(sourceKind)} '{BuildLocalSourceLabel(requestData.Source, sourceKind)}' using source SRS '{sourceSrs}' {alignmentNote} Parsed {buildReport.ParsedBuildingCount} building(s), {buildReport.ParsedSurfaceCount} source surface(s); created {buildReport.OutputBrepCount} Brep object(s) from {buildReport.ConstructedSurfaceCount} converted surface(s). Source files: scanned {sourceFiles.Count}, selected {candidates.Count}, parsed {parsedFileCount}, skipped {skippedByBoundsCount} outside the Spatial Context by file bounds, failed {failedFileNames.Count}. Parsed source size: {FormatByteLength(totalByteCount)}. Request bounds {sourceSrs}: {FormatBoundingBox2D(requestBoundingBox)}.{failedNote}",
-                MessageLevel = buildings.Count == 0
-                    ? GH_RuntimeMessageLevel.Warning
-                    : buildReport.FailedSurfaceBrepCount > 0 || buildReport.MalformedLoopSurfaceCount > 0 || buildReport.BuildingsWithoutOutputCount > 0 || failedFileNames.Count > 0
-                        ? GH_RuntimeMessageLevel.Remark
-                        : null
+                BuildReport = buildReport
             };
+        }
+
+        private static bool HasLod2BuildWarnings(RhinoSpatialLod2OutputBuilder.BuildReport buildReport)
+        {
+            return buildReport.FailedSurfaceBrepCount > 0 ||
+                   buildReport.MalformedLoopSurfaceCount > 0 ||
+                   buildReport.BuildingsWithoutOutputCount > 0;
         }
 
         private static string BuildStatusSuffix(string statusNote)
@@ -1265,7 +1281,7 @@ namespace RhinoSpatial
                     Params.Input[0],
                     "LoD2 Source",
                     "LoD2 Source",
-                    "LoD2 source URL, local CityGML/GML/XML file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.");
+                    "LoD2 source URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.");
                 Params.Input[0].Optional = true;
             }
 

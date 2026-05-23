@@ -17,6 +17,7 @@ Use these together with:
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- geotiff <path>`,
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- terrainfile <path>`,
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- shapefile <path>`,
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- geojson <path>`,
   and `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogcapi <items-url>`
 
 ## Current Tested Sources
@@ -41,6 +42,7 @@ Use these together with:
 | `shapefile-naturalearth-roads` | Global sample | Natural Earth roads Shapefile | `https://naciscdn.org/naturalearth/10m/cultural/ne_10m_roads.zip` | Downloaded and parsed successfully with the sandbox `shapefile` command; 56,600 line features, EPSG:4326. Good larger local Shapefile line-feature/performance smoke test. |
 | `shapefile-naturalearth-rivers` | Global sample | Natural Earth rivers and lake centerlines Shapefile | `https://naciscdn.org/naturalearth/10m/physical/ne_10m_rivers_lake_centerlines.zip` | Downloaded and parsed successfully with the sandbox `shapefile` command; 1,473 line features, EPSG:4326. Intended to validate physical linework and local Shapefile line output. |
 | `shapefile-naturalearth-urban-areas` | Global sample | Natural Earth urban areas Shapefile | `https://naciscdn.org/naturalearth/10m/cultural/ne_10m_urban_areas.zip` | Downloaded and parsed successfully with the sandbox `shapefile` command; 11,878 polygon features, EPSG:4326. Intended to validate larger local polygon Shapefiles and performance. |
+| `geojson-local` | User/project data | Bring-your-own GeoJSON vector file | none | `Load WFS` now accepts local `.geojson` / GeoJSON `.json` files through the same vector input. GeoJSON defaults to EPSG:4326 unless an older named `crs` member is present. |
 | `ogcapi-pygeoapi-lakes` | Global demo | pygeoapi OGC API Features lakes collection | `https://demo.pygeoapi.io/master/collections/lakes/items?f=json` | Parsed successfully with the sandbox `ogcapi` command. Intended to validate modern OGC API Features GeoJSON endpoints through the vector loader without treating them as WFS. |
 | `wfs-germany-vg1000` | Germany | BKG administrative boundaries WFS | `https://sgx.geodatenzentrum.de/wfs_vg1000?service=WFS&request=GetCapabilities` | Existing Germany-wide official WFS baseline. |
 | `wfs-hessen-reference` | Germany / Hessen | Hessen WFS | `https://inspire-hessen.de/ows/services/org.2.734621f7-1cfb-41c6-8291-67d08f149acb_wfs?` | Existing multi-layer WFS baseline. |
@@ -132,7 +134,6 @@ Use these together with:
 | --- | --- | --- |
 | US Census TIGERweb WFS ArcGIS endpoint | `400 Bad Request` during WFS GetCapabilities probe | Useful reminder that some ArcGIS endpoints expose WMS/REST cleanly but not always WFS in a way RhinoSpatial can consume. Keep out of examples until a stable WFS URL is confirmed. |
 | `https://wfs.geo.admin.ch/` | DNS failure during probe | swisstopo WMS works well; no WFS baseline from this hostname was confirmed. |
-| Czech CUZK orthophoto ArcGIS WMS candidate | `400 Bad Request` during WMS GetCapabilities probe | Keep as a provider watch item; ArcGIS WMS URL normalization may need source-specific handling before it is useful as a regression source. |
 | Geoscience Australia topographic ArcGIS WMS candidate | `404 Not Found` during WMS GetCapabilities probe | Keep out of examples until a stable public endpoint is confirmed. |
 | Geoscience Australia NationalMap WMS candidate | `404 Not Found` during WMS GetCapabilities probe | `https://services.ga.gov.au/gis/services/NationalMap_Colour_Base/MapServer/WMSServer?request=GetCapabilities&service=WMS` was tested and should stay out until a stable public WMS endpoint is found. |
 | Italy Agenzia Entrate cadastral WFS | `403 Forbidden` during WFS GetCapabilities probe | The cadastral WMS works, but `https://wfs.cartografia.agenziaentrate.gov.it/inspire/wfs/ows01.php?service=WFS&request=GetCapabilities` is not currently an open regression source. |
@@ -156,6 +157,8 @@ These are not release blockers, but they are the most sensible future source-for
   Still a good candidate for local vector/project data because it can hold layers, CRS metadata, and mixed geometry more robustly than loose shapefiles. It remains unimplemented for now because robust GeoPackage support needs a deliberate SQLite/geometry-BLOB parser choice and should not be slipped in as a fragile partial reader.
 - **Shapefile**
   Local Shapefile is now supported as a vector source through `Load WFS`, using the existing shared Spatial Context and geometry tree output. It is not treated as LoD2 building import; many municipal Shapefiles are 2D footprints or thematic vector layers rather than true LoD2 geometry.
+- **Local GeoJSON**
+  Local `.geojson` and GeoJSON `.json` files are now supported as vector sources through `Load WFS`. This is intentionally simple: FeatureCollection geometry is treated like WFS/OGC vector geometry, defaulting to EPSG:4326 unless the file advertises an older named CRS.
 - **OGC API Features**
   Basic GeoJSON OGC API Features item/collection URLs are now supported through the vector loader path. They are not treated as WFS internally; RhinoSpatial requests GeoJSON items with the Spatial Context WGS84 bbox and transforms them into the shared context.
 - **Cloud Optimized GeoTIFF**
