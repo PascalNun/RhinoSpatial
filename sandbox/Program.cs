@@ -38,6 +38,12 @@ namespace RhinoSpatial.Sandbox
                 return;
             }
 
+            if (args.Length > 0 && string.Equals(args[0], "ogcapi", StringComparison.OrdinalIgnoreCase))
+            {
+                await RunOgcApiFeaturesAsync(args);
+                return;
+            }
+
             if (args.Length > 0 && string.Equals(args[0], "lod2", StringComparison.OrdinalIgnoreCase))
             {
                 await RunLod2Async(args);
@@ -277,13 +283,37 @@ namespace RhinoSpatial.Sandbox
         {
             if (args.Length < 2)
             {
-                Console.WriteLine("Usage: terrainfile <path>");
+                Console.WriteLine("Usage: terrainfile <path> [sourceSrs]");
                 return;
             }
 
             var startedAt = DateTime.UtcNow;
-            var info = GeoTiffReader.ReadImageInfo(args[1]);
-            var raster = TerrainRasterReader.ReadRaster(args[1], System.IO.Path.GetFileNameWithoutExtension(args[1]), info.SrsName);
+            var extension = System.IO.Path.GetExtension(args[1]);
+            TerrainRasterData raster;
+            BoundingBox2D bounds;
+            string sourceSrs;
+            string formatLabel;
+            if (extension.Equals(".tif", StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".tiff", StringComparison.OrdinalIgnoreCase))
+            {
+                var info = GeoTiffReader.ReadImageInfo(args[1]);
+                raster = TerrainRasterReader.ReadRaster(args[1], System.IO.Path.GetFileNameWithoutExtension(args[1]), info.SrsName);
+                bounds = info.BoundingBox;
+                sourceSrs = info.SrsName;
+                formatLabel = "GeoTIFF DEM";
+            }
+            else
+            {
+                sourceSrs = args.Length > 2 ? args[2] : "EPSG:4326";
+                var readResult = TerrainTextGridReader.ReadRaster(
+                    args[1],
+                    System.IO.Path.GetFileNameWithoutExtension(args[1]),
+                    sourceSrs);
+                raster = readResult.Raster;
+                bounds = readResult.BoundingBox;
+                formatLabel = readResult.FormatLabel;
+            }
+
             var elapsed = DateTime.UtcNow - startedAt;
             var validCount = 0;
             var minElevation = double.PositiveInfinity;
@@ -291,7 +321,11 @@ namespace RhinoSpatial.Sandbox
 
             foreach (var elevation in raster.Elevations)
             {
-                if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                if (float.IsNaN(elevation) ||
+                    float.IsInfinity(elevation) ||
+                    (raster.NoDataValue.HasValue &&
+                     !double.IsNaN(raster.NoDataValue.Value) &&
+                     Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3))
                 {
                     continue;
                 }
@@ -302,9 +336,10 @@ namespace RhinoSpatial.Sandbox
             }
 
             Console.WriteLine($"File: {args[1]}");
-            Console.WriteLine($"SRS: {info.SrsName}");
-            Console.WriteLine($"Size: {info.Width} x {info.Height}");
-            Console.WriteLine($"Bounds: {FormatBounds(info.BoundingBox)}");
+            Console.WriteLine($"Format: {formatLabel}");
+            Console.WriteLine($"SRS: {sourceSrs}");
+            Console.WriteLine($"Size: {raster.Width} x {raster.Height}");
+            Console.WriteLine($"Bounds: {FormatBounds(bounds)}");
             Console.WriteLine($"Valid elevations: {validCount}");
             Console.WriteLine($"Elevation range: {(double.IsInfinity(minElevation) ? "?" : minElevation.ToString("0.###"))}..{(double.IsInfinity(maxElevation) ? "?" : maxElevation.ToString("0.###"))}");
             Console.WriteLine($"NoData: {raster.NoDataValue?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "?"}");
@@ -353,6 +388,32 @@ namespace RhinoSpatial.Sandbox
             Console.WriteLine($"Parsed features: {result.Features.Count}");
             Console.WriteLine($"Skipped outside context: {result.SkippedOutsideContextCount}");
             Console.WriteLine($"Failed features: {result.FailedFeatureCount}");
+            Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
+        }
+
+        private static async Task RunOgcApiFeaturesAsync(string[] args)
+        {
+            if (args.Length < 2)
+            {
+                Console.WriteLine("Usage: ogcapi <collection-items-url> [minX,minY,maxX,maxY] [maxFeatures]");
+                return;
+            }
+
+            var bbox = args.Length > 2 && TryParseBoundingBox(args[2], out var parsedBounds)
+                ? parsedBounds
+                : null;
+            var maxFeatures = args.Length > 3 && int.TryParse(args[3], out var parsedMaxFeatures)
+                ? parsedMaxFeatures
+                : 0;
+            var startedAt = DateTime.UtcNow;
+            var client = new OgcApiFeaturesClient();
+            var features = await client.LoadFeaturesAsync(args[1], "ogcapi", bbox, maxFeatures);
+            var elapsed = DateTime.UtcNow - startedAt;
+
+            Console.WriteLine("OGC API Features probe");
+            Console.WriteLine($"URL: {args[1]}");
+            Console.WriteLine($"Feature count: {features.Count}");
+            Console.WriteLine($"Geometry items: {features.Sum(feature => feature.Geometry.OuterRings.Count + feature.Geometry.LineStrings.Count + feature.Geometry.Points.Count)}");
             Console.WriteLine($"Elapsed: {elapsed.TotalSeconds:0.###} s");
         }
 

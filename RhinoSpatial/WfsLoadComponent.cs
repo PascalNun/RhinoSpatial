@@ -14,7 +14,10 @@ namespace RhinoSpatial
     public class WfsLoadComponent : GH_TaskCapableComponent<WfsLoadComponent.SolveResults>
     {
         private const int DirectLayerWarningThreshold = 8;
+        private const double OversizedEnclosingFeatureRatio = 5.0;
+        private const double BoundsToleranceRatio = 1e-9;
         private readonly WfsClient _wfsClient = new();
+        private readonly OgcApiFeaturesClient _ogcApiFeaturesClient = new();
 
         public class SolveResults
         {
@@ -42,6 +45,8 @@ namespace RhinoSpatial
             public SpatialContext2D SpatialContext { get; init; } = null!;
 
             public bool IsLocalShapefile { get; init; }
+
+            public bool IsOgcApiFeatures { get; init; }
         }
 
         public WfsLoadComponent()
@@ -55,8 +60,8 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WFS Service URL", "WFS URL", "Base URL of the WFS service, or path to a local Shapefile (.shp). If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers. Optional for local Shapefile sources.", GH_ParamAccess.list);
+            pManager.AddTextParameter("WFS Service URL", "WFS URL", "Base URL of the WFS service, OGC API Features collection/items URL, or path to a local Shapefile (.shp). If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers. Optional for local Shapefile and OGC API Features sources.", GH_ParamAccess.list);
             pManager.AddIntegerParameter("Max Features", "Max Features", "Maximum number of features to request. Use 0 to request all available features.", GH_ParamAccess.item, 0);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. This is required so WFS, WMS, LoD2, terrain, GeoTIFF, and OSM outputs stay aligned.", GH_ParamAccess.item);
         }
@@ -139,6 +144,7 @@ namespace RhinoSpatial
             }
 
             var isLocalShapefile = IsLocalShapefileSource(baseUrl);
+            var isOgcApiFeatures = OgcApiFeaturesClient.LooksLikeOgcApiFeaturesUrl(baseUrl);
 
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
@@ -148,7 +154,7 @@ namespace RhinoSpatial
 
             if (!IsUrlSource(baseUrl) && !isLocalShapefile)
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"WFS URL must be a WFS service URL or a local .shp file path. Source was not found or is unsupported: {baseUrl}");
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"WFS URL must be a WFS service URL, an OGC API Features collection/items URL, or a local .shp file path. Source was not found or is unsupported: {baseUrl}");
                 return false;
             }
 
@@ -162,6 +168,11 @@ namespace RhinoSpatial
             if (requestedLayerNames.Count == 0 && isLocalShapefile)
             {
                 requestedLayerNames.Add(Path.GetFileNameWithoutExtension(baseUrl));
+            }
+
+            if (requestedLayerNames.Count == 0 && isOgcApiFeatures)
+            {
+                requestedLayerNames.Add(ResolveOgcApiFeaturesLayerName(baseUrl));
             }
 
             if (requestedLayerNames.Count == 0)
@@ -193,7 +204,8 @@ namespace RhinoSpatial
                 RequestedLayerNames = requestedLayerNames,
                 MaxFeatures = maxFeatures,
                 SpatialContext = spatialContext,
-                IsLocalShapefile = isLocalShapefile
+                IsLocalShapefile = isLocalShapefile,
+                IsOgcApiFeatures = isOgcApiFeatures
             };
 
             return true;
@@ -204,6 +216,11 @@ namespace RhinoSpatial
             if (requestData.IsLocalShapefile)
             {
                 return ComputeLocalShapefile(requestData);
+            }
+
+            if (requestData.IsOgcApiFeatures)
+            {
+                return ComputeOgcApiFeatures(requestData);
             }
 
             var resolvedSrsName = requestData.SpatialContext.ResolvedSrs;
@@ -222,11 +239,20 @@ namespace RhinoSpatial
                 };
 
                 var layerResult = _wfsClient.LoadFeaturesWithStatusAsync(layerRequestOptions).GetAwaiter().GetResult();
-                features.AddRange(layerResult.Features);
+                var filteredLayerFeatures = FilterFeaturesToSpatialContext(
+                    layerResult.Features,
+                    requestData.SpatialContext.RequestBoundingBox,
+                    out var oversizedFeatureCount);
+                features.AddRange(filteredLayerFeatures);
 
                 if (!string.IsNullOrWhiteSpace(layerResult.StatusNote))
                 {
                     statusNotes.Add(layerResult.StatusNote);
+                }
+
+                if (oversizedFeatureCount > 0)
+                {
+                    statusNotes.Add($"Filtered {oversizedFeatureCount} oversized enclosing WFS feature(s) whose outlines were outside the Spatial Context.");
                 }
             }
 
@@ -254,6 +280,55 @@ namespace RhinoSpatial
                     statusNotes),
                 MessageLevel = ResolveMessageLevel(features.Count, statusNotes.Count > 0),
                 UsedCachedFallback = statusNotes.Count > 0
+            };
+        }
+
+        private SolveResults ComputeOgcApiFeatures(RequestData requestData)
+        {
+            var layerName = requestData.RequestedLayerNames[0];
+            var sourceFeatures = _ogcApiFeaturesClient.LoadFeaturesAsync(
+                    requestData.BaseUrl,
+                    layerName,
+                    requestData.SpatialContext.Wgs84BoundingBox,
+                    requestData.MaxFeatures)
+                .GetAwaiter()
+                .GetResult();
+            var projectedFeatures = WfsFeatureGeometryTransformer.TransformFeatures(
+                sourceFeatures,
+                "EPSG:4326",
+                requestData.SpatialContext.ResolvedSrs);
+            var features = FilterFeaturesToSpatialContext(
+                projectedFeatures,
+                requestData.SpatialContext.RequestBoundingBox,
+                out var oversizedFeatureCount);
+            var appliedOffset = RhinoSpatialContextTools.ResolvePlacementOrigin(
+                requestData.SpatialContext,
+                requestData.SpatialContext.UseAbsoluteCoordinates,
+                features);
+            var geometryTree = RhinoSpatialOutputBuilder.BuildGeometryTree(
+                features,
+                requestData.RequestedLayerNames,
+                appliedOffset.X,
+                appliedOffset.Y);
+            var geometryItemCount = geometryTree.DataCount;
+            var maxFeaturesText = requestData.MaxFeatures > 0 ? requestData.MaxFeatures.ToString() : "all available";
+            var coordinateText = requestData.SpatialContext.UseAbsoluteCoordinates
+                ? "using absolute coordinates."
+                : "then localized the geometry near the Rhino origin.";
+            var filterNote = oversizedFeatureCount > 0
+                ? $" Filtered {oversizedFeatureCount} oversized enclosing feature(s) whose outlines were outside the Spatial Context."
+                : string.Empty;
+            var status = features.Count == 0
+                ? $"No features were found for OGC API Features source '{Path.GetFileName(requestData.BaseUrl)}' inside the current Spatial Context.{filterNote}"
+                : $"Loaded {features.Count} feature(s) and {geometryItemCount} geometry item(s) from OGC API Features source '{layerName}' with {maxFeaturesText} features, assumed GeoJSON CRS EPSG:4326, {coordinateText}{filterNote}";
+
+            return new SolveResults
+            {
+                GeometryTree = geometryTree,
+                FeatureCount = features.Count,
+                GeometryItemCount = geometryItemCount,
+                Status = status,
+                MessageLevel = ResolveMessageLevel(features.Count, oversizedFeatureCount > 0)
             };
         }
 
@@ -351,6 +426,229 @@ namespace RhinoSpatial
             return null;
         }
 
+        private static List<WfsFeature> FilterFeaturesToSpatialContext(
+            IReadOnlyList<WfsFeature> features,
+            BoundingBox2D contextBounds,
+            out int oversizedEnclosingFeatureCount)
+        {
+            oversizedEnclosingFeatureCount = 0;
+            var filteredFeatures = new List<WfsFeature>(features.Count);
+            var contextWidth = Math.Max(1e-9, contextBounds.MaxX - contextBounds.MinX);
+            var contextHeight = Math.Max(1e-9, contextBounds.MaxY - contextBounds.MinY);
+            var tolerance = Math.Max(contextWidth, contextHeight) * BoundsToleranceRatio;
+
+            foreach (var feature in features)
+            {
+                if (!TryGetFeatureBounds(feature, out var featureBounds) ||
+                    !RhinoSpatialContextTools.DoBoundingBoxesIntersect(featureBounds, contextBounds))
+                {
+                    continue;
+                }
+
+                if (FeatureTouchesContext(feature, contextBounds, tolerance))
+                {
+                    filteredFeatures.Add(feature);
+                    continue;
+                }
+
+                var featureWidth = Math.Max(0.0, featureBounds.MaxX - featureBounds.MinX);
+                var featureHeight = Math.Max(0.0, featureBounds.MaxY - featureBounds.MinY);
+                var isOversizedEnclosingFeature =
+                    featureWidth > contextWidth * OversizedEnclosingFeatureRatio ||
+                    featureHeight > contextHeight * OversizedEnclosingFeatureRatio;
+
+                if (isOversizedEnclosingFeature)
+                {
+                    oversizedEnclosingFeatureCount++;
+                    continue;
+                }
+
+                filteredFeatures.Add(feature);
+            }
+
+            return filteredFeatures;
+        }
+
+        private static bool FeatureTouchesContext(WfsFeature feature, BoundingBox2D contextBounds, double tolerance)
+        {
+            foreach (var ring in feature.Geometry.OuterRings)
+            {
+                if (PointsTouchBounds(ring.Points, contextBounds, tolerance, closePolyline: true))
+                {
+                    return true;
+                }
+            }
+
+            foreach (var lineString in feature.Geometry.LineStrings)
+            {
+                if (PointsTouchBounds(lineString.Points, contextBounds, tolerance, closePolyline: false))
+                {
+                    return true;
+                }
+            }
+
+            return feature.Geometry.Points.Any(point => IsPointInsideBounds(point, contextBounds, tolerance));
+        }
+
+        private static bool PointsTouchBounds(
+            IReadOnlyList<Coordinate2D> points,
+            BoundingBox2D contextBounds,
+            double tolerance,
+            bool closePolyline)
+        {
+            if (points.Count == 0)
+            {
+                return false;
+            }
+
+            if (points.Any(point => IsPointInsideBounds(point, contextBounds, tolerance)))
+            {
+                return true;
+            }
+
+            var segmentCount = closePolyline ? points.Count : points.Count - 1;
+            for (var pointIndex = 0; pointIndex < segmentCount; pointIndex++)
+            {
+                var start = points[pointIndex];
+                var end = points[(pointIndex + 1) % points.Count];
+                if (SegmentTouchesBounds(start, end, contextBounds, tolerance))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static bool SegmentTouchesBounds(Coordinate2D start, Coordinate2D end, BoundingBox2D bounds, double tolerance)
+        {
+            if (IsPointInsideBounds(start, bounds, tolerance) ||
+                IsPointInsideBounds(end, bounds, tolerance))
+            {
+                return true;
+            }
+
+            var minX = Math.Min(start.X, end.X);
+            var maxX = Math.Max(start.X, end.X);
+            var minY = Math.Min(start.Y, end.Y);
+            var maxY = Math.Max(start.Y, end.Y);
+            if (maxX < bounds.MinX - tolerance ||
+                minX > bounds.MaxX + tolerance ||
+                maxY < bounds.MinY - tolerance ||
+                minY > bounds.MaxY + tolerance)
+            {
+                return false;
+            }
+
+            return SegmentIntersectsSegment(start, end, new Coordinate2D(bounds.MinX, bounds.MinY), new Coordinate2D(bounds.MaxX, bounds.MinY), tolerance) ||
+                   SegmentIntersectsSegment(start, end, new Coordinate2D(bounds.MaxX, bounds.MinY), new Coordinate2D(bounds.MaxX, bounds.MaxY), tolerance) ||
+                   SegmentIntersectsSegment(start, end, new Coordinate2D(bounds.MaxX, bounds.MaxY), new Coordinate2D(bounds.MinX, bounds.MaxY), tolerance) ||
+                   SegmentIntersectsSegment(start, end, new Coordinate2D(bounds.MinX, bounds.MaxY), new Coordinate2D(bounds.MinX, bounds.MinY), tolerance);
+        }
+
+        private static bool SegmentIntersectsSegment(
+            Coordinate2D a,
+            Coordinate2D b,
+            Coordinate2D c,
+            Coordinate2D d,
+            double tolerance)
+        {
+            var orientation1 = Orientation(a, b, c);
+            var orientation2 = Orientation(a, b, d);
+            var orientation3 = Orientation(c, d, a);
+            var orientation4 = Orientation(c, d, b);
+
+            if (Math.Abs(orientation1) <= tolerance && IsPointOnSegment(c, a, b, tolerance))
+            {
+                return true;
+            }
+
+            if (Math.Abs(orientation2) <= tolerance && IsPointOnSegment(d, a, b, tolerance))
+            {
+                return true;
+            }
+
+            if (Math.Abs(orientation3) <= tolerance && IsPointOnSegment(a, c, d, tolerance))
+            {
+                return true;
+            }
+
+            if (Math.Abs(orientation4) <= tolerance && IsPointOnSegment(b, c, d, tolerance))
+            {
+                return true;
+            }
+
+            return (orientation1 > 0.0) != (orientation2 > 0.0) &&
+                   (orientation3 > 0.0) != (orientation4 > 0.0);
+        }
+
+        private static double Orientation(Coordinate2D a, Coordinate2D b, Coordinate2D c)
+        {
+            return ((b.X - a.X) * (c.Y - a.Y)) -
+                   ((b.Y - a.Y) * (c.X - a.X));
+        }
+
+        private static bool IsPointOnSegment(Coordinate2D point, Coordinate2D start, Coordinate2D end, double tolerance)
+        {
+            return point.X >= Math.Min(start.X, end.X) - tolerance &&
+                   point.X <= Math.Max(start.X, end.X) + tolerance &&
+                   point.Y >= Math.Min(start.Y, end.Y) - tolerance &&
+                   point.Y <= Math.Max(start.Y, end.Y) + tolerance;
+        }
+
+        private static bool IsPointInsideBounds(Coordinate2D point, BoundingBox2D bounds, double tolerance)
+        {
+            return point.X >= bounds.MinX - tolerance &&
+                   point.X <= bounds.MaxX + tolerance &&
+                   point.Y >= bounds.MinY - tolerance &&
+                   point.Y <= bounds.MaxY + tolerance;
+        }
+
+        private static bool TryGetFeatureBounds(WfsFeature feature, out BoundingBox2D bounds)
+        {
+            double? minX = null;
+            double? minY = null;
+            double? maxX = null;
+            double? maxY = null;
+
+            foreach (var ring in feature.Geometry.OuterRings)
+            {
+                AccumulatePointBounds(ring.Points, ref minX, ref minY, ref maxX, ref maxY);
+            }
+
+            foreach (var lineString in feature.Geometry.LineStrings)
+            {
+                AccumulatePointBounds(lineString.Points, ref minX, ref minY, ref maxX, ref maxY);
+            }
+
+            AccumulatePointBounds(feature.Geometry.Points, ref minX, ref minY, ref maxX, ref maxY);
+
+            if (!minX.HasValue || !minY.HasValue || !maxX.HasValue || !maxY.HasValue)
+            {
+                bounds = new BoundingBox2D(0.0, 0.0, 0.0, 0.0);
+                return false;
+            }
+
+            bounds = new BoundingBox2D(minX.Value, minY.Value, maxX.Value, maxY.Value);
+            return true;
+        }
+
+        private static void AccumulatePointBounds(
+            IEnumerable<Coordinate2D> points,
+            ref double? minX,
+            ref double? minY,
+            ref double? maxX,
+            ref double? maxY)
+        {
+            foreach (var point in points)
+            {
+                minX = !minX.HasValue || point.X < minX.Value ? point.X : minX;
+                minY = !minY.HasValue || point.Y < minY.Value ? point.Y : minY;
+                maxX = !maxX.HasValue || point.X > maxX.Value ? point.X : maxX;
+                maxY = !maxY.HasValue || point.Y > maxY.Value ? point.Y : maxY;
+            }
+        }
+
         private static bool IsLocalShapefileSource(string? source)
         {
             if (string.IsNullOrWhiteSpace(source))
@@ -360,6 +658,27 @@ namespace RhinoSpatial
 
             return File.Exists(source.Trim()) &&
                    Path.GetExtension(source.Trim()).Equals(".shp", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string ResolveOgcApiFeaturesLayerName(string sourceUrl)
+        {
+            if (!Uri.TryCreate(sourceUrl.Trim(), UriKind.Absolute, out var uri))
+            {
+                return "OGC API Features";
+            }
+
+            var pathParts = uri.AbsolutePath
+                .Split('/', StringSplitOptions.RemoveEmptyEntries)
+                .ToList();
+            var collectionIndex = pathParts.FindIndex(part => string.Equals(part, "collections", StringComparison.OrdinalIgnoreCase));
+            if (collectionIndex >= 0 && collectionIndex + 1 < pathParts.Count)
+            {
+                return Uri.UnescapeDataString(pathParts[collectionIndex + 1]);
+            }
+
+            return string.IsNullOrWhiteSpace(pathParts.LastOrDefault())
+                ? "OGC API Features"
+                : Uri.UnescapeDataString(pathParts.Last());
         }
 
         private static bool IsUrlSource(string source)

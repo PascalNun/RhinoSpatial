@@ -41,8 +41,8 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service, or path to a local GeoTIFF DEM. Leave empty to use the built-in quick global terrain fallback for small study areas.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. Leave empty to use the default coverage of the selected terrain source.", GH_ParamAccess.item, string.Empty);
+            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service, or path to a local GeoTIFF/ASCII Grid/XYZ/CSV DEM. Leave empty to use the built-in quick global terrain fallback for small study areas.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. For local text-grid terrain, this can be an EPSG code such as EPSG:25832; otherwise leave empty to use the Spatial Context SRS.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
 
             pManager[0].Optional = true;
@@ -153,6 +153,11 @@ namespace RhinoSpatial
             if (source.Kind == TerrainSourceKind.LocalGeoTiffDem)
             {
                 return ComputeLocalGeoTiffTerrain(source, spatialContext);
+            }
+
+            if (source.Kind == TerrainSourceKind.LocalTextGridDem)
+            {
+                return ComputeLocalTextGridTerrain(source, spatialContext);
             }
 
             try
@@ -301,6 +306,86 @@ namespace RhinoSpatial
             {
                 TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
                 Status = $"{source.CreateStatusPrefix()}Loaded local terrain GeoTIFF '{Path.GetFileName(source.BaseUrl)}' ({rasterInfo.Width}x{rasterInfo.Height}, {rasterInfo.SrsName}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}",
+                MessageLevel = GH_RuntimeMessageLevel.Remark
+            };
+        }
+
+        private SolveResults ComputeLocalTextGridTerrain(
+            ResolvedTerrainSource source,
+            SpatialContext2D spatialContext)
+        {
+            if (!File.Exists(source.BaseUrl))
+            {
+                throw new InvalidOperationException($"Local terrain text grid was not found: {source.BaseUrl}");
+            }
+
+            var sourceSrs = !string.IsNullOrWhiteSpace(source.CoverageId) &&
+                            source.CoverageId.Contains("EPSG", StringComparison.OrdinalIgnoreCase)
+                ? source.CoverageId
+                : spatialContext.ResolvedSrs;
+            var coverageId = !string.IsNullOrWhiteSpace(source.CoverageId) &&
+                             !source.CoverageId.Contains("EPSG", StringComparison.OrdinalIgnoreCase)
+                ? source.CoverageId
+                : Path.GetFileNameWithoutExtension(source.BaseUrl);
+            var readResult = TerrainTextGridReader.ReadRaster(source.BaseUrl, coverageId, sourceSrs);
+
+            if (RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
+                    spatialContext,
+                    readResult.SourceSrs,
+                    out var contextBoundsInRasterSrs,
+                    out _) &&
+                !RhinoSpatialContextTools.DoBoundingBoxesIntersect(readResult.BoundingBox, contextBoundsInRasterSrs))
+            {
+                return new SolveResults
+                {
+                    TerrainMeshes = new List<Mesh>(),
+                    Status = $"Loaded local terrain {readResult.FormatLabel} '{Path.GetFileName(source.BaseUrl)}' ({readResult.Raster.Width}x{readResult.Raster.Height}, {readResult.SourceSrs}), but it does not overlap the selected Spatial Context area.",
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                };
+            }
+
+            var elevationBase = spatialContext.UseAbsoluteCoordinates
+                ? 0.0
+                : SpatialElevationBaselineCache.ResolveOrStore(
+                    spatialContext,
+                    ResolveElevationBase(readResult.Raster));
+            Mesh? mesh;
+            if (RhinoSpatialContextTools.NormalizeSrsKey(readResult.SourceSrs) == "EPSG:4326")
+            {
+                mesh = BuildProjectedTerrainMesh(
+                    readResult.Raster,
+                    readResult.BoundingBox,
+                    spatialContext,
+                    elevationBase);
+            }
+            else
+            {
+                var placementOrigin = RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
+                    spatialContext,
+                    readResult.SourceSrs,
+                    out _,
+                    out var resolvedPlacementOrigin)
+                    ? resolvedPlacementOrigin
+                    : spatialContext.PlacementOrigin;
+                mesh = BuildTerrainMesh(
+                    readResult.Raster,
+                    readResult.BoundingBox,
+                    placementOrigin,
+                    spatialContext.UseAbsoluteCoordinates,
+                    elevationBase);
+            }
+
+            SpatialTerrainCache.Store(
+                spatialContext,
+                readResult.SourceSrs,
+                readResult.BoundingBox,
+                readResult.Raster,
+                elevationBase);
+
+            return new SolveResults
+            {
+                TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
+                Status = $"{source.CreateStatusPrefix()}Loaded local terrain {readResult.FormatLabel} '{Path.GetFileName(source.BaseUrl)}' ({readResult.Raster.Width}x{readResult.Raster.Height}, {readResult.SourceSrs}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}",
                 MessageLevel = GH_RuntimeMessageLevel.Remark
             };
         }
@@ -459,7 +544,7 @@ namespace RhinoSpatial
                     var worldX = requestBoundingBox.MinX + sourceX * cellSizeX - offsetX;
                     var elevation = raster.Elevations[sourceY * width + sourceX];
 
-                    if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                    if (IsNoDataElevation(raster, elevation))
                     {
                         elevation = (float)elevationBase;
                     }
@@ -533,7 +618,7 @@ namespace RhinoSpatial
                     }
 
                     var elevation = raster.Elevations[sourceY * width + sourceX];
-                    if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                    if (IsNoDataElevation(raster, elevation))
                     {
                         elevation = (float)elevationBase;
                     }
@@ -565,7 +650,7 @@ namespace RhinoSpatial
 
             foreach (var elevation in raster.Elevations)
             {
-                if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                if (IsNoDataElevation(raster, elevation))
                 {
                     continue;
                 }
@@ -584,7 +669,7 @@ namespace RhinoSpatial
             var validCount = 0;
             foreach (var elevation in raster.Elevations)
             {
-                if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+                if (IsNoDataElevation(raster, elevation))
                 {
                     continue;
                 }
@@ -593,6 +678,19 @@ namespace RhinoSpatial
             }
 
             return validCount;
+        }
+
+        private static bool IsNoDataElevation(TerrainRasterData raster, float elevation)
+        {
+            if (float.IsNaN(elevation) || float.IsInfinity(elevation))
+            {
+                return true;
+            }
+
+            return raster.NoDataValue.HasValue &&
+                   (double.IsNaN(raster.NoDataValue.Value)
+                       ? float.IsNaN(elevation)
+                       : Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3);
         }
 
         private record RequestData(IReadOnlyList<ResolvedTerrainSource> Sources, SpatialContext2D SpatialContext);

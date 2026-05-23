@@ -121,6 +121,61 @@
       ]
     },
     {
+      "id": "wfs-canada-geomet",
+      "type": "WFS",
+      "purpose": "Canada GeoMet weather and environment feature provider reference",
+      "url": "https://geo.weather.gc.ca/geomet?SERVICE=WFS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Large public WFS with 97 layers",
+        "Good EPSG:4326 and weather-feature provider compatibility source"
+      ]
+    },
+    {
+      "id": "wfs-newzealand-gns-geology",
+      "type": "WFS",
+      "purpose": "New Zealand geology WFS provider reference",
+      "url": "https://maps.gns.cri.nz/geology/wfs?SERVICE=WFS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Advertises EPSG:2193 by default",
+        "Good southern-hemisphere WFS and unsupported-native-CRS watch source"
+      ]
+    },
+    {
+      "id": "wfs-spain-catastro-parcels",
+      "type": "WFS",
+      "purpose": "Spanish cadastral parcel WFS compatibility test",
+      "url": "https://ovc.catastro.meh.es/INSPIRE/wfsCP.aspx?service=WFS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Exposes cp:CadastralParcel and cp:CadastralZoning",
+        "Intended to validate cadastral WFS behavior, INSPIRE layer names, and dense parcel-style polygon sources"
+      ]
+    },
+    {
+      "id": "wfs-czech-cuzk-parcels",
+      "type": "WFS",
+      "purpose": "Czech cadastral parcel WFS compatibility and CRS watch source",
+      "url": "https://services.cuzk.cz/wfs/inspire-cp-wfs.asp?service=WFS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Exposes parcel, boundary, and zoning layers with native EPSG:5514",
+        "Intended to track cadastral WFS behavior where the native CRS is not yet part of the common Spatial Context set"
+      ]
+    },
+    {
+      "id": "wfs-uk-bgs-geology-625k",
+      "type": "WFS",
+      "purpose": "British Geological Survey GeoSciML/INSPIRE WFS metadata test",
+      "url": "https://ogc.bgs.ac.uk/digmap625k_gsml_insp_gs/wfs?service=WFS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WFS probe",
+        "Advertises GeoSciML and INSPIRE geology layers with default EPSG:27700",
+        "Intended to validate complex WFS layer metadata and UK CRS/provider behavior"
+      ]
+    },
+    {
       "id": "wfs-mapserver-demo-world",
       "type": "WFS",
       "purpose": "Lightweight global WFS parser smoke test",
@@ -140,6 +195,61 @@
         "Download and unzip before using with Load WFS local Shapefile mode",
         "Tested with sandbox shapefile command",
         "EPSG:4326, 177 country features"
+      ]
+    },
+    {
+      "id": "shapefile-naturalearth-populated-places",
+      "type": "Shapefile",
+      "purpose": "Local Shapefile point-feature smoke test",
+      "url": "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_populated_places.zip",
+      "notes": [
+        "Download and unzip before using with Load WFS local Shapefile mode",
+        "Tested with sandbox shapefile command",
+        "EPSG:4326, 243 point features"
+      ]
+    },
+    {
+      "id": "shapefile-naturalearth-roads",
+      "type": "Shapefile",
+      "purpose": "Larger local Shapefile line-feature and performance smoke test",
+      "url": "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_roads.zip",
+      "notes": [
+        "Download and unzip before using with Load WFS local Shapefile mode",
+        "Tested with sandbox shapefile command",
+        "EPSG:4326, 56600 line features"
+      ]
+    },
+    {
+      "id": "shapefile-naturalearth-rivers",
+      "type": "Shapefile",
+      "purpose": "Local Shapefile physical linework smoke test",
+      "url": "https://naciscdn.org/naturalearth/10m/physical/ne_10m_rivers_lake_centerlines.zip",
+      "notes": [
+        "Download and unzip before using with Load WFS local Shapefile mode",
+        "Tested with sandbox shapefile command",
+        "EPSG:4326, 1473 river/lake-centerline features"
+      ]
+    },
+    {
+      "id": "shapefile-naturalearth-urban-areas",
+      "type": "Shapefile",
+      "purpose": "Larger local Shapefile polygon-feature and performance smoke test",
+      "url": "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_urban_areas.zip",
+      "notes": [
+        "Download and unzip before using with Load WFS local Shapefile mode",
+        "Tested with sandbox shapefile command",
+        "EPSG:4326, 11878 urban-area polygon features"
+      ]
+    },
+    {
+      "id": "ogcapi-pygeoapi-lakes",
+      "type": "OGC API Features",
+      "purpose": "Modern GeoJSON feature endpoint smoke test",
+      "url": "https://demo.pygeoapi.io/master/collections/lakes/items?f=json",
+      "notes": [
+        "Tested with sandbox ogcapi command",
+        "Use directly in the WFS URL input; RhinoSpatial treats it as OGC API Features, not WFS",
+        "Good regression source for bbox-filtered GeoJSON item endpoints"
       ]
     },
     {
@@ -261,6 +371,72 @@
       ]
     },
     {
+      "id": "wms-canada-geomet",
+      "type": "WMS",
+      "purpose": "Canada GeoMet large WMS catalogue stress test",
+      "url": "https://geo.weather.gc.ca/geomet?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Very large public WMS catalogue with 8893 layers",
+        "Advertises 16384 x 16384 max images"
+      ]
+    },
+    {
+      "id": "wms-noaa-nowcoast-radar",
+      "type": "WMS",
+      "purpose": "NOAA nowCOAST weather radar WMS reference",
+      "url": "https://nowcoast.noaa.gov/geoserver/observations/weather_radar/ows?service=wms&version=1.3.0&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "GeoServer-backed WMS with EPSG:3857, EPSG:4326, and CRS:84",
+        "Good CRS alias and weather-raster provider test"
+      ]
+    },
+    {
+      "id": "wms-newzealand-gns-geology",
+      "type": "WMS",
+      "purpose": "New Zealand geology WMS provider reference",
+      "url": "https://maps.gns.cri.nz/geology/wms?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Advertises EPSG:2193 and EPSG:3857",
+        "Good southern-hemisphere alternate-CRS WMS source"
+      ]
+    },
+    {
+      "id": "wms-spain-catastro",
+      "type": "WMS",
+      "purpose": "Spanish cadastral map-context WMS reference",
+      "url": "https://ovc.catastro.meh.es/Cartografia/WMS/ServidorWMS.aspx?SERVICE=WMS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "WMS 1.1.1 source with parcel, construction, text, and cadastral linework layers",
+        "Intended to validate cadastral map context and older WMS version behavior"
+      ]
+    },
+    {
+      "id": "wms-italy-cadastre",
+      "type": "WMS",
+      "purpose": "Italian cadastral WMS and alternate CRS watch source",
+      "url": "https://wms.cartografia.agenziaentrate.gov.it/inspire/wms/ows01.php?service=WMS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "Advertises cadastral layers with EPSG:6706, EPSG:4258, EPSG:3044, and EPSG:3045",
+        "Intended to track cadastral WMS behavior and CRS support gaps outside the common Spatial Context set"
+      ]
+    },
+    {
+      "id": "wms-uk-bgs-detailed-geology",
+      "type": "WMS",
+      "purpose": "British Geological Survey ArcGIS WMS map-context test",
+      "url": "https://map.bgs.ac.uk/arcgis/services/BGS_Detailed_Geology/MapServer/WMSServer?service=WMS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WMS probe",
+        "ArcGIS WMS with CRS:84, EPSG:4326, EPSG:4258, and EPSG:27700",
+        "Intended to validate ArcGIS WMS URL normalization and UK geology map context"
+      ]
+    },
+    {
       "id": "wms-spain-pnoa",
       "type": "WMS",
       "purpose": "Spain orthophoto WMS reference",
@@ -337,6 +513,17 @@
       ]
     },
     {
+      "id": "citygml-ogc-building-lod1",
+      "type": "LoD2 Buildings",
+      "purpose": "OGC CityGML 2.0 LoD1 building format sample",
+      "url": "https://schemas.opengis.net/citygml/examples/2.0/building/Building_LOD1-EPSG25832.gml",
+      "notes": [
+        "Tested with sandbox lod2file command",
+        "Parses as one building with six source surfaces",
+        "Intended to confirm the LoD2 component handles simpler CityGML building geometry gracefully"
+      ]
+    },
+    {
       "id": "cityjson-local",
       "type": "LoD2 Buildings",
       "purpose": "Local CityJSON building import through LoD2 Source",
@@ -345,6 +532,17 @@
         "Connect a local .json or .cityjson file directly to the LoD2 Source input",
         "Uses the same Spatial Context, Brep output, and elevation-baseline workflow as local CityGML",
         "Basic parser support is implemented; collect more real CityJSON files before treating it as mature"
+      ]
+    },
+    {
+      "id": "cityjson-denhaag-3dcities",
+      "type": "LoD2 Buildings",
+      "purpose": "Real CityJSON city-model parser smoke test",
+      "url": "https://3d.bk.tudelft.nl/opendata/cityjson/3dcities/v2.0/DenHaag_01.city.json",
+      "notes": [
+        "Downloaded and tested with sandbox lod2file command",
+        "Parsed 1990 buildings and 16209 surfaces",
+        "Source SRS EPSG:7415 is parsed but remains a CRS-alignment watch item until broader transform support exists"
       ]
     },
     {
@@ -366,6 +564,28 @@
         "Tested with sandbox WCS probe",
         "Exposes dsm_05m and dtm_05m coverages",
         "Good non-German WCS terrain/provider behavior test"
+      ]
+    },
+    {
+      "id": "terrain-usgs-3dep",
+      "type": "Terrain",
+      "purpose": "USGS 3DEP Elevation WCS provider reference",
+      "url": "https://elevation.nationalmap.gov/arcgis/services/3DEPElevation/ImageServer/WCSServer?SERVICE=WCS&REQUEST=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WCS probe",
+        "ArcGIS ImageServer WCS 2.0.1 stack with 14 coverages",
+        "Good terrain/WCS provider diversity test"
+      ]
+    },
+    {
+      "id": "terrain-canada-hrdem",
+      "type": "Terrain",
+      "purpose": "Natural Resources Canada HRDEM WCS provider reference",
+      "url": "https://datacube.services.geo.ca/ows/elevation?service=WCS&request=GetCapabilities",
+      "notes": [
+        "Tested with sandbox WCS probe",
+        "WCS 1.1.1 source with DSM and DTM coverages",
+        "Intended to validate non-European terrain/WCS behavior and WCS version compatibility"
       ]
     },
     {
@@ -492,6 +712,28 @@
       ]
     },
     {
+      "id": "terrainfile-local-esri-ascii-grid",
+      "type": "Terrain",
+      "purpose": "Local Esri ASCII Grid DEM file input for Load Terrain",
+      "url": null,
+      "notes": [
+        "Connect a local .asc file directly to the Terrain URL input",
+        "Use Coverage for an optional EPSG override such as EPSG:25832; otherwise the Spatial Context SRS is assumed",
+        "Tested with sandbox terrainfile command on a small synthetic ASCII Grid"
+      ]
+    },
+    {
+      "id": "terrainfile-local-xyz-csv-grid",
+      "type": "Terrain",
+      "purpose": "Local regular XYZ/CSV terrain grid input for Load Terrain",
+      "url": null,
+      "notes": [
+        "Connect a local .xyz or .csv file with x,y,z rows directly to the Terrain URL input",
+        "The grid must be regular enough to infer unique x/y rows and columns",
+        "Tested with sandbox terrainfile command on a small synthetic XYZ grid"
+      ]
+    },
+    {
       "id": "geotiff-osgeo-rgbsmall",
       "type": "GeoTIFF",
       "purpose": "Small WGS84 RGB GeoTIFF parser smoke test",
@@ -500,6 +742,17 @@
         "Download before using with Load GeoTIFF",
         "Tested with sandbox geotiff command",
         "EPSG:4326, 50 x 50 pixels"
+      ]
+    },
+    {
+      "id": "geotiff-osgeo-utmsmall",
+      "type": "GeoTIFF",
+      "purpose": "Small UTM-style GeoTIFF metadata smoke test",
+      "url": "https://raw.githubusercontent.com/OSGeo/gdal/master/autotest/gcore/data/utmsmall.tif",
+      "notes": [
+        "Download before using with Load GeoTIFF",
+        "Tested with sandbox geotiff command",
+        "EPSG:4267 metadata, 100 x 100 pixels"
       ]
     },
     {

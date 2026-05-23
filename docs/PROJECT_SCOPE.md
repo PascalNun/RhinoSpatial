@@ -123,7 +123,7 @@ Typical use cases:
 - site base surfaces
 - contextual ground reference for buildings and other layers
 
-The preferred terrain path is still user-provided or official project data where available. This can be an explicit WCS service or a local `.tif` / `.tiff` GeoTIFF DEM file. The built-in global land-elevation fallback exists to make first tests and general context workflows easier, not to replace better local datasets.
+The preferred terrain path is still user-provided or official project data where available. This can be an explicit WCS service, a local `.tif` / `.tiff` GeoTIFF DEM file, a local `.asc` Esri ASCII Grid, or a regular `.xyz` / `.csv` terrain grid. The built-in global land-elevation fallback exists to make first tests and general context workflows easier, not to replace better local datasets.
 
 The fallback should stay conservative: small study areas, short request times, clear failure messages, and no hidden claim of project-grade accuracy. If the selected area is too large or the fallback source has no usable samples, the component should fail quickly and tell the user to connect an explicit terrain source.
 

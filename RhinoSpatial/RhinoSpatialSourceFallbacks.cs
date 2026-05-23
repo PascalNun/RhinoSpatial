@@ -8,6 +8,7 @@ namespace RhinoSpatial
     {
         Wcs,
         LocalGeoTiffDem,
+        LocalTextGridDem,
         GlobalSkadiTiles
     }
 
@@ -111,12 +112,13 @@ namespace RhinoSpatial
                     serviceUrl.Trim(),
                     string.IsNullOrWhiteSpace(coverageId) ? string.Empty : coverageId.Trim(),
                     RhinoSpatialSourceTier.UserProvided,
-                    IsLocalGeoTiffTerrainSource(serviceUrl)
-                        ? "user-provided local GeoTIFF DEM"
-                        : "user-provided terrain source",
-                    IsLocalGeoTiffTerrainSource(serviceUrl)
-                        ? TerrainSourceKind.LocalGeoTiffDem
-                        : TerrainSourceKind.Wcs);
+                    ResolveLocalTerrainSourceKind(serviceUrl) switch
+                    {
+                        TerrainSourceKind.LocalGeoTiffDem => "user-provided local GeoTIFF DEM",
+                        TerrainSourceKind.LocalTextGridDem => "user-provided local text-grid DEM",
+                        _ => "user-provided terrain source"
+                    },
+                    ResolveLocalTerrainSourceKind(serviceUrl));
             }
 
             return new ResolvedTerrainSource(
@@ -150,15 +152,32 @@ namespace RhinoSpatial
 
         private static bool IsLocalGeoTiffTerrainSource(string source)
         {
+            return ResolveLocalTerrainSourceKind(source) == TerrainSourceKind.LocalGeoTiffDem;
+        }
+
+        private static TerrainSourceKind ResolveLocalTerrainSourceKind(string source)
+        {
             var trimmedSource = source.Trim();
             if (!File.Exists(trimmedSource))
             {
-                return false;
+                return TerrainSourceKind.Wcs;
             }
 
             var extension = Path.GetExtension(trimmedSource);
-            return extension.Equals(".tif", System.StringComparison.OrdinalIgnoreCase) ||
-                   extension.Equals(".tiff", System.StringComparison.OrdinalIgnoreCase);
+            if (extension.Equals(".tif", System.StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".tiff", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return TerrainSourceKind.LocalGeoTiffDem;
+            }
+
+            if (extension.Equals(".asc", System.StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".xyz", System.StringComparison.OrdinalIgnoreCase) ||
+                extension.Equals(".csv", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return TerrainSourceKind.LocalTextGridDem;
+            }
+
+            return TerrainSourceKind.Wcs;
         }
 
         public static bool TryCreateRequestSpatialContext(
