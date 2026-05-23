@@ -39,7 +39,7 @@ Typical workflow:
 
 Built-in fallbacks currently include global imagery for WMS-style context, a quick global land-elevation fallback for small terrain previews, and public OSM access for lightweight urban context. Fallbacks are convenience/context tools; official or project-specific sources remain the preferred path for production work.
 
-`Load WFS` accepts WFS URLs and local `.shp` files for vector context.
+`Load WFS` accepts WFS URLs, OGC API Features URLs, local `.shp` files, and local `.geojson` / GeoJSON `.json` files for vector context.
 
 `Load LoD2 Buildings` accepts one source input for LoD2 WFS URLs, local CityGML/GML/XML/CityJSON files, folders, and ZIP archives. Local file loading is filtered by the selected Spatial Context where metadata and building bounds make that possible, but very large local tiles may still take longer than service-based requests.
 
@@ -49,7 +49,7 @@ The optional Google 3D Tiles component is a viewer/reference workflow. It requir
 
 RhinoSpatial is currently still in an alpha stage.
 
-The `0.3.1-alpha` release continues the first complete alpha line where the planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
+The `0.3.2-alpha` release is a stabilization and source-compatibility release in the first complete alpha line. The planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer. This version improves local vector input support, LoD2 source handling, test-source documentation, package cleanup, and dependency notices. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
 
 Feedback, edge cases, and additional test links are very welcome.
 
@@ -57,7 +57,7 @@ Feedback, edge cases, and additional test links are very welcome.
 
 Current release package:
 
-- `RhinoSpatial-0.3.1-alpha.zip`
+- `RhinoSpatial-0.3.2-alpha.zip`
 
 ## Repository
 

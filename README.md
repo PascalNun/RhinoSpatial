@@ -20,7 +20,7 @@ The current RhinoSpatial scope is centered around:
 - `OSM`
 - optional `3D Tiles Viewer (Google)`
 
-The `v0.3.1-alpha` release continues the first complete alpha line where the planned core source ecosystem is present as a coherent toolkit. The source categories are considered stable at the category level, while individual providers, geometry conversion paths, fallbacks, and documentation are still expected to improve through real-world use.
+The `v0.3.2-alpha` release continues the first complete alpha line where the planned core source ecosystem is present as a coherent toolkit. This release focuses on source compatibility and stabilization: broader vector inputs, cleaner LoD2 source handling, updated test-source documentation, and leaner packaging. The source categories are considered stable at the category level, while individual providers, geometry conversion paths, fallbacks, and documentation are still expected to improve through real-world use.
 
 ## Why RhinoSpatial
 
@@ -121,7 +121,7 @@ Lightweight contextual geometry for quick figure-ground and site-context studies
 
 RhinoSpatial is currently still in an alpha stage.
 
-As of `v0.3.1-alpha`, the originally planned core source set is present: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer all share the same Spatial Context workflow.
+As of `v0.3.2-alpha`, the originally planned core source set is present: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer all share the same Spatial Context workflow.
 
 It has only been tested with a relatively small number of WFS, WMS, LoD2, terrain, GeoTIFF, OSM, and 3D Tiles workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
 
