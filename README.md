@@ -64,7 +64,7 @@ For a guided visual walkthrough, open the [workflow tutorial](docs/SHOWCASE.md).
 ## Workflow Preview
 
 RhinoSpatial is organized around one selected area that drives each aligned source group.
-Define the study area once with `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2, OSM, and optional Google 3D Tiles source blocks to that same context.
+Define the study area once with `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2, OSM, and Google 3D Tiles reference components to that same context where needed.
 
 ![Spatial Context reference definition](docs/images/workflow-00-spatial-context.jpg)
 
@@ -273,7 +273,7 @@ The built-in fallback is intentionally limited to small study areas and short re
 3. Enable the viewer only for the bounded area you want to inspect
 4. Use the preview meshes/materials as visual context alongside the other aligned RhinoSpatial sources
 
-The Google component is intentionally a viewer/reference workflow. It requests Google Map Tiles API content directly for the current Grasshopper preview, outputs temporary preview meshes/materials, and does not promise offline caching, export, baking, or reuse as editable project geometry. Users are responsible for their own Google Maps Platform project, billing, API key, and compliance with the current [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms) and [Map Tiles API Policies](https://developers.google.com/maps/documentation/tile/policies).
+The Google component is intentionally a viewer/reference workflow. It requests Google Maps Platform Map Tiles API content directly for the current Grasshopper preview, outputs temporary preview meshes/materials, and does not provide offline caching, export, baking, or reuse as editable project geometry. Users are responsible for their own Google Maps Platform project, billing, API key, and compliance with the current [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms) and [Map Tiles API Policies](https://developers.google.com/maps/documentation/tile/policies).
 
 To avoid visible holes where fine 3D tile coverage is incomplete, RhinoSpatial may keep coarser parent tile content as a fallback behind refined tiles. This can make the preview extend slightly beyond the selected Spatial Context, which is preferred for visual checking over under-loading missing chunks inside the reference area.
 

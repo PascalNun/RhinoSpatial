@@ -3,7 +3,7 @@
 RhinoSpatial is built around one selected area and multiple aligned source
 groups. This walkthrough shows the reference definition flow: start with one
 shared `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2,
-Google 3D Tiles, and OSM source blocks to that same context.
+Google 3D Tiles, and OSM source components to that same context.
 
 The URLs and files shown in the screenshots are examples. They can be replaced
 with your own project data as long as the source type is supported.
@@ -84,26 +84,27 @@ and optional layer names.
 
 ## 6. Google 3D Tiles Reference
 
-Use `3D Tiles Viewer (Google)` as bounded visual reference context for the
-selected area.
+Use `3D Tiles Viewer (Google)` to preview Google Photorealistic 3D Tiles around
+the selected area. This is useful for checking the wider visual surroundings
+alongside the other RhinoSpatial layers.
 
-This workflow is optional. It requires a user-managed Google Maps Platform API
-key for the Google Map Tiles API, the shared Spatial Context, and an enable
-toggle. RhinoSpatial does not include, store, or share a Google API key.
+This component uses Google Photorealistic 3D Tiles through the Google Maps
+Platform Map Tiles API. To use it, create or use a Google Cloud project,
+enable the [Map Tiles API](https://developers.google.com/maps/documentation/tile/get-api-key),
+create an API key in Google Cloud, and paste that key into the `API Key`
+input. RhinoSpatial does not include, store, or share a Google API key.
 
-To try this block, create or use a Google Cloud project, enable the
-[Map Tiles API](https://developers.google.com/maps/documentation/tile/get-api-key),
-create an API key in the Google Cloud credentials page, and paste that key into
-the `API Key` input. Keep the key out of committed example files, and restrict
-the key in Google Cloud where possible.
-
-Google Map Tiles API requests can count toward quota and billing, so keep the
-viewer disabled when you are not actively using it and check the current
+Connect the same `Spatial Context` used by the other RhinoSpatial sources, then
+set `Enable` to `True` when you want to load the reference preview. Map Tiles
+API requests can count toward quota and billing, so keep the viewer
+disabled when you are not actively using it and check the current
 [Google usage and billing documentation](https://developers.google.com/maps/documentation/tile/usage-and-billing).
+Restrict your API key in Google Cloud where possible.
 
-This is a visual reference viewer, not an editable project data import, bake,
-export, or offline cache workflow. When using Google Photorealistic 3D Tiles,
-review the current [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms)
+The output is intended as visual reference only. It is not editable project
+data, and it should not be treated as a data import, bake, export, or offline
+cache workflow. When using Google Photorealistic 3D Tiles, review the current
+[Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms)
 and [Map Tiles API Policies](https://developers.google.com/maps/documentation/tile/policies),
 including attribution requirements and restrictions on caching, extraction, and
 offline use.

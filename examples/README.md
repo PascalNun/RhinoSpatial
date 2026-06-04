@@ -59,15 +59,15 @@ set of focused workflow definitions:
 - [Download .gh: WMS + WFS basics](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/01-wms-wfs-basics.gh)
   Basic map imagery plus vector data workflow.
 - [Download .gh: GeoTIFF + terrain](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/02-geotiff-terrain.gh)
-  Local raster / terrain workflow. The GeoTIFF block is a local-file placeholder
+  Local raster / terrain workflow. The GeoTIFF example is a local-file placeholder
   and expects the user to connect their own `.tif` / `.tiff` file.
 - [Download .gh: LoD2 buildings](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/03-lod2-buildings.gh)
   Official LoD2 building context workflow.
 - [Download .gh: OSM context](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/04-osm-context.gh)
   Lightweight OSM context workflow for quick site studies and black-plan views.
 - [Download .gh: Google 3D Tiles reference](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/05-google-3d-tiles-reference.gh)
-  Optional Google 3D Tiles visual reference workflow. No API key should be
-  saved in the committed definition.
+  Google 3D Tiles visual reference workflow. The example does not include a
+  Google API key.
 
 These are meant to support:
 
@@ -77,17 +77,18 @@ These are meant to support:
 
 The validation checklist and source manifest remain the broader regression baseline.
 
-If a saved working definition shows Grasshopper IO archive warnings after a component layout change, replace the affected component once and reconnect it. The committed example definitions should stay warning-free and represent the current component layout.
+If a saved working definition shows Grasshopper IO archive warnings after a component layout change, replace the affected component once and reconnect it. The example definitions in this repository should stay warning-free and represent the current component layout.
 
 The GeoTIFF workflow is a local-file workflow in this release. The example
 definition should not contain a personal local file path or bundled project
 raster; it should clearly ask the user to connect their own georeferenced
 GeoTIFF.
 
-The Google 3D Tiles workflow is optional because it requires the user's own
-Google Maps API key. Example and validation notes should describe it as a visual
-reference viewer only, not as an editable data-source, import/export, bake, or
-offline-cache workflow.
+The Google 3D Tiles workflow requires the user's own Google Maps API key. The
+example definitions do not include an API key; if you add your own key, do not
+share that edited file publicly. Example and validation notes should describe
+the component as a visual reference viewer only, not as an editable data source,
+import/export, bake, or offline cache workflow.
 
 ## Reference Coverage
 
