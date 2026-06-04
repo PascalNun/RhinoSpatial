@@ -53,19 +53,19 @@ These examples are meant to support:
 The current `.gh` example set has one full reference definition plus a small
 set of focused workflow definitions:
 
-- [Full reference workflow](gh/00-rhinospatial-reference-workflow.gh)
+- [Download .gh: Full reference workflow](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/00-rhinospatial-reference-workflow.gh)
   Full walkthrough definition with the shared `Spatial Context` and all current
   source groups.
-- [WMS + WFS basics](gh/01-wms-wfs-basics.gh)
+- [Download .gh: WMS + WFS basics](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/01-wms-wfs-basics.gh)
   Basic map imagery plus vector data workflow.
-- [GeoTIFF + terrain](gh/02-geotiff-terrain.gh)
+- [Download .gh: GeoTIFF + terrain](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/02-geotiff-terrain.gh)
   Local raster / terrain workflow. The GeoTIFF block is a local-file placeholder
   and expects the user to connect their own `.tif` / `.tiff` file.
-- [LoD2 buildings](gh/03-lod2-buildings.gh)
+- [Download .gh: LoD2 buildings](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/03-lod2-buildings.gh)
   Official LoD2 building context workflow.
-- [OSM context](gh/04-osm-context.gh)
+- [Download .gh: OSM context](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/04-osm-context.gh)
   Lightweight OSM context workflow for quick site studies and black-plan views.
-- [Google 3D Tiles reference](gh/05-google-3d-tiles-reference.gh)
+- [Download .gh: Google 3D Tiles reference](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/05-google-3d-tiles-reference.gh)
   Optional Google 3D Tiles visual reference workflow. No API key should be
   saved in the committed definition.
 

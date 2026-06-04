@@ -55,6 +55,14 @@ Feedback, edge cases, and additional test links are very welcome.
 
 ## Download
 
+Food4Rhino listing:
+
+- https://www.food4rhino.com/en/app/rhinospatial?lang=en
+
+Rhino Package Manager:
+
+- Open Rhino 8, run `PackageManager`, search for `RhinoSpatial`, and install the package.
+
 Current release package:
 
 - `RhinoSpatial-0.3.2-alpha.zip`

@@ -20,34 +20,24 @@ The current RhinoSpatial scope is centered around:
 - `OSM`
 - optional `3D Tiles Viewer (Google)`
 
-The `v0.3.2-alpha` release continues the first complete alpha line where the planned core source ecosystem is present as a coherent toolkit. This release focuses on source compatibility and stabilization: broader vector inputs, cleaner LoD2 source handling, updated test-source documentation, and leaner packaging. The source categories are considered stable at the category level, while individual providers, geometry conversion paths, fallbacks, and documentation are still expected to improve through real-world use.
-
 ## Why RhinoSpatial
 
 RhinoSpatial grew out of a simple practical need: loading official geodata such as WFS-based planning and city data directly into Rhino and Grasshopper in a way that feels usable for design work.
 
 What started as a WFS-focused workflow has gradually grown into a broader contextual geospatial toolkit built around one shared spatial context and multiple aligned data sources.
 
-Project direction notes:
+## Install / Download
 
-- [Project scope](docs/PROJECT_SCOPE.md)
-- [Roadmap](docs/ROADMAP.md)
+The easiest way to install RhinoSpatial is through Rhino's Package Manager:
 
-A small example and regression baseline now lives in:
+1. Open Rhino 8
+2. Run `PackageManager`
+3. Search for `RhinoSpatial`
+4. Install the package and restart Rhino / Grasshopper if needed
 
-- [Example overview](examples/README.md)
-- [Manual validation checklist](examples/VALIDATION.md)
-- [Curated source list](examples/sources.json)
-- [Workflow tutorial](docs/SHOWCASE.md)
-- [Test source catalogue](docs/TEST_SOURCES.md)
+You can also open the [RhinoSpatial page on Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
 
-## Download
-
-You can download the current RhinoSpatial release from the GitHub Releases page:
-
-https://github.com/PascalNun/RhinoSpatial/releases
-
-On the release page, open the latest release and download the attached `.zip` file.
+For manual installation, download the current release from [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases). On the release page, open the latest release and download the attached `.zip` file.
 
 Release packages include a small number of third-party libraries used for raster handling, topology operations, and coordinate transforms. See the [third-party notices](THIRD-PARTY-NOTICES.md) in the repository or release archive for bundled dependency notices.
 
@@ -55,11 +45,10 @@ Release packages include a small number of third-party libraries used for raster
 
 The quickest way to try RhinoSpatial is:
 
-1. Download the latest release package
-2. Install the plugin files into the Grasshopper Libraries folder
-3. Open Grasshopper and place `Spatial Context`
-4. Define an area once
-5. Connect that same `Spatial Context` to one or more source components such as:
+1. Install RhinoSpatial through Rhino's Package Manager, or use the manual zip package from GitHub Releases
+2. Open Grasshopper and place `Spatial Context`
+3. Define an area once
+4. Connect that same `Spatial Context` to one or more source components such as:
    - `Load WFS`
    - `Load WMS`
    - `Load LoD2 Buildings`
@@ -70,20 +59,7 @@ The quickest way to try RhinoSpatial is:
 
 The toolkit works best when one selected area drives multiple aligned sources.
 
-For installation notes, see:
-
-- [Installation notes](package/food4rhino/INSTALL.md)
-
-For example sources and validation checks, see:
-
-- [Example overview](examples/README.md)
-- [Manual validation checklist](examples/VALIDATION.md)
-- [Curated source list](examples/sources.json)
-- [Test source catalogue](docs/TEST_SOURCES.md)
-
-For screenshots and example workflows, see:
-
-- [Workflow tutorial](docs/SHOWCASE.md)
+For a guided visual walkthrough, open the [workflow tutorial](docs/SHOWCASE.md). For downloadable Grasshopper example definitions, open the [example overview](examples/README.md). Manual zip installation details are available in the [installation notes](package/food4rhino/INSTALL.md).
 
 ## Workflow Preview
 
@@ -94,9 +70,21 @@ Define the study area once with `Spatial Context`, then connect WMS, WFS, GeoTIF
 
 For the full step-by-step visual walkthrough, open the [workflow tutorial](docs/SHOWCASE.md).
 
+## Documentation
+
+- [Workflow tutorial](docs/SHOWCASE.md)
+- [Example overview and downloadable `.gh` definitions](examples/README.md)
+- [Manual validation checklist](examples/VALIDATION.md)
+- [Curated source list](examples/sources.json)
+- [Test source catalogue](docs/TEST_SOURCES.md)
+- [Project scope](docs/PROJECT_SCOPE.md)
+- [Roadmap](docs/ROADMAP.md)
+
 ## Project Status
 
 RhinoSpatial is currently still in an alpha stage.
+
+The `v0.3.2-alpha` release continues the first complete alpha line where the planned core source ecosystem is present as a coherent toolkit. This release focuses on source compatibility and stabilization: broader vector inputs, cleaner LoD2 source handling, updated test-source documentation, and leaner packaging. The source categories are considered stable at the category level, while individual providers, geometry conversion paths, fallbacks, and documentation are still expected to improve through real-world use.
 
 As of `v0.3.2-alpha`, the originally planned core source set is present: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer all share the same Spatial Context workflow.
 

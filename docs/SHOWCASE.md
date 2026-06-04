@@ -8,14 +8,14 @@ Google 3D Tiles, and OSM source blocks to that same context.
 The URLs and files shown in the screenshots are examples. They can be replaced
 with your own project data as long as the source type is supported.
 
-Related example definitions:
+Related downloadable Grasshopper definitions:
 
-- [Full reference workflow](../examples/gh/00-rhinospatial-reference-workflow.gh)
-- [WMS + WFS basics](../examples/gh/01-wms-wfs-basics.gh)
-- [GeoTIFF + terrain](../examples/gh/02-geotiff-terrain.gh)
-- [LoD2 buildings](../examples/gh/03-lod2-buildings.gh)
-- [OSM context](../examples/gh/04-osm-context.gh)
-- [Google 3D Tiles reference](../examples/gh/05-google-3d-tiles-reference.gh)
+- [Download .gh: Full reference workflow](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/00-rhinospatial-reference-workflow.gh)
+- [Download .gh: WMS + WFS basics](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/01-wms-wfs-basics.gh)
+- [Download .gh: GeoTIFF + terrain](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/02-geotiff-terrain.gh)
+- [Download .gh: LoD2 buildings](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/03-lod2-buildings.gh)
+- [Download .gh: OSM context](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/04-osm-context.gh)
+- [Download .gh: Google 3D Tiles reference](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/05-google-3d-tiles-reference.gh)
 
 ## 0. Spatial Context
 

@@ -2,6 +2,18 @@
 
 This package is currently an alpha release of RhinoSpatial for Rhino 8.
 
+## Package Manager Installation
+
+The easiest way to install RhinoSpatial is through Rhino's Package Manager.
+
+1. Open Rhino 8.
+2. Run `PackageManager`.
+3. Search for `RhinoSpatial`.
+4. Install the package.
+5. Restart Rhino / Grasshopper if needed.
+
+You can also open the [RhinoSpatial page on Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
+
 ## Included Files
 
 - `RhinoSpatial.gha`
@@ -14,7 +26,7 @@ This package is currently an alpha release of RhinoSpatial for Rhino 8.
 - `LICENSE`
 - `THIRD-PARTY-NOTICES.md`
 
-## Manual Installation
+## Manual Zip Installation
 
 1. Close Rhino before copying plugin files.
 2. Copy all plugin files from the zip into your Grasshopper Libraries folder.
@@ -54,7 +66,7 @@ Good first components to try are:
 - RhinoSpatial is currently still in an alpha stage.
 - The plugin has only been tested with a limited number of real WFS, WMS, LoD2, terrain, GeoTIFF, OSM, and 3D Tiles workflows so far.
 - Leave imagery, terrain, or OSM source inputs empty only when you want RhinoSpatial's broad fallback behavior for quick context. The terrain fallback is intentionally limited to small study areas and short request times. For project work, prefer your own official or project-specific data sources.
-- `Load WFS` accepts WFS URLs and local `.shp` files for vector context.
+- `Load WFS` accepts WFS URLs, OGC API Features URLs, local `.shp` files, and local `.geojson` / GeoJSON `.json` files for vector context.
 - `Load LoD2 Buildings` accepts a LoD2 WFS URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive through one `LoD2 Source` input. Large local files may still take time because they have to be inspected before out-of-context buildings can be skipped.
 - The Google 3D Tiles component is a viewer/reference workflow that requires the user's own Google Maps API key and should not be treated as an editable project data source, cache, bake, or export workflow.
 - Behavior may still vary depending on the provider, geometry type, SRS, version, response format, API access, or local file metadata.
