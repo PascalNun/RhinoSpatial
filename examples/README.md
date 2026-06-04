@@ -12,20 +12,20 @@ RhinoSpatial is built around one shared `Spatial Context` and multiple aligned s
 
 ## Current Structure
 
-- `README.md`
+- [Example overview](README.md)
   Overview of the example strategy
-- `VALIDATION.md`
+- [Manual validation checklist](VALIDATION.md)
   Manual regression checklist for the current core source ecosystem
-- `sources.json`
+- [Curated source list](sources.json)
   Curated reference sources and notes for repeatable testing
-- `docs/TEST_SOURCES.md`
+- [Test source catalogue](../docs/TEST_SOURCES.md)
   Sorted provider/source catalogue with current probe notes and future format candidates
-- `gh/`
+- [Grasshopper examples](gh/)
   Example Grasshopper definitions for the current showcase/regression workflows
 
 Related project docs:
 
-- `docs/SHOWCASE.md`
+- [Workflow tutorial](../docs/SHOWCASE.md)
   Public-facing screenshots and example workflow previews
 
 ## Current Core Workflow Examples
@@ -53,19 +53,19 @@ These examples are meant to support:
 The current `.gh` example set has one full reference definition plus a small
 set of focused workflow definitions:
 
-- `gh/00-rhinospatial-reference-workflow.gh`
+- [Full reference workflow](gh/00-rhinospatial-reference-workflow.gh)
   Full walkthrough definition with the shared `Spatial Context` and all current
   source groups.
-- `gh/01-wms-wfs-basics.gh`
+- [WMS + WFS basics](gh/01-wms-wfs-basics.gh)
   Basic map imagery plus vector data workflow.
-- `gh/02-geotiff-terrain.gh`
+- [GeoTIFF + terrain](gh/02-geotiff-terrain.gh)
   Local raster / terrain workflow. The GeoTIFF block is a local-file placeholder
   and expects the user to connect their own `.tif` / `.tiff` file.
-- `gh/03-lod2-buildings.gh`
+- [LoD2 buildings](gh/03-lod2-buildings.gh)
   Official LoD2 building context workflow.
-- `gh/04-osm-context.gh`
+- [OSM context](gh/04-osm-context.gh)
   Lightweight OSM context workflow for quick site studies and black-plan views.
-- `gh/05-google-3d-tiles-reference.gh`
+- [Google 3D Tiles reference](gh/05-google-3d-tiles-reference.gh)
   Optional Google 3D Tiles visual reference workflow. No API key should be
   saved in the committed definition.
 

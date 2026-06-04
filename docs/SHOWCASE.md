@@ -10,12 +10,12 @@ with your own project data as long as the source type is supported.
 
 Related example definitions:
 
-- `../examples/gh/00-rhinospatial-reference-workflow.gh`
-- `../examples/gh/01-wms-wfs-basics.gh`
-- `../examples/gh/02-geotiff-terrain.gh`
-- `../examples/gh/03-lod2-buildings.gh`
-- `../examples/gh/04-osm-context.gh`
-- `../examples/gh/05-google-3d-tiles-reference.gh`
+- [Full reference workflow](../examples/gh/00-rhinospatial-reference-workflow.gh)
+- [WMS + WFS basics](../examples/gh/01-wms-wfs-basics.gh)
+- [GeoTIFF + terrain](../examples/gh/02-geotiff-terrain.gh)
+- [LoD2 buildings](../examples/gh/03-lod2-buildings.gh)
+- [OSM context](../examples/gh/04-osm-context.gh)
+- [Google 3D Tiles reference](../examples/gh/05-google-3d-tiles-reference.gh)
 
 ## 0. Spatial Context
 

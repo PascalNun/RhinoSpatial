@@ -30,16 +30,16 @@ What started as a WFS-focused workflow has gradually grown into a broader contex
 
 Project direction notes:
 
-- `docs/PROJECT_SCOPE.md`
-- `docs/ROADMAP.md`
+- [Project scope](docs/PROJECT_SCOPE.md)
+- [Roadmap](docs/ROADMAP.md)
 
 A small example and regression baseline now lives in:
 
-- `examples/README.md`
-- `examples/VALIDATION.md`
-- `examples/sources.json`
-- `docs/SHOWCASE.md`
-- `docs/TEST_SOURCES.md`
+- [Example overview](examples/README.md)
+- [Manual validation checklist](examples/VALIDATION.md)
+- [Curated source list](examples/sources.json)
+- [Workflow tutorial](docs/SHOWCASE.md)
+- [Test source catalogue](docs/TEST_SOURCES.md)
 
 ## Download
 
@@ -49,7 +49,7 @@ https://github.com/PascalNun/RhinoSpatial/releases
 
 On the release page, open the latest release and download the attached `.zip` file.
 
-Release packages include a small number of third-party libraries used for raster handling, topology operations, and coordinate transforms. See `THIRD-PARTY-NOTICES.md` in the repository or release archive for bundled dependency notices.
+Release packages include a small number of third-party libraries used for raster handling, topology operations, and coordinate transforms. See the [third-party notices](THIRD-PARTY-NOTICES.md) in the repository or release archive for bundled dependency notices.
 
 ## Getting Started
 
@@ -72,18 +72,18 @@ The toolkit works best when one selected area drives multiple aligned sources.
 
 For installation notes, see:
 
-- `package/food4rhino/INSTALL.md`
+- [Installation notes](package/food4rhino/INSTALL.md)
 
 For example sources and validation checks, see:
 
-- `examples/README.md`
-- `examples/VALIDATION.md`
-- `examples/sources.json`
-- `docs/TEST_SOURCES.md`
+- [Example overview](examples/README.md)
+- [Manual validation checklist](examples/VALIDATION.md)
+- [Curated source list](examples/sources.json)
+- [Test source catalogue](docs/TEST_SOURCES.md)
 
 For screenshots and example workflows, see:
 
-- `docs/SHOWCASE.md`
+- [Workflow tutorial](docs/SHOWCASE.md)
 
 ## Workflow Preview
 
@@ -92,7 +92,7 @@ Define the study area once with `Spatial Context`, then connect WMS, WFS, GeoTIF
 
 ![Spatial Context reference definition](docs/images/workflow-00-spatial-context.jpg)
 
-For the full step-by-step visual walkthrough, see `docs/SHOWCASE.md`.
+For the full step-by-step visual walkthrough, open the [workflow tutorial](docs/SHOWCASE.md).
 
 ## Project Status
 
