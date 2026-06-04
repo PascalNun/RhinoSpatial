@@ -50,11 +50,24 @@ These examples are meant to support:
 
 ## Current Example Definitions
 
-The current `.gh` example set is intentionally small:
+The current `.gh` example set has one full reference definition plus a small
+set of focused workflow definitions:
 
-- `gh/01-wfs-wms-basics.gh`
-- `gh/02-lod2-terrain-context.gh`
-- `gh/03-osm-blackplan.gh`
+- `gh/00-rhinospatial-reference-workflow.gh`
+  Full walkthrough definition with the shared `Spatial Context` and all current
+  source groups.
+- `gh/01-wms-wfs-basics.gh`
+  Basic map imagery plus vector data workflow.
+- `gh/02-geotiff-terrain.gh`
+  Local raster / terrain workflow. The GeoTIFF block is a local-file placeholder
+  and expects the user to connect their own `.tif` / `.tiff` file.
+- `gh/03-lod2-buildings.gh`
+  Official LoD2 building context workflow.
+- `gh/04-osm-context.gh`
+  Lightweight OSM context workflow for quick site studies and black-plan views.
+- `gh/05-google-3d-tiles-reference.gh`
+  Optional Google 3D Tiles visual reference workflow. No API key should be
+  saved in the committed definition.
 
 These are meant to support:
 
@@ -66,7 +79,15 @@ The validation checklist and source manifest remain the broader regression basel
 
 If a saved working definition shows Grasshopper IO archive warnings after a component layout change, replace the affected component once and reconnect it. The committed example definitions should stay warning-free and represent the current component layout.
 
-The Google 3D Tiles workflow is optional because it requires the user's own Google Maps API key. Example and validation notes should describe it as a reference viewer only, not as an editable data-source or export workflow.
+The GeoTIFF workflow is a local-file workflow in this release. The example
+definition should not contain a personal local file path or bundled project
+raster; it should clearly ask the user to connect their own georeferenced
+GeoTIFF.
+
+The Google 3D Tiles workflow is optional because it requires the user's own
+Google Maps API key. Example and validation notes should describe it as a visual
+reference viewer only, not as an editable data-source, import/export, bake, or
+offline-cache workflow.
 
 ## Reference Coverage
 

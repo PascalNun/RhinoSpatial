@@ -87,35 +87,12 @@ For screenshots and example workflows, see:
 
 ## Workflow Preview
 
-Current example definitions:
+RhinoSpatial is organized around one selected area that drives each aligned source group.
+Define the study area once with `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2, OSM, and optional Google 3D Tiles source blocks to that same context.
 
-- `examples/gh/01-wfs-wms-basics.gh`
-- `examples/gh/02-lod2-terrain-context.gh`
-- `examples/gh/03-osm-blackplan.gh`
+![Spatial Context reference definition](docs/images/workflow-00-spatial-context.jpg)
 
-### Spatial Context Selection
-
-The shared `Spatial Context` is the starting point for the whole toolkit.
-
-![Spatial Context Selection](docs/images/00-spatial-context-selection.jpg)
-
-### WFS + WMS Basics
-
-A simple official-vector plus imagery workflow using one shared study area.
-
-![WFS + WMS Basics](docs/images/01-wfs-wms-basics.jpg)
-
-### LoD2 + Terrain Context
-
-Official 3D building context and terrain aligned through the same spatial selection.
-
-![LoD2 + Terrain Context](docs/images/02-lod2-terrain-context.jpg)
-
-### OSM Black-Plan Context
-
-Lightweight contextual geometry for quick figure-ground and site-context studies.
-
-![OSM Context](docs/images/03-osm-blackplan.jpg)
+For the full step-by-step visual walkthrough, see `docs/SHOWCASE.md`.
 
 ## Project Status
 
