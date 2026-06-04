@@ -1,21 +1,21 @@
 # Examples
 
-This folder is the starting point for RhinoSpatial example workflows and regression checks.
+This folder is the starting point for RhinoSpatial example definitions and manual checks.
 
 The goal is not to collect every possible provider or service variation. The goal is to keep a small, practical set of reference workflows that helps us:
 
-- demonstrate the intended RhinoSpatial workflow
-- verify that the core source ecosystem still behaves correctly
+- show how to assemble site context with RhinoSpatial
+- verify that the core data layers still behave correctly
 - catch regressions when the toolkit is refined
 
-RhinoSpatial is built around one shared `Spatial Context` and multiple aligned sources, so the examples are organized around complete study workflows rather than isolated one-off technical tests.
+RhinoSpatial is built around one shared `Spatial Context` and multiple aligned data layers, so the examples are organized around complete study workflows rather than isolated one-off technical tests.
 
 ## Current Structure
 
 - [Example overview](README.md)
   Overview of the example strategy
 - [Manual validation checklist](VALIDATION.md)
-  Manual regression checklist for the current core source ecosystem
+  Manual checklist for the current core data layers
 - [Curated source list](sources.json)
   Curated reference sources and notes for repeatable testing
 - [Test source catalogue](../docs/TEST_SOURCES.md)
@@ -55,7 +55,7 @@ set of focused workflow definitions:
 
 - [Download .gh: Full reference workflow](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/00-rhinospatial-reference-workflow.gh)
   Full walkthrough definition with the shared `Spatial Context` and all current
-  source groups.
+  data layers.
 - [Download .gh: WMS + WFS basics](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/01-wms-wfs-basics.gh)
   Basic map imagery plus vector data workflow.
 - [Download .gh: GeoTIFF + terrain](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/02-geotiff-terrain.gh)
@@ -66,14 +66,14 @@ set of focused workflow definitions:
 - [Download .gh: OSM context](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/04-osm-context.gh)
   Lightweight OSM context workflow for quick site studies and black-plan views.
 - [Download .gh: Google 3D Tiles reference](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/05-google-3d-tiles-reference.gh)
-  Google 3D Tiles visual reference workflow. The example does not include a
+  Google 3D Tiles visual reference context. The example does not include a
   Google API key.
 
 These are meant to support:
 
 - quick manual smoke tests
 - screenshot capture for the public project presentation
-- future regression checking against representative RhinoSpatial workflows
+- future checks against representative RhinoSpatial workflows
 
 The validation checklist and source manifest remain the broader regression baseline.
 

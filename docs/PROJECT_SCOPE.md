@@ -70,9 +70,9 @@ The following source / component types are considered part of the core RhinoSpat
 - **Load Terrain**
 - **Load GeoTIFF**
 - **Load OSM**
-- **3D Tiles Viewer (Google)** as an optional viewer, not a normal source/import workflow
+- **3D Tiles Viewer (Google)** as a visual reference viewer, not a normal source/import workflow
 
-These form the core source ecosystem of the project and are considered stable at the source-category level. The `v0.3.2-alpha` release continues the first complete alpha line where this planned source set is present together; future work should mainly refine robustness, quality, provider compatibility, examples, and documentation inside this scope.
+These form the core data layers of the project and are considered stable at the source-category level. The `v0.3.2-alpha` release continues the first complete alpha line where this planned source set is present together; future work should mainly refine robustness, quality, provider compatibility, examples, and documentation inside this scope.
 
 ## Meaning of the Core Source Types
 
@@ -147,14 +147,14 @@ Typical use cases:
 - fast black-plan / site-context style studies
 
 ### 3D Tiles Viewer (Google)
-Optional user-managed contextual 3D viewer for Google Photorealistic 3D Tiles.
+User-managed 3D reference context for Google Photorealistic 3D Tiles.
 
 Typical use cases:
 - visual urban context
 - quick massing/orientation checks
 - comparing official editable layers with broad photogrammetric surroundings
 
-The component requires the user's own Google Maps API key. It is a reference viewer workflow and should not be presented as an official editable data source, import/export path, or offline cache.
+The component requires the user's own Google Maps API key. It is a reference viewer and should not be presented as an official editable data source, import/export path, or offline cache.
 
 The viewer may keep coarser parent tile content available behind finer tiles when Google tile refinement leaves visible holes. This is an intentional reference-preview tradeoff: slight over-coverage is acceptable, but under-loading missing chunks inside the selected context is not useful for visual checking.
 
@@ -220,7 +220,7 @@ This means:
 ### Shared Spatial Logic
 The project is centered around a shared spatial context.
 
-All aligned source components should:
+All aligned layer components should:
 - consume the same spatial context
 - use the same placement / relocation logic
 - produce outputs that align correctly in Rhino / Grasshopper
@@ -281,7 +281,7 @@ The meaningful long-term core scope of RhinoSpatial is currently considered to b
 - Terrain
 - GeoTIFF
 - OSM
-- optional Google 3D Tiles viewing
+- Google 3D Tiles reference viewing
 
 At this point, the project should focus more on:
 
@@ -302,12 +302,11 @@ The current priority is to make the existing system feel more complete, dependab
 
 ## Policy Note: Google 3D Tiles
 
-Google Photorealistic 3D Tiles are available in RhinoSpatial as an optional viewer component.
+Google Photorealistic 3D Tiles are available in RhinoSpatial as a visual reference viewer.
 
 This feature should be treated as:
 
-- optional
-- advanced
+- reference context
 - user-managed through the user's own API key and billing setup
 - bounded to the selected Spatial Context
 - clearly separate from official editable project data
@@ -325,7 +324,7 @@ RhinoSpatial should not use Google Photorealistic 3D Tiles as:
 The intended role of Google 3D Tiles in RhinoSpatial is only:
 - visual reference
 - contextual preview
-- optional advanced background layer
+- surrounding context for orientation and visual checking
 
 Users are responsible for their own Google Maps Platform project, billing, API key, and compliance with the current Google Maps Platform terms and Map Tiles API policies.
 

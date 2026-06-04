@@ -248,7 +248,7 @@
       "url": null,
       "notes": [
         "Use a .geojson or GeoJSON .json file path directly in the Load WFS URL input",
-        "The Layer input is optional and is used as an output label",
+        "The Layer input can be left empty and is used as an output label when provided",
         "Defaults to EPSG:4326 unless the file advertises an older named CRS"
       ]
     },
@@ -729,7 +729,7 @@
       "url": null,
       "notes": [
         "Connect a local .asc file directly to the Terrain URL input",
-        "Use Coverage for an optional EPSG override such as EPSG:25832; otherwise the Spatial Context SRS is assumed",
+        "Use Coverage for an EPSG override such as EPSG:25832; otherwise the Spatial Context SRS is assumed",
         "Tested with sandbox terrainfile command on a small synthetic ASCII Grid"
       ]
     },
@@ -779,7 +779,7 @@
     {
       "id": "google-3d-tiles-viewer",
       "type": "3D Tiles Viewer",
-      "purpose": "Optional contextual Google Photorealistic 3D Tiles viewer",
+      "purpose": "Contextual Google Photorealistic 3D Tiles reference viewer",
       "url": null,
       "notes": [
         "Requires a user-managed Google Maps API key",

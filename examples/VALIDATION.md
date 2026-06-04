@@ -1,8 +1,8 @@
 # Validation Checklist
 
-This checklist is the manual regression set for RhinoSpatial.
+This checklist is the manual validation set for RhinoSpatial.
 
-It is intentionally small and practical. The point is to confirm that the core source ecosystem still feels aligned, usable, and trustworthy after changes.
+It is intentionally small and practical. The point is to confirm that the core data layers still feel aligned, usable, and trustworthy after changes.
 
 ## General Checks
 
@@ -101,7 +101,7 @@ It is intentionally small and practical. The point is to confirm that the core s
 ## Combined Workflow
 
 - use one `Spatial Context`
-- load WFS, WMS, LoD2, Terrain, GeoTIFF, OSM, and optional 3D Tiles viewer context in the same definition as far as practical
+- load WFS, WMS, LoD2, Terrain, GeoTIFF, OSM, and Google 3D Tiles reference context in the same definition as far as practical
 - confirm outputs align in XY
 - confirm localized placement still makes the workflow manageable near the Rhino origin
 - confirm terrain/building elevation consistency remains acceptable

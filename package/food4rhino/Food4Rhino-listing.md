@@ -24,7 +24,7 @@ RhinoSpatial currently supports workflows for:
 - local Shapefile vector loading
 - local CityGML / CityJSON building loading
 - `lightweight OSM context`
-- optional Google 3D Tiles reference viewing with a user-managed API key
+- Google 3D Tiles reference viewing with a user-managed API key
 
 The goal is to keep geospatial workflows practical, lightweight, and directly usable inside Rhino and Grasshopper. User-provided project data remains the main path; broad fallbacks are included only to make first tests and contextual work easier.
 
@@ -43,13 +43,13 @@ Built-in fallbacks currently include global imagery for WMS-style context, a qui
 
 `Load LoD2 Buildings` accepts one source input for LoD2 WFS URLs, local CityGML/GML/XML/CityJSON files, folders, and ZIP archives. Local file loading is filtered by the selected Spatial Context where metadata and building bounds make that possible, but very large local tiles may still take longer than service-based requests.
 
-The optional Google 3D Tiles component is a viewer/reference workflow. It requires the user's own Google Maps Platform API key and billing setup, and should not be treated as an editable project-data source, offline cache, bake, or export workflow.
+The Google 3D Tiles component is a viewer/reference workflow. It requires the user's own Google Maps Platform API key and billing setup, and should not be treated as an editable project-data source, offline cache, bake, or export workflow.
 
 ## Early Stage Note
 
 RhinoSpatial is currently still in an alpha stage.
 
-The `0.3.2-alpha` release is a stabilization and source-compatibility release in the first complete alpha line. The planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the optional Google 3D Tiles Viewer. This version improves local vector input support, LoD2 source handling, test-source documentation, package cleanup, and dependency notices. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
+The `0.3.2-alpha` release is a stabilization and source-compatibility release in the first complete alpha line. The planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the Google 3D Tiles Viewer. This version improves local vector input support, LoD2 source handling, test-source documentation, package cleanup, and dependency notices. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
 
 Feedback, edge cases, and additional test links are very welcome.
 

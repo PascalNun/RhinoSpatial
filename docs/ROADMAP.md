@@ -22,7 +22,7 @@ The core direction remains:
 
 ## Current Core Scope
 
-The current core RhinoSpatial ecosystem includes:
+The current core RhinoSpatial toolkit includes:
 
 - Spatial Context
 - WFS
@@ -31,9 +31,9 @@ The current core RhinoSpatial ecosystem includes:
 - Terrain
 - GeoTIFF
 - OSM
-- optional Google 3D Tiles viewing
+- Google 3D Tiles reference viewing
 
-These are considered the meaningful core source/component types of the project.
+These are considered the meaningful core data layers of the project.
 
 Future work should primarily deepen and improve these areas rather than expand the source scope too aggressively.
 
@@ -41,11 +41,11 @@ Future work should primarily deepen and improve these areas rather than expand t
 
 ## Current Priorities
 
-### 1. Stabilize and refine the core source ecosystem
-The most important near-term priority is to make the existing source types robust, coherent, and pleasant to use together.
+### 1. Stabilize and refine the core data layers
+The most important near-term priority is to make the existing layer types robust, coherent, and pleasant to use together.
 
 This includes:
-- better consistency across source components
+- better consistency across layer components
 - clearer shared behavior through Spatial Context
 - stronger alignment between sources
 - more reliable provider handling
@@ -122,7 +122,7 @@ This includes:
 ## Near-Term Development Focus
 
 ### Core polish
-- refine current source components
+- refine current layer components
 - improve consistency across outputs
 - reduce rough edges in geometry behavior
 - make source workflows feel more unified
@@ -234,7 +234,7 @@ The main long-term goal is not unlimited feature expansion.
 It is to make the core RhinoSpatial toolkit feel complete, reliable, lightweight, and coherent.
 
 That means:
-- the current source ecosystem should become stronger and more refined
+- the current data layers should become stronger and more refined
 - the user experience should feel direct and trustworthy
 - the outputs should be immediately useful for real design workflows
 - the project should remain simple enough to stay usable and understandable
@@ -256,15 +256,14 @@ The long-term goal is a system that works well with rich official data where pos
 
 ---
 
-## Optional Viewer Policy
+## Reference Viewer Policy
 
 ### Google Photorealistic 3D Tiles
-Google Photorealistic 3D Tiles are present as an optional viewer, but only in a tightly limited form.
+Google Photorealistic 3D Tiles are present as a reference viewer, but only in a tightly limited form.
 
 They should be treated as:
 
-- optional
-- advanced
+- reference context
 - user-managed through the user's own API key and billing setup
 - bounded by the selected Spatial Context
 - clearly separate from official editable modeling data

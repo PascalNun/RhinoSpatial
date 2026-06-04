@@ -49,7 +49,7 @@ The usual first workflow is:
 
 1. Place `Spatial Context`
 2. Define the study area once
-3. Connect that same `Spatial Context` into one or more source components
+3. Connect that same `Spatial Context` into one or more data layers
 
 Good first components to try are:
 

@@ -1,9 +1,9 @@
 # Workflow Tutorial
 
-RhinoSpatial is built around one selected area and multiple aligned source
-groups. This walkthrough shows the reference definition flow: start with one
-shared `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2,
-Google 3D Tiles, and OSM source components to that same context.
+RhinoSpatial is built around one selected study area and multiple aligned
+context layers. This walkthrough follows the reference definition: start with
+one shared `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2,
+Google 3D Tiles, and OSM to that same context.
 
 The URLs and files shown in the screenshots are examples. They can be replaced
 with your own project data as long as the source type is supported.
@@ -20,10 +20,10 @@ Related downloadable Grasshopper definitions:
 ## 0. Spatial Context
 
 Start with `Spatial Context`. Open the map helper, draw one rectangle, and use
-the resulting context output for every source group.
+the resulting context output for every data layer.
 
-Supported inputs include an optional SRS, optional WFS/WMS reference URL and
-layer, an `Open Map` button, and an optional absolute-coordinates toggle.
+You can provide an SRS override, a WFS/WMS reference URL and layer, use the
+`Open Map` button, and choose whether to keep absolute coordinates.
 
 ![Spatial Context reference definition](images/workflow-00-spatial-context.jpg)
 
@@ -32,9 +32,9 @@ layer, an `Open Map` button, and an optional absolute-coordinates toggle.
 Use `Load WMS` to bring orthophotos, maps, or raster overlays into Rhino as an
 aligned image mesh.
 
-Supported inputs include a WMS service URL, an optional WMS layer name, and an
-optional image format such as `image/png`. If the URL is left empty,
-RhinoSpatial can use fallback map/imagery context for quick orientation.
+You can provide a WMS service URL, a layer name when the service needs one, and
+an image format such as `image/png`. If the URL is left empty, RhinoSpatial can
+use fallback map/imagery context for quick orientation.
 
 ![WMS map imagery workflow](images/workflow-01-wms-map-imagery.jpg)
 
@@ -64,9 +64,9 @@ EPSG georeferencing.
 Use `Load Terrain` to create an aligned elevation mesh for the selected study
 area.
 
-Supported inputs include WCS service URLs, local GeoTIFF DEM files, local Esri
-ASCII Grid files (`.asc`), local XYZ/CSV terrain grids, and an optional
-coverage id or EPSG code. If the terrain URL is left empty, RhinoSpatial can
+You can provide WCS service URLs, local GeoTIFF DEM files, local Esri ASCII Grid
+files (`.asc`), local XYZ/CSV terrain grids, and a coverage id or EPSG code
+when the source needs one. If the terrain URL is left empty, RhinoSpatial can
 use a small-area global terrain fallback.
 
 ![Terrain workflow](images/workflow-04-terrain.jpg)
@@ -76,17 +76,17 @@ use a small-area global terrain fallback.
 Use `Load LoD2 Buildings` to load official 3D building and roof geometry inside
 the selected Spatial Context.
 
-Supported inputs include LoD2 WFS service URLs, local CityGML/GML/XML files,
-local CityJSON files, folders with LoD2 files, ZIP archives with LoD2 files,
-and optional layer names.
+You can provide LoD2 WFS service URLs, local CityGML/GML/XML files, local
+CityJSON files, folders with LoD2 files, ZIP archives with LoD2 files, and
+layer names when the service needs them.
 
 ![LoD2 buildings workflow](images/workflow-05-lod2-buildings.jpg)
 
 ## 6. Google 3D Tiles Reference
 
 Use `3D Tiles Viewer (Google)` to preview Google Photorealistic 3D Tiles around
-the selected area. This is useful for checking the wider visual surroundings
-alongside the other RhinoSpatial layers.
+the selected study area. This is useful for checking the surrounding urban
+context alongside the other RhinoSpatial layers.
 
 This component uses Google Photorealistic 3D Tiles through the Google Maps
 Platform Map Tiles API. To use it, create or use a Google Cloud project,
@@ -101,9 +101,9 @@ disabled when you are not actively using it and check the current
 [Google usage and billing documentation](https://developers.google.com/maps/documentation/tile/usage-and-billing).
 Restrict your API key in Google Cloud where possible.
 
-The output is intended as visual reference only. It is not editable project
+The preview is intended as visual reference only. It is not editable project
 data, and it should not be treated as a data import, bake, export, or offline
-cache workflow. When using Google Photorealistic 3D Tiles, review the current
+cache. When using Google Photorealistic 3D Tiles, review the current
 [Google Maps Platform Terms of Service](https://cloud.google.com/maps-platform/terms)
 and [Map Tiles API Policies](https://developers.google.com/maps/documentation/tile/policies),
 including attribution requirements and restrictions on caching, extraction, and
