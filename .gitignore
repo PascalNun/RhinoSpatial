@@ -3,6 +3,7 @@ obj/
 **/bin/
 **/obj/
 .DS_Store
+.codex/
 .vscode/
 .local/
 .tmp/
