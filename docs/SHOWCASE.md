@@ -1,4 +1,4 @@
-# Site Context Workflow
+# RhinoSpatial Workflow
 
 RhinoSpatial is built around one selected study area and multiple aligned
 context layers. This walkthrough follows the reference definition: start with
