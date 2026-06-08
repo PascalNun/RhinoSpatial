@@ -59,7 +59,7 @@ The quickest way to try RhinoSpatial is:
 
 The toolkit works best when one selected study area drives multiple aligned layers.
 
-For a guided visual walkthrough, open the [RhinoSpatial workflow](docs/SHOWCASE.md). For downloadable Grasshopper example definitions, open the [example overview](examples/README.md). Manual zip installation details are available in the [installation notes](package/food4rhino/INSTALL.md).
+For a step-by-step tutorial with screenshots, see the [RhinoSpatial workflow](docs/SHOWCASE.md). Downloadable Grasshopper example definitions are listed in the [example overview](examples/README.md). Manual zip installation details are available in the [installation notes](package/food4rhino/INSTALL.md).
 
 ## Workflow Preview
 
@@ -68,7 +68,7 @@ Define the study area once with `Spatial Context`, then bring WMS, WFS, GeoTIFF,
 
 ![Spatial Context reference definition](docs/images/workflow-00-spatial-context.jpg)
 
-For the full step-by-step visual walkthrough, open the [RhinoSpatial workflow](docs/SHOWCASE.md).
+For the full tutorial, see the [RhinoSpatial workflow](docs/SHOWCASE.md).
 
 ## Documentation
 
