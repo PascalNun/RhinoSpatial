@@ -1,9 +1,9 @@
-# Workflow Tutorial
+# Site Context Workflow
 
 RhinoSpatial is built around one selected study area and multiple aligned
 context layers. This walkthrough follows the reference definition: start with
 one shared `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2,
-Google 3D Tiles, and OSM to that same context.
+OSM, and Google 3D Tiles to that same context.
 
 The URLs and files shown in the screenshots are examples. They can be replaced
 with your own project data as long as the source type is supported.
@@ -27,7 +27,9 @@ You can provide an SRS override, a WFS/WMS reference URL and layer, use the
 
 ![Spatial Context reference definition](images/workflow-00-spatial-context.jpg)
 
-## 1. WMS / Map Imagery
+## 1. Map and Vector Context
+
+### WMS / Map Imagery
 
 Use `Load WMS` to bring orthophotos, maps, or raster overlays into Rhino as an
 aligned image mesh.
@@ -38,7 +40,7 @@ use fallback map/imagery context for quick orientation.
 
 ![WMS map imagery workflow](images/workflow-01-wms-map-imagery.jpg)
 
-## 2. Vector Data / WFS
+### Vector Data / WFS
 
 Use `Load WFS` for vector features such as parcels, planning data, roads,
 boundaries, or building footprints.
@@ -49,7 +51,9 @@ more layer names.
 
 ![WFS vector data workflow](images/workflow-02-wfs-vector-data.jpg)
 
-## 3. GeoTIFF
+## 2. Raster and Terrain
+
+### GeoTIFF
 
 Use `Load GeoTIFF` to place a local georeferenced raster image inside the same
 study space.
@@ -59,7 +63,7 @@ EPSG georeferencing.
 
 ![GeoTIFF workflow](images/workflow-03-geotiff.jpg)
 
-## 4. Terrain
+### Terrain
 
 Use `Load Terrain` to create an aligned elevation mesh for the selected study
 area.
@@ -71,7 +75,9 @@ use a small-area global terrain fallback.
 
 ![Terrain workflow](images/workflow-04-terrain.jpg)
 
-## 5. LoD2 Buildings
+## 3. Built and Urban Context
+
+### LoD2 Buildings
 
 Use `Load LoD2 Buildings` to load official 3D building and roof geometry inside
 the selected Spatial Context.
@@ -82,7 +88,20 @@ layer names when the service needs them.
 
 ![LoD2 buildings workflow](images/workflow-05-lod2-buildings.jpg)
 
-## 6. Google 3D Tiles Reference
+### OSM Context
+
+Use `Load OSM` for lightweight OpenStreetMap context and quick black-plan style
+site studies.
+
+Available context groups include buildings, roads, water, green/open space,
+and rail. Leave the OSM URL empty to use the built-in public source, or provide
+an Overpass API endpoint as an advanced override.
+
+![OSM context workflow](images/workflow-07-osm-context.jpg)
+
+## 4. Visual Reference
+
+### Google 3D Tiles Reference
 
 Use `3D Tiles Viewer (Google)` to preview Google Photorealistic 3D Tiles around
 the selected study area. This is useful for checking the surrounding urban
@@ -110,14 +129,3 @@ including attribution requirements and restrictions on caching, extraction, and
 offline use.
 
 ![Google 3D Tiles reference workflow](images/workflow-06-google-3d-tiles-reference.jpg)
-
-## 7. OSM Context
-
-Use `Load OSM` for lightweight OpenStreetMap context and quick black-plan style
-site studies.
-
-Available context groups include buildings, roads, water, green/open space,
-and rail. Leave the OSM URL empty to use the built-in public source, or provide
-an Overpass API endpoint as an advanced override.
-
-![OSM context workflow](images/workflow-07-osm-context.jpg)

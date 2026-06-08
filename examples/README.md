@@ -25,7 +25,7 @@ RhinoSpatial is built around one shared `Spatial Context` and multiple aligned d
 
 Related project docs:
 
-- [Workflow tutorial](../docs/SHOWCASE.md)
+- [Site context workflow](../docs/SHOWCASE.md)
   Public-facing screenshots and example workflow previews
 
 ## Current Core Workflow Examples
