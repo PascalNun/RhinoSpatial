@@ -12,8 +12,27 @@ namespace RhinoSpatial.Core
         string SourceSrs,
         string FormatLabel);
 
+    public record TerrainTextGridSourceMetadata(
+        BoundingBox2D BoundingBox,
+        string SourceSrs,
+        string FormatLabel);
+
     public static class TerrainTextGridReader
     {
+        public static TerrainTextGridSourceMetadata ReadSourceMetadata(
+            string filePath,
+            string sourceSrs)
+        {
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException($"Terrain text grid was not found: {filePath}", filePath);
+            }
+
+            return Path.GetExtension(filePath).Equals(".asc", StringComparison.OrdinalIgnoreCase)
+                ? ReadEsriAsciiGridMetadata(filePath, sourceSrs)
+                : ReadXyzGridMetadata(filePath, sourceSrs);
+        }
+
         public static TerrainTextGridReadResult ReadRaster(string filePath, string coverageId, string sourceSrs)
         {
             if (!File.Exists(filePath))
@@ -98,6 +117,74 @@ namespace RhinoSpatial.Core
                 new BoundingBox2D(minX, minY, maxX, maxY),
                 sourceSrs,
                 "Esri ASCII Grid");
+        }
+
+        private static TerrainTextGridSourceMetadata ReadEsriAsciiGridMetadata(
+            string filePath,
+            string sourceSrs)
+        {
+            using var reader = new StreamReader(filePath);
+            var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            while (headers.Count < 6 && reader.ReadLine() is { } headerLine)
+            {
+                var parts = SplitFields(headerLine);
+                if (parts.Length >= 2)
+                {
+                    headers[parts[0]] = parts[1];
+                }
+            }
+
+            var width = ReadRequiredInt(headers, "ncols");
+            var height = ReadRequiredInt(headers, "nrows");
+            var xll = ReadRequiredDouble(headers, "xllcorner", "xllcenter");
+            var yll = ReadRequiredDouble(headers, "yllcorner", "yllcenter");
+            var cellSize = ReadRequiredDouble(headers, "cellsize");
+            var usesCellCenter = headers.ContainsKey("xllcenter") || headers.ContainsKey("yllcenter");
+            var minX = usesCellCenter ? xll - (cellSize * 0.5) : xll;
+            var minY = usesCellCenter ? yll - (cellSize * 0.5) : yll;
+            return new TerrainTextGridSourceMetadata(
+                new BoundingBox2D(
+                    minX,
+                    minY,
+                    minX + ((width - 1) * cellSize),
+                    minY + ((height - 1) * cellSize)),
+                sourceSrs,
+                "Esri ASCII Grid");
+        }
+
+        private static TerrainTextGridSourceMetadata ReadXyzGridMetadata(
+            string filePath,
+            string sourceSrs)
+        {
+            double? minX = null;
+            double? minY = null;
+            double? maxX = null;
+            double? maxY = null;
+            foreach (var line in File.ReadLines(filePath))
+            {
+                var parts = SplitFields(line);
+                if (parts.Length < 2 ||
+                    !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x) ||
+                    !double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+                {
+                    continue;
+                }
+
+                minX = !minX.HasValue ? x : Math.Min(minX.Value, x);
+                minY = !minY.HasValue ? y : Math.Min(minY.Value, y);
+                maxX = !maxX.HasValue ? x : Math.Max(maxX.Value, x);
+                maxY = !maxY.HasValue ? y : Math.Max(maxY.Value, y);
+            }
+
+            if (!minX.HasValue || !minY.HasValue || !maxX.HasValue || !maxY.HasValue)
+            {
+                throw new InvalidOperationException("The XYZ/CSV terrain file did not contain readable x,y rows.");
+            }
+
+            return new TerrainTextGridSourceMetadata(
+                new BoundingBox2D(minX.Value, minY.Value, maxX.Value, maxY.Value),
+                sourceSrs,
+                "XYZ/CSV terrain grid");
         }
 
         private static TerrainTextGridReadResult ReadXyzGrid(string filePath, string coverageId, string sourceSrs)

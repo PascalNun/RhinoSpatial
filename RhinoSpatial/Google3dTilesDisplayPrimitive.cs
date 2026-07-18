@@ -13,6 +13,6 @@ namespace RhinoSpatial
 
         public string SourceUrl { get; init; } = string.Empty;
 
-        public bool IsClippedFallback { get; init; }
+        public string SourceKey { get; init; } = string.Empty;
     }
 }

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Globalization;
 using Rhino.Geometry;
 using RhinoSpatial.Core;
 
@@ -73,6 +72,14 @@ namespace RhinoSpatial
                     return true;
                 }
 
+                if (normalizedRequestedSrs == "EPSG:4258" &&
+                    spatialContext.BoundingBoxesBySrs.TryGetValue("EPSG:4326", out var etrs89BoundingBox))
+                {
+                    boundingBox = etrs89BoundingBox;
+                    placementOrigin = new Coordinate2D(etrs89BoundingBox.MinX, etrs89BoundingBox.MinY);
+                    return true;
+                }
+
                 if (normalizedRequestedSrs == normalizedContextSrs)
                 {
                     return true;
@@ -85,9 +92,60 @@ namespace RhinoSpatial
                     placementOrigin = new Coordinate2D(boundingBox.MinX, boundingBox.MinY);
                     return true;
                 }
+
+                if (spatialContext.Wgs84BoundingBox is not null &&
+                    TryTransformBoundingBox(
+                        spatialContext.Wgs84BoundingBox,
+                        "EPSG:4326",
+                        normalizedRequestedSrs,
+                        out var transformedBoundingBox))
+                {
+                    boundingBox = transformedBoundingBox;
+                    placementOrigin = new Coordinate2D(boundingBox.MinX, boundingBox.MinY);
+                    return true;
+                }
             }
 
             return false;
+        }
+
+        private static bool TryTransformBoundingBox(
+            BoundingBox2D sourceBounds,
+            string sourceSrs,
+            string targetSrs,
+            out BoundingBox2D transformedBounds)
+        {
+            var corners = new[]
+            {
+                new Coordinate2D(sourceBounds.MinX, sourceBounds.MinY),
+                new Coordinate2D(sourceBounds.MinX, sourceBounds.MaxY),
+                new Coordinate2D(sourceBounds.MaxX, sourceBounds.MinY),
+                new Coordinate2D(sourceBounds.MaxX, sourceBounds.MaxY)
+            };
+            var transformed = new List<Coordinate2D>(corners.Length);
+            foreach (var corner in corners)
+            {
+                if (!SpatialReferenceTransform.TryTransformXY(
+                        sourceSrs,
+                        targetSrs,
+                        corner.X,
+                        corner.Y,
+                        out var x,
+                        out var y))
+                {
+                    transformedBounds = new BoundingBox2D(0.0, 0.0, 0.0, 0.0);
+                    return false;
+                }
+
+                transformed.Add(new Coordinate2D(x, y));
+            }
+
+            transformedBounds = new BoundingBox2D(
+                transformed.Min(point => point.X),
+                transformed.Min(point => point.Y),
+                transformed.Max(point => point.X),
+                transformed.Max(point => point.Y));
+            return true;
         }
 
         public static WmsRequestOptions CreateWmsRequestOptions(
@@ -196,13 +254,7 @@ namespace RhinoSpatial
 
         public static string CreateSpatialContextKey(SpatialContext2D spatialContext)
         {
-            var requestBoundingBox = spatialContext.RequestBoundingBox;
-            var placementBoundingBox = spatialContext.PlacementBoundingBox;
-            var placementOrigin = spatialContext.PlacementOrigin;
-
-            return string.Create(
-                CultureInfo.InvariantCulture,
-                $"{NormalizeSrsKey(spatialContext.ResolvedSrs)}|{spatialContext.UseAbsoluteCoordinates}|{requestBoundingBox.MinX}|{requestBoundingBox.MinY}|{requestBoundingBox.MaxX}|{requestBoundingBox.MaxY}|{placementBoundingBox.MinX}|{placementBoundingBox.MinY}|{placementBoundingBox.MaxX}|{placementBoundingBox.MaxY}|{placementOrigin.X}|{placementOrigin.Y}");
+            return SpatialContextIdentity.CreateKey(spatialContext);
         }
 
         public static bool DoBoundingBoxesIntersect(BoundingBox2D left, BoundingBox2D right)
@@ -389,6 +441,11 @@ namespace RhinoSpatial
                 return "EPSG:27700";
             }
 
+            if (srsName.Contains("28992", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:28992";
+            }
+
             if (srsName.Contains("3857", System.StringComparison.OrdinalIgnoreCase) ||
                 srsName.Contains("900913", System.StringComparison.OrdinalIgnoreCase))
             {
@@ -400,9 +457,19 @@ namespace RhinoSpatial
                 return "EPSG:4283";
             }
 
+            if (srsName.Contains("4258", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:4258";
+            }
+
             if (srsName.Contains("7423", System.StringComparison.OrdinalIgnoreCase))
             {
                 return "EPSG:7423";
+            }
+
+            if (srsName.Contains("7415", System.StringComparison.OrdinalIgnoreCase))
+            {
+                return "EPSG:7415";
             }
 
             if (srsName.Contains("7844", System.StringComparison.OrdinalIgnoreCase))

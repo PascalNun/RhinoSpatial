@@ -236,7 +236,7 @@ namespace RhinoSpatial
 
             var capabilities = _wfsClient.LoadCapabilitiesAsync(requestData.Source).GetAwaiter().GetResult();
             var resolvedLayer = ResolveLayer(capabilities, requestData.LayerName);
-            var requestSrs = ResolveRequestSrs(resolvedLayer.LayerInfo);
+            var requestSrs = ResolveRequestSrs(resolvedLayer.LayerInfo, requestData.SpatialContext);
 
             if (!RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
                     requestData.SpatialContext,
@@ -1145,7 +1145,7 @@ namespace RhinoSpatial
             }
 
             var normalizedSrs = RhinoSpatialContextTools.NormalizeSrsKey(srsName);
-            if (normalizedSrs == "EPSG:4326" || normalizedSrs == "EPSG:7423" || normalizedSrs == "EPSG:4283" || normalizedSrs == "EPSG:7844")
+            if (normalizedSrs == "EPSG:4326" || normalizedSrs == "EPSG:4258" || normalizedSrs == "EPSG:7423" || normalizedSrs == "EPSG:4283" || normalizedSrs == "EPSG:7844")
             {
                 var centerLatitude = (boundingBox.MinY + boundingBox.MaxY) * 0.5;
                 var latitudeBuffer = bufferMeters / 111_320.0;
@@ -1437,7 +1437,7 @@ namespace RhinoSpatial
             return score;
         }
 
-        private static string ResolveRequestSrs(WfsLayerInfo layerInfo)
+        private static string ResolveRequestSrs(WfsLayerInfo layerInfo, SpatialContext2D spatialContext)
         {
             var candidates = new List<string>();
 
@@ -1453,6 +1453,16 @@ namespace RhinoSpatial
                 var normalized = RhinoSpatialContextTools.NormalizeSrsKey(candidate);
 
                 if (normalized == "EPSG:7423")
+                {
+                    return normalized;
+                }
+            }
+
+            foreach (var candidate in candidates)
+            {
+                var normalized = RhinoSpatialContextTools.NormalizeSrsKey(candidate);
+                if (spatialContext.BoundingBoxesBySrs.ContainsKey(normalized) &&
+                    normalized != "EPSG:4326")
                 {
                     return normalized;
                 }

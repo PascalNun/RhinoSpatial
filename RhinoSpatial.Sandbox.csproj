@@ -14,6 +14,11 @@
   <ItemGroup>
     <Compile Remove="RhinoSpatial.Core/**/*.cs" />
     <Compile Remove="RhinoSpatial/**/*.cs" />
+    <Compile Include="RhinoSpatial/Google3dTilesGeographicBounds.cs" Link="Google3dTilesGeographicBounds.cs" />
+    <Compile Include="RhinoSpatial/Google3dTilesElevationBaseline.cs" Link="Google3dTilesElevationBaseline.cs" />
+    <Compile Include="RhinoSpatial/Google3dTilesRefinementSelector.cs" Link="Google3dTilesRefinementSelector.cs" />
+    <Compile Include="RhinoSpatial/Google3dTilesTileDescriptor.cs" Link="Google3dTilesTileDescriptor.cs" />
+    <Compile Include="RhinoSpatial/SpatialElevationBaselineCache.cs" Link="SpatialElevationBaselineCache.cs" />
   </ItemGroup>
 
   <ItemGroup>

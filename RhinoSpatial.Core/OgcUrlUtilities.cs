@@ -45,6 +45,26 @@ namespace RhinoSpatial.Core
                 : $"{basePath}?{string.Join("&", preservedQueryParts)}";
         }
 
+        public static string PreferSecureSameHostOperationUrl(string entryUrl, string operationUrl)
+        {
+            if (!Uri.TryCreate(entryUrl, UriKind.Absolute, out var entryUri) ||
+                !Uri.TryCreate(operationUrl, UriKind.Absolute, out var operationUri) ||
+                !entryUri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase) ||
+                !operationUri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+                !operationUri.IsDefaultPort ||
+                !entryUri.Host.Equals(operationUri.Host, StringComparison.OrdinalIgnoreCase))
+            {
+                return operationUrl;
+            }
+
+            var secureOperationUri = new UriBuilder(operationUri)
+            {
+                Scheme = Uri.UriSchemeHttps,
+                Port = -1
+            };
+            return secureOperationUri.Uri.AbsoluteUri;
+        }
+
         public static string FormatBoundingBox(BoundingBox2D boundingBox, string? srsName = null)
         {
             var builder = new StringBuilder();
@@ -64,6 +84,33 @@ namespace RhinoSpatial.Core
             }
 
             return builder.ToString();
+        }
+
+        public static string FormatBoundingBoxWithAuthorityAxisOrder(BoundingBox2D boundingBox, string? srsName = null)
+        {
+            return FormatBoundingBox(OrderBoundingBoxForAuthorityAxis(boundingBox, srsName), srsName);
+        }
+
+        public static BoundingBox2D OrderBoundingBoxForAuthorityAxis(BoundingBox2D boundingBox, string? srsName)
+        {
+            return UsesLatitudeLongitudeAxisOrder(srsName)
+                ? new BoundingBox2D(boundingBox.MinY, boundingBox.MinX, boundingBox.MaxY, boundingBox.MaxX)
+                : boundingBox;
+        }
+
+        public static bool UsesLatitudeLongitudeAxisOrder(string? srsName)
+        {
+            if (string.IsNullOrWhiteSpace(srsName) ||
+                srsName.Contains("CRS:84", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return srsName.Contains("4326", StringComparison.OrdinalIgnoreCase) ||
+                   srsName.Contains("4258", StringComparison.OrdinalIgnoreCase) ||
+                   srsName.Contains("4283", StringComparison.OrdinalIgnoreCase) ||
+                   srsName.Contains("7423", StringComparison.OrdinalIgnoreCase) ||
+                   srsName.Contains("7844", StringComparison.OrdinalIgnoreCase);
         }
 
         public static string FormatCoordinate(double value)

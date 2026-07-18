@@ -87,7 +87,9 @@ namespace RhinoSpatial.Core
                 throw new ArgumentException("Width and Height must be greater than zero.", nameof(options));
             }
 
-            var requestBaseUrl = string.IsNullOrWhiteSpace(options.GetMapBaseUrl) ? options.BaseUrl : options.GetMapBaseUrl;
+            var requestBaseUrl = string.IsNullOrWhiteSpace(options.GetMapBaseUrl)
+                ? options.BaseUrl
+                : OgcUrlUtilities.PreferSecureSameHostOperationUrl(options.BaseUrl, options.GetMapBaseUrl);
             var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(requestBaseUrl, ReservedQueryKeys);
             var queryPrefix = normalizedBaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
             var builder = new StringBuilder();
@@ -113,7 +115,10 @@ namespace RhinoSpatial.Core
 
             builder.Append(Uri.EscapeDataString(options.SrsName));
             builder.Append("&BBOX=");
-            builder.Append(OgcUrlUtilities.FormatBoundingBox(options.BoundingBox));
+            builder.Append(options.Version.StartsWith("1.3", StringComparison.Ordinal)
+                ? OgcUrlUtilities.FormatBoundingBox(
+                    OgcUrlUtilities.OrderBoundingBoxForAuthorityAxis(options.BoundingBox, options.SrsName))
+                : OgcUrlUtilities.FormatBoundingBox(options.BoundingBox));
             builder.Append("&WIDTH=");
             builder.Append(options.Width);
             builder.Append("&HEIGHT=");

@@ -176,6 +176,28 @@
       ]
     },
     {
+      "id": "wfs-austria-vienna-open-data",
+      "type": "WFS",
+      "purpose": "Vienna official open-data feature request and legacy-operation-URL test",
+      "url": "https://data.wien.gv.at/daten/geo?service=WFS&request=GetCapabilities&version=1.1.0",
+      "notes": [
+        "Bounded request tested with ogdwien:ADRESSENOGD in EPSG:4326",
+        "Returned 25 features and 25 point geometries for a small central Vienna bbox",
+        "Capabilities advertise an HTTP operation URL; RhinoSpatial keeps the working secure entry-point behavior"
+      ]
+    },
+    {
+      "id": "wfs-finland-nls-administrative-units",
+      "type": "WFS",
+      "purpose": "Finnish National Land Survey INSPIRE WFS request reference",
+      "url": "https://inspire-wfs.maanmittauslaitos.fi/inspire-wfs/au/ows?request=GetCapabilities&service=wfs&version=2.0.0",
+      "notes": [
+        "Bounded request tested with au:AdministrativeUnit in EPSG:4326",
+        "Returned three administrative-unit polygons around Helsinki",
+        "Good northern-European WFS 2.0 and native EPSG:3067 provider test"
+      ]
+    },
+    {
       "id": "wfs-mapserver-demo-world",
       "type": "WFS",
       "purpose": "Lightweight global WFS parser smoke test",
@@ -492,13 +514,36 @@
       ]
     },
     {
+      "id": "wms-austria-vienna-open-data",
+      "type": "WMS",
+      "purpose": "Vienna official WMS 1.3 geographic-axis and operation-URL test",
+      "url": "https://data.wien.gv.at/daten/geo?service=WMS&request=GetCapabilities&version=1.3.0",
+      "notes": [
+        "Bounded ADRESSENOGD image request tested in EPSG:4326",
+        "Validates WMS 1.3 latitude/longitude BBOX order; the corrected request returns visible address markers",
+        "Capabilities advertise an HTTP GetMap URL while the HTTPS entry point remains usable"
+      ]
+    },
+    {
+      "id": "wms-finland-nls-administrative-units",
+      "type": "WMS",
+      "purpose": "Finnish National Land Survey INSPIRE WMS operation-host test",
+      "url": "https://inspire-wms.maanmittauslaitos.fi/inspire-wms/AU/ows?service=wms&request=GetCapabilities",
+      "notes": [
+        "Bounded AU.AdministrativeUnit image request tested in EPSG:3857",
+        "Capabilities advertise a GetMap URL on a different official service host",
+        "Returned a valid 512 x 512 PNG around Helsinki"
+      ]
+    },
+    {
       "id": "lod2-sachsen-anhalt",
       "type": "LoD2 Buildings",
       "purpose": "Official 3D building context outside Hessen",
       "url": "https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_LoD2_WFS/guest?request=GetCapabilities&service=WFS&version=2.0.0",
       "notes": [
         "Official Sachsen-Anhalt LoD2 WFS",
-        "Good second-state reference for LoD2 testing beyond Hessen"
+        "Bounded ALKIS_LOD2_BU:BU.Building request parsed successfully in EPSG:4258",
+        "Validates latitude/longitude WFS axis order and inherited srsDimension=3 metadata"
       ]
     },
     {
@@ -553,7 +598,18 @@
       "notes": [
         "Downloaded and tested with sandbox lod2file command",
         "Parsed 1990 buildings and 16209 surfaces",
-        "Source SRS EPSG:7415 is parsed but remains a CRS-alignment watch item until broader transform support exists"
+        "Source SRS EPSG:7415 now uses the supported Dutch RD New horizontal transform for Spatial Context alignment"
+      ]
+    },
+    {
+      "id": "cityjson-rotterdam-delfshaven",
+      "type": "LoD2 Buildings",
+      "purpose": "Real textured CityJSON LoD2 and Dutch RD New alignment test",
+      "url": "https://3d.bk.tudelft.nl/opendata/cityjson/3dcities/v2.0/3-20-DELFSHAVEN.city.json",
+      "notes": [
+        "Downloaded and tested with sandbox lod2file command",
+        "Parsed 853 buildings and 15482 surfaces",
+        "Source SRS EPSG:28992 is read and transformed explicitly for shared Spatial Context alignment"
       ]
     },
     {
@@ -563,7 +619,8 @@
       "url": "https://www.wcs.nrw.de/geobasis/wcs_nw_dgm?REQUEST=GetCapabilities&SERVICE=WCS",
       "notes": [
         "Official NRW terrain WCS",
-        "Useful for comparing state-level terrain workflows beyond Hessen"
+        "Bounded nw_dgm request returned a 100 x 100 raster with 10000 valid elevations",
+        "DescribeCoverage native bounds can now preload the Spatial Context when capabilities omit WGS84 bounds"
       ]
     },
     {
@@ -572,9 +629,9 @@
       "purpose": "Netherlands AHN terrain/surface WCS reference",
       "url": "https://service.pdok.nl/rws/ahn/wcs/v1_0?service=WCS&request=GetCapabilities",
       "notes": [
-        "Tested with sandbox WCS probe",
+        "Bounded dtm_05m request returned a 200 x 200 raster with 40000 valid elevations",
         "Exposes dsm_05m and dtm_05m coverages",
-        "Good non-German WCS terrain/provider behavior test"
+        "EPSG:28992 DescribeCoverage bounds now transform to WGS84 for Spatial Context preloading"
       ]
     },
     {
@@ -583,9 +640,9 @@
       "purpose": "USGS 3DEP Elevation WCS provider reference",
       "url": "https://elevation.nationalmap.gov/arcgis/services/3DEPElevation/ImageServer/WCSServer?SERVICE=WCS&REQUEST=GetCapabilities",
       "notes": [
-        "Tested with sandbox WCS probe",
+        "Bounded DEP3Elevation request returned a 100 x 100 raster with 10000 valid elevations",
         "ArcGIS ImageServer WCS 2.0.1 stack with 14 coverages",
-        "Good terrain/WCS provider diversity test"
+        "Validates extraction of GeoTIFF coverage data from multipart WCS responses"
       ]
     },
     {

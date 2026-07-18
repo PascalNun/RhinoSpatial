@@ -33,6 +33,8 @@ namespace RhinoSpatial
 
             public bool Active { get; init; }
 
+            public string Attribution { get; init; } = string.Empty;
+
             public GH_RuntimeMessageLevel? MessageLevel { get; init; }
         }
 
@@ -264,6 +266,7 @@ namespace RhinoSpatial
                     string.IsNullOrWhiteSpace(loadResult.Status) ? PolicyStatus : loadResult.Status,
                     loadResult.Primitives),
                 Active = true,
+                Attribution = loadResult.Attribution,
                 MessageLevel = loadResult.Primitives.Count == 0 ? GH_RuntimeMessageLevel.Warning : null
             };
         }
@@ -301,6 +304,7 @@ namespace RhinoSpatial
             _previewPrimitives.Clear();
             _previewFrame = result.AreaFrame?.DuplicateCurve();
             _previewBox = BoundingBox.Empty;
+            Message = FormatAttributionMessage(result.Attribution);
 
             if (_previewFrame is not null)
             {
@@ -313,7 +317,8 @@ namespace RhinoSpatial
                 {
                     Mesh = primitive.Mesh,
                     Material = primitive.Material,
-                    SourceUrl = primitive.SourceUrl
+                    SourceUrl = primitive.SourceUrl,
+                    SourceKey = primitive.SourceKey
                 });
                 _previewBox.Union(primitive.Mesh.GetBoundingBox(accurate: false));
             }
@@ -506,6 +511,21 @@ namespace RhinoSpatial
             _previewPrimitives.Clear();
             _previewFrame = null;
             _previewBox = BoundingBox.Empty;
+            Message = string.Empty;
+        }
+
+        private static string FormatAttributionMessage(string attribution)
+        {
+            if (string.IsNullOrWhiteSpace(attribution))
+            {
+                return string.Empty;
+            }
+
+            const int maximumLength = 90;
+            var normalized = attribution.Trim();
+            return normalized.Length <= maximumLength
+                ? normalized
+                : normalized[..maximumLength] + "...";
         }
     }
 }

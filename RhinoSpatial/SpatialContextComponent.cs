@@ -21,6 +21,7 @@ namespace RhinoSpatial
 
         private readonly WfsClient _wfsClient = new();
         private readonly WmsClient _wmsClient = new();
+        private readonly WcsClient _wcsClient = new();
         private bool _lastOpenMapRequest;
         private SpatialContextHelperHost.SpatialContextSelection _persistedSelection = new(
             string.Empty,
@@ -104,8 +105,8 @@ namespace RhinoSpatial
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
             pManager.AddTextParameter("SRS", "SRS", "Optional manual SRS override. If you already know the projection, enter it here and Spatial Context can work without any reference inputs.", GH_ParamAccess.item, string.Empty);
-            pManager.AddTextParameter("Reference Service URL", "Ref URL", "Optional WFS or WMS service URL used only to auto-detect the SRS and help the map open near the right place.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Reference Layer Name", "Reference Layer", "Optional single WFS or WMS layer name used only to auto-detect the SRS and initial extent. If multiple layer entries are connected here, RhinoSpatial will ignore them and fall back to the manual or default SRS instead.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Reference Source", "Reference", "Optional WFS, WMS, or WCS service URL, local geospatial file, folder, or supported ZIP used only to detect an initial extent and SRS for the map helper.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Reference Layer Name", "Reference Layer", "Optional single service layer or coverage name. Local reference files do not need this input. If multiple entries are connected, RhinoSpatial ignores them and uses the source-wide extent instead.", GH_ParamAccess.item);
             pManager.AddBooleanParameter("Open Map", "Open Map", "Open the integrated map helper in your browser. Connect a Button to trigger it.", GH_ParamAccess.item, false);
             pManager.AddBooleanParameter("Use Absolute Coordinates", "Use Absolute Coordinates", "If true, sources using this Spatial Context keep source coordinates. If false, RhinoSpatial localizes geometry and imagery near the Rhino origin.", GH_ParamAccess.item, false);
 
@@ -321,9 +322,36 @@ namespace RhinoSpatial
             if (string.IsNullOrWhiteSpace(requestData.BaseUrl))
             {
                 return (
-                    "EPSG:25832",
-                    string.Empty,
-                    null);
+                    "EPSG:3857",
+                    "No project SRS or reference metadata was provided, so Spatial Context is using the global EPSG:3857 fallback. Enter the project SRS for accurate project-coordinate work.",
+                    GH_RuntimeMessageLevel.Warning);
+            }
+
+            if (ReferenceSourceMetadataReader.IsLocalSource(requestData.BaseUrl))
+            {
+                try
+                {
+                    var metadata = ReferenceSourceMetadataReader.Read(requestData.BaseUrl);
+                    var supportedFileSrs = NormalizeSupportedMapSrs(metadata.SrsName);
+                    if (!string.IsNullOrWhiteSpace(supportedFileSrs))
+                    {
+                        return (supportedFileSrs, string.Empty, null);
+                    }
+
+                    return (
+                        "EPSG:3857",
+                        string.IsNullOrWhiteSpace(metadata.SrsName)
+                            ? $"The {metadata.SourceKind} reference source does not declare an SRS. Spatial Context is using EPSG:3857 for now; enter the file's SRS manually for accurate placement."
+                            : $"The {metadata.SourceKind} reference source declares '{metadata.SrsName}', which the map helper cannot currently use directly. Spatial Context is using EPSG:3857 for now; enter a supported project SRS manually.",
+                        GH_RuntimeMessageLevel.Warning);
+                }
+                catch (Exception exception)
+                {
+                    return (
+                        "EPSG:3857",
+                        $"The local reference metadata could not be read ({exception.Message}). Spatial Context is using EPSG:3857; enter the project SRS manually if needed.",
+                        GH_RuntimeMessageLevel.Warning);
+                }
             }
 
             var layerName = RhinoSpatialInputParser.ParseLayerName(requestData.LayerSelection);
@@ -337,9 +365,9 @@ namespace RhinoSpatial
                 }
 
                 return (
-                    "EPSG:25832",
-                    string.Empty,
-                    null);
+                    "EPSG:3857",
+                    "The reference service did not expose a supported SRS, so Spatial Context is using the global EPSG:3857 fallback. Enter the project SRS manually for accurate project-coordinate work.",
+                    GH_RuntimeMessageLevel.Warning);
             }
 
             try
@@ -385,9 +413,34 @@ namespace RhinoSpatial
             {
             }
 
+            try
+            {
+                var wcsCapabilities = _wcsClient.LoadCapabilitiesAsync(requestData.BaseUrl).GetAwaiter().GetResult();
+                var coverage = wcsCapabilities.Coverages.FirstOrDefault(candidate =>
+                    string.Equals(candidate.CoverageId, layerName, StringComparison.OrdinalIgnoreCase));
+                if (coverage is not null)
+                {
+                    var description = _wcsClient.LoadCoverageDescriptionAsync(new WcsRequestOptions
+                    {
+                        BaseUrl = requestData.BaseUrl,
+                        DescribeCoverageBaseUrl = wcsCapabilities.DescribeCoverageUrl,
+                        CoverageId = coverage.CoverageId,
+                        Version = wcsCapabilities.ServiceVersion
+                    }).GetAwaiter().GetResult();
+                    var supportedWcsSrs = NormalizeSupportedMapSrs(description.NativeSrs);
+                    if (!string.IsNullOrWhiteSpace(supportedWcsSrs))
+                    {
+                        return (supportedWcsSrs, string.Empty, null);
+                    }
+                }
+            }
+            catch
+            {
+            }
+
             return (
-                "EPSG:25832",
-                "The reference service SRS could not be auto-detected, so the spatial context component used the default projected SRS EPSG:25832. Enter the SRS manually if needed.",
+                "EPSG:3857",
+                "The reference source SRS could not be auto-detected, so Spatial Context is using the global EPSG:3857 fallback. Enter the project SRS manually for accurate project-coordinate work.",
                 GH_RuntimeMessageLevel.Warning);
         }
 
@@ -506,6 +559,26 @@ namespace RhinoSpatial
                 if (!string.IsNullOrWhiteSpace(supportedWmsSrs))
                 {
                     return supportedWmsSrs;
+                }
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                var capabilities = _wcsClient.LoadCapabilitiesAsync(baseUrl).GetAwaiter().GetResult();
+                var coverage = capabilities.Coverages.FirstOrDefault();
+                if (coverage is not null)
+                {
+                    var description = _wcsClient.LoadCoverageDescriptionAsync(new WcsRequestOptions
+                    {
+                        BaseUrl = baseUrl,
+                        DescribeCoverageBaseUrl = capabilities.DescribeCoverageUrl,
+                        CoverageId = coverage.CoverageId,
+                        Version = capabilities.ServiceVersion
+                    }).GetAwaiter().GetResult();
+                    return NormalizeSupportedMapSrs(description.NativeSrs);
                 }
             }
             catch
@@ -633,16 +706,21 @@ namespace RhinoSpatial
 
             try
             {
-                var (initialViewBoundingBox, preferredSrs) = await ResolveInitialMapContextAsync(baseUrl, layerSelection, requestedSrs);
-                var shouldRestorePersistedSelection = ShouldRestorePersistedSelection(persistedViewBoundingBox, initialViewBoundingBox);
-                var initialMapView = shouldRestorePersistedSelection
-                    ? persistedViewBoundingBox ?? initialViewBoundingBox
-                    : initialViewBoundingBox ?? persistedViewBoundingBox;
+                if (persistedSelection.HasSelection && persistedViewBoundingBox is not null)
+                {
+                    SpatialContextHelperHost.OpenInBrowser(
+                        persistedViewBoundingBox,
+                        NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
+                        persistedSelection);
+                    return;
+                }
+
+                var (initialMapView, preferredSrs) = await ResolveInitialMapContextAsync(baseUrl, layerSelection, requestedSrs);
 
                 SpatialContextHelperHost.OpenInBrowser(
                     initialMapView,
                     preferredSrs,
-                    shouldRestorePersistedSelection && persistedSelection.HasSelection ? persistedSelection : null);
+                    null);
             }
             catch
             {
@@ -659,30 +737,33 @@ namespace RhinoSpatial
             }
         }
 
-        private static bool ShouldRestorePersistedSelection(BoundingBox2D? persistedViewBoundingBox, BoundingBox2D? referenceViewBoundingBox)
-        {
-            if (persistedViewBoundingBox is null)
-            {
-                return false;
-            }
-
-            if (referenceViewBoundingBox is null)
-            {
-                return true;
-            }
-
-            return RhinoSpatialContextTools.DoBoundingBoxesIntersect(persistedViewBoundingBox, referenceViewBoundingBox);
-        }
-
         private async Task<(BoundingBox2D? InitialViewBoundingBox4326, string PreferredSrs)> ResolveInitialMapContextAsync(string? baseUrl, string? layerSelection, string? requestedSrs)
         {
             var normalizedRequestedSrs = NormalizeSupportedMapSrs(requestedSrs ?? string.Empty);
-            var layerName = RhinoSpatialInputParser.ParseLayerName(layerSelection ?? string.Empty);
 
             if (string.IsNullOrWhiteSpace(baseUrl))
             {
                 return (null, normalizedRequestedSrs);
             }
+
+            if (ReferenceSourceMetadataReader.IsLocalSource(baseUrl))
+            {
+                try
+                {
+                    var metadata = ReferenceSourceMetadataReader.Read(baseUrl, normalizedRequestedSrs);
+                    return (
+                        metadata.Wgs84BoundingBox,
+                        string.IsNullOrWhiteSpace(normalizedRequestedSrs)
+                            ? NormalizeSupportedMapSrs(metadata.SrsName)
+                            : normalizedRequestedSrs);
+                }
+                catch
+                {
+                    return (null, normalizedRequestedSrs);
+                }
+            }
+
+            var layerName = RhinoSpatialInputParser.ParseLayerName(layerSelection ?? string.Empty);
 
             if (string.IsNullOrWhiteSpace(layerName))
             {
@@ -706,6 +787,16 @@ namespace RhinoSpatial
                             : normalizedRequestedSrs);
                 }
 
+                var wcsServiceContext = await TryResolveWcsServiceMapContextAsync(baseUrl);
+                if (wcsServiceContext is not null)
+                {
+                    return (
+                        wcsServiceContext.Value.Wgs84BoundingBox,
+                        string.IsNullOrWhiteSpace(normalizedRequestedSrs)
+                            ? wcsServiceContext.Value.PreferredSrs
+                            : normalizedRequestedSrs);
+                }
+
                 return (null, normalizedRequestedSrs);
             }
 
@@ -718,7 +809,13 @@ namespace RhinoSpatial
                 }
 
                 var wmsLayerInfo = await TryResolveWmsLayerInfoAsync(baseUrl, layerName);
-                return (wmsLayerInfo?.Wgs84BoundingBox, normalizedRequestedSrs);
+                if (wmsLayerInfo is not null)
+                {
+                    return (wmsLayerInfo.Wgs84BoundingBox, normalizedRequestedSrs);
+                }
+
+                var wcsCoverageContext = await TryResolveWcsCoverageMapContextAsync(baseUrl, layerName);
+                return (wcsCoverageContext?.Wgs84BoundingBox, normalizedRequestedSrs);
             }
 
             var resolvedWfsLayerInfo = await TryResolveWfsLayerInfoAsync(baseUrl, layerName);
@@ -730,9 +827,15 @@ namespace RhinoSpatial
             }
 
             var resolvedWmsLayerInfo = await TryResolveWmsLayerInfoAsync(baseUrl, layerName);
-            return (
-                resolvedWmsLayerInfo?.Wgs84BoundingBox,
-                resolvedWmsLayerInfo is null ? string.Empty : ResolveSupportedLayerSrs(resolvedWmsLayerInfo));
+            if (resolvedWmsLayerInfo is not null)
+            {
+                return (
+                    resolvedWmsLayerInfo.Wgs84BoundingBox,
+                    ResolveSupportedLayerSrs(resolvedWmsLayerInfo));
+            }
+
+            var resolvedWcsContext = await TryResolveWcsCoverageMapContextAsync(baseUrl, layerName);
+            return resolvedWcsContext ?? (null, string.Empty);
         }
 
         private async Task<WfsLayerInfo?> TryResolveWfsLayerInfoAsync(string baseUrl, string layerName)
@@ -761,11 +864,50 @@ namespace RhinoSpatial
             }
         }
 
+        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWcsCoverageMapContextAsync(
+            string baseUrl,
+            string coverageId)
+        {
+            try
+            {
+                var capabilities = await _wcsClient.LoadCapabilitiesAsync(baseUrl);
+                var coverage = capabilities.Coverages.FirstOrDefault(candidate =>
+                    string.Equals(candidate.CoverageId, coverageId, StringComparison.OrdinalIgnoreCase));
+                if (coverage is null)
+                {
+                    return null;
+                }
+
+                var description = await TryLoadWcsCoverageDescriptionAsync(baseUrl, capabilities, coverage.CoverageId);
+                var wgs84BoundingBox = coverage.Wgs84BoundingBox;
+                if (wgs84BoundingBox is null &&
+                    description is not null &&
+                    ReferenceSourceMetadataReader.TryTransformBoundsToWgs84(
+                        description.NativeSrs,
+                        description.NativeBoundingBox,
+                        out var transformedBounds))
+                {
+                    wgs84BoundingBox = transformedBounds;
+                }
+
+                return (wgs84BoundingBox, NormalizeSupportedMapSrs(description?.NativeSrs ?? string.Empty));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWfsServiceMapContextAsync(string baseUrl)
         {
             try
             {
                 var layers = await _wfsClient.LoadLayersAsync(baseUrl);
+                if (layers.Count == 0)
+                {
+                    return null;
+                }
+
                 return (
                     CombineBoundingBoxes(layers.Select(layer => layer.Wgs84BoundingBox)),
                     ResolveSupportedLayerSrs(layers));
@@ -781,9 +923,71 @@ namespace RhinoSpatial
             try
             {
                 var capabilities = await _wmsClient.LoadCapabilitiesAsync(baseUrl);
+                if (capabilities.Layers.Count == 0)
+                {
+                    return null;
+                }
+
                 return (
                     CombineBoundingBoxes(capabilities.Layers.Select(layer => layer.Wgs84BoundingBox)),
                     ResolveSupportedLayerSrs(capabilities.Layers));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWcsServiceMapContextAsync(string baseUrl)
+        {
+            try
+            {
+                var capabilities = await _wcsClient.LoadCapabilitiesAsync(baseUrl);
+                if (capabilities.Coverages.Count == 0)
+                {
+                    return null;
+                }
+
+                var firstCoverage = capabilities.Coverages.FirstOrDefault();
+                var description = firstCoverage is null
+                    ? null
+                    : await TryLoadWcsCoverageDescriptionAsync(baseUrl, capabilities, firstCoverage.CoverageId);
+                var wgs84BoundingBox = CombineBoundingBoxes(capabilities.Coverages.Select(coverage => coverage.Wgs84BoundingBox));
+                if (wgs84BoundingBox is null &&
+                    description is not null &&
+                    ReferenceSourceMetadataReader.TryTransformBoundsToWgs84(
+                        description.NativeSrs,
+                        description.NativeBoundingBox,
+                        out var transformedBounds))
+                {
+                    wgs84BoundingBox = transformedBounds;
+                }
+
+                return (
+                    wgs84BoundingBox,
+                    NormalizeSupportedMapSrs(description?.NativeSrs ?? string.Empty));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private async Task<WcsCoverageDescription?> TryLoadWcsCoverageDescriptionAsync(
+            string baseUrl,
+            WcsCapabilitiesInfo capabilities,
+            string coverageId)
+        {
+            try
+            {
+                var description = await _wcsClient.LoadCoverageDescriptionAsync(new WcsRequestOptions
+                {
+                    BaseUrl = baseUrl,
+                    DescribeCoverageBaseUrl = capabilities.DescribeCoverageUrl,
+                    CoverageId = coverageId,
+                    Version = capabilities.ServiceVersion
+                });
+                return description;
             }
             catch
             {

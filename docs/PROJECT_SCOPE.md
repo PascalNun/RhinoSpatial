@@ -81,6 +81,8 @@ The shared spatial picker and placement context for the whole toolkit.
 
 It defines the selected area and the common spatial reference for all aligned outputs.
 
+Its optional `Reference Source` is orientation metadata, not a data-loading shortcut. It may inspect WFS, WMS, or WCS capabilities, or metadata from supported local GeoTIFF, Shapefile, GeoJSON, CityJSON, CityGML/GML/XML, Esri ASCII Grid, XYZ/CSV terrain, folder, and LoD ZIP sources. The map startup order is deliberate: restore a saved selection first, otherwise fit a readable reference extent, otherwise show a neutral world view. If no project SRS can be inferred, the component must warn about the global EPSG:3857 fallback rather than silently assigning a local project CRS.
+
 ### WFS
 Official vector data and similar feature-based geospatial services.
 
@@ -156,7 +158,9 @@ Typical use cases:
 
 The component requires the user's own Google Maps API key. It is a reference viewer and should not be presented as an official editable data source, import/export path, or offline cache.
 
-The viewer may keep coarser parent tile content available behind finer tiles when Google tile refinement leaves visible holes. This is an intentional reference-preview tradeoff: slight over-coverage is acceptable, but under-loading missing chunks inside the selected context is not useful for visual checking.
+The viewer should select a coherent refinement frontier rather than display replacement parent and child tiles together. If a refined branch fails, the whole affected branch may fall back to its nearest usable parent. Slight bounds padding is acceptable for reference completeness, but overlapping replacement levels of detail should not be mixed.
+
+Localized Google meshes participate in the shared Terrain/LoD2 elevation baseline. Whichever usable height-bearing source solves first may establish that context baseline, and every later source must reuse it; component connection or solve order must not create a vertical separation.
 
 ## OSM Scope
 

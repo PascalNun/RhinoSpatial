@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace RhinoSpatial.Core
 {
@@ -112,7 +113,9 @@ namespace RhinoSpatial.Core
                 throw new ArgumentException("CoverageId is required.", nameof(options));
             }
 
-            var requestBaseUrl = string.IsNullOrWhiteSpace(options.DescribeCoverageBaseUrl) ? options.BaseUrl : options.DescribeCoverageBaseUrl;
+            var requestBaseUrl = string.IsNullOrWhiteSpace(options.DescribeCoverageBaseUrl)
+                ? options.BaseUrl
+                : OgcUrlUtilities.PreferSecureSameHostOperationUrl(options.BaseUrl, options.DescribeCoverageBaseUrl);
             var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(requestBaseUrl, ReservedQueryKeys);
             var queryPrefix = normalizedBaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
 
@@ -146,7 +149,9 @@ namespace RhinoSpatial.Core
                 throw new ArgumentException("SrsName is required.", nameof(options));
             }
 
-            var requestBaseUrl = string.IsNullOrWhiteSpace(options.GetCoverageBaseUrl) ? options.BaseUrl : options.GetCoverageBaseUrl;
+            var requestBaseUrl = string.IsNullOrWhiteSpace(options.GetCoverageBaseUrl)
+                ? options.BaseUrl
+                : OgcUrlUtilities.PreferSecureSameHostOperationUrl(options.BaseUrl, options.GetCoverageBaseUrl);
             var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(requestBaseUrl, ReservedQueryKeys);
             var queryPrefix = normalizedBaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
 
@@ -259,19 +264,43 @@ namespace RhinoSpatial.Core
 
             if (!response.IsSuccessStatusCode)
             {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                var serviceMessage = TryReadServiceException(responseBody);
                 throw new HttpRequestException(
-                    $"The WCS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}",
+                    string.IsNullOrWhiteSpace(serviceMessage)
+                        ? $"The WCS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}"
+                        : $"The WCS server returned {(int)response.StatusCode} {response.ReasonPhrase}: {serviceMessage}. URL: {requestUrl}",
                     null,
                     response.StatusCode);
             }
 
-            await using var responseStream = await response.Content.ReadAsStreamAsync();
-            await using var fileStream = File.Create(localFilePath);
-            await responseStream.CopyToAsync(fileStream);
+            var responseBytes = await response.Content.ReadAsByteArrayAsync();
+            var responseContentType = response.Content.Headers.ContentType?.MediaType ?? format;
+            if (responseContentType.StartsWith("multipart/", StringComparison.OrdinalIgnoreCase))
+            {
+                var boundary = TryReadMultipartBoundary(response.Content.Headers.ContentType);
+                if (string.IsNullOrWhiteSpace(boundary) ||
+                    !TryExtractCoveragePart(responseBytes, boundary, out responseBytes, out responseContentType))
+                {
+                    throw new InvalidOperationException("The WCS server returned a multipart response without a readable coverage part.");
+                }
+            }
+
+            if (format.Contains("tiff", StringComparison.OrdinalIgnoreCase) && !HasTiffSignature(responseBytes))
+            {
+                var responseText = TryDecodeText(responseBytes);
+                var serviceMessage = TryReadServiceException(responseText);
+                throw new InvalidOperationException(
+                    string.IsNullOrWhiteSpace(serviceMessage)
+                        ? "The WCS server returned coverage content that was not a readable TIFF."
+                        : $"The WCS server could not produce the requested TIFF coverage: {serviceMessage}");
+            }
+
+            await File.WriteAllBytesAsync(localFilePath, responseBytes);
 
             return new CoverageDownloadResult(
                 localFilePath,
-                response.Content.Headers.ContentType?.MediaType ?? format,
+                responseContentType,
                 UsedCachedFile: false);
         }
 
@@ -280,12 +309,231 @@ namespace RhinoSpatial.Core
             var fileInfo = new FileInfo(localFilePath);
             if (fileInfo.Exists && fileInfo.Length > 0)
             {
+                if (format.Contains("tiff", StringComparison.OrdinalIgnoreCase) && !FileHasTiffSignature(localFilePath))
+                {
+                    File.Delete(localFilePath);
+                    result = default!;
+                    return false;
+                }
+
                 result = new CoverageDownloadResult(localFilePath, format, UsedCachedFile: true);
                 return true;
             }
 
             result = default!;
             return false;
+        }
+
+        private static string TryReadMultipartBoundary(MediaTypeHeaderValue? contentType)
+        {
+            if (contentType is null)
+            {
+                return string.Empty;
+            }
+
+            foreach (var parameter in contentType.Parameters)
+            {
+                if (string.Equals(parameter.Name, "boundary", StringComparison.OrdinalIgnoreCase))
+                {
+                    return parameter.Value?.Trim().Trim('"') ?? string.Empty;
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private static bool TryExtractCoveragePart(
+            byte[] multipartBytes,
+            string boundary,
+            out byte[] coverageBytes,
+            out string contentType)
+        {
+            coverageBytes = Array.Empty<byte>();
+            contentType = string.Empty;
+            var delimiter = Encoding.ASCII.GetBytes($"--{boundary}");
+            var searchIndex = 0;
+
+            while (TryFindBytes(multipartBytes, delimiter, searchIndex, out var delimiterIndex))
+            {
+                var headerStart = delimiterIndex + delimiter.Length;
+                if (headerStart + 1 < multipartBytes.Length &&
+                    multipartBytes[headerStart] == (byte)'-' &&
+                    multipartBytes[headerStart + 1] == (byte)'-')
+                {
+                    break;
+                }
+
+                SkipLineBreak(multipartBytes, ref headerStart);
+                if (!TryFindHeaderEnd(multipartBytes, headerStart, out var headerEnd, out var separatorLength))
+                {
+                    break;
+                }
+
+                var headerText = Encoding.ASCII.GetString(multipartBytes, headerStart, headerEnd - headerStart);
+                var dataStart = headerEnd + separatorLength;
+                if (!TryFindBytes(multipartBytes, delimiter, dataStart, out var nextDelimiterIndex))
+                {
+                    break;
+                }
+
+                var dataEnd = nextDelimiterIndex;
+                while (dataEnd > dataStart &&
+                       (multipartBytes[dataEnd - 1] == (byte)'\r' || multipartBytes[dataEnd - 1] == (byte)'\n'))
+                {
+                    dataEnd--;
+                }
+
+                if (HeaderDescribesCoverage(headerText))
+                {
+                    coverageBytes = new byte[dataEnd - dataStart];
+                    Buffer.BlockCopy(multipartBytes, dataStart, coverageBytes, 0, coverageBytes.Length);
+                    contentType = ReadPartContentType(headerText);
+                    return coverageBytes.Length > 0;
+                }
+
+                searchIndex = nextDelimiterIndex;
+            }
+
+            return false;
+        }
+
+        private static bool HeaderDescribesCoverage(string headerText)
+        {
+            return headerText.Contains("Content-Type: image/", StringComparison.OrdinalIgnoreCase) ||
+                   headerText.Contains("Content-Description: coverage", StringComparison.OrdinalIgnoreCase) ||
+                   headerText.Contains("filename=", StringComparison.OrdinalIgnoreCase) &&
+                   (headerText.Contains(".tif", StringComparison.OrdinalIgnoreCase) ||
+                    headerText.Contains(".tiff", StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static string ReadPartContentType(string headerText)
+        {
+            foreach (var line in headerText.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var separatorIndex = line.IndexOf(':');
+                if (separatorIndex > 0 &&
+                    string.Equals(line[..separatorIndex].Trim(), "Content-Type", StringComparison.OrdinalIgnoreCase))
+                {
+                    return line[(separatorIndex + 1)..].Trim();
+                }
+            }
+
+            return "application/octet-stream";
+        }
+
+        private static bool TryFindHeaderEnd(
+            byte[] bytes,
+            int startIndex,
+            out int headerEnd,
+            out int separatorLength)
+        {
+            if (TryFindBytes(bytes, new byte[] { 13, 10, 13, 10 }, startIndex, out headerEnd))
+            {
+                separatorLength = 4;
+                return true;
+            }
+
+            if (TryFindBytes(bytes, new byte[] { 10, 10 }, startIndex, out headerEnd))
+            {
+                separatorLength = 2;
+                return true;
+            }
+
+            separatorLength = 0;
+            return false;
+        }
+
+        private static bool TryFindBytes(
+            byte[] bytes,
+            byte[] pattern,
+            int startIndex,
+            out int matchIndex)
+        {
+            for (var index = Math.Max(0, startIndex); index <= bytes.Length - pattern.Length; index++)
+            {
+                var matches = true;
+                for (var patternIndex = 0; patternIndex < pattern.Length; patternIndex++)
+                {
+                    if (bytes[index + patternIndex] != pattern[patternIndex])
+                    {
+                        matches = false;
+                        break;
+                    }
+                }
+
+                if (matches)
+                {
+                    matchIndex = index;
+                    return true;
+                }
+            }
+
+            matchIndex = -1;
+            return false;
+        }
+
+        private static void SkipLineBreak(byte[] bytes, ref int index)
+        {
+            if (index < bytes.Length && bytes[index] == (byte)'\r')
+            {
+                index++;
+            }
+
+            if (index < bytes.Length && bytes[index] == (byte)'\n')
+            {
+                index++;
+            }
+        }
+
+        private static bool FileHasTiffSignature(string filePath)
+        {
+            Span<byte> signature = stackalloc byte[4];
+            using var stream = File.OpenRead(filePath);
+            return stream.Read(signature) == signature.Length && HasTiffSignature(signature);
+        }
+
+        private static bool HasTiffSignature(ReadOnlySpan<byte> bytes)
+        {
+            return bytes.Length >= 4 &&
+                   ((bytes[0] == (byte)'I' && bytes[1] == (byte)'I' &&
+                     (bytes[2] == 42 || bytes[2] == 43) && bytes[3] == 0) ||
+                    (bytes[0] == (byte)'M' && bytes[1] == (byte)'M' && bytes[2] == 0 &&
+                     (bytes[3] == 42 || bytes[3] == 43)));
+        }
+
+        private static string TryDecodeText(byte[] bytes)
+        {
+            try
+            {
+                return Encoding.UTF8.GetString(bytes);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private static string TryReadServiceException(string responseText)
+        {
+            if (string.IsNullOrWhiteSpace(responseText))
+            {
+                return string.Empty;
+            }
+
+            try
+            {
+                var document = XDocument.Parse(responseText.Trim());
+                return document
+                    .Descendants()
+                    .FirstOrDefault(element =>
+                        element.Name.LocalName is "ExceptionText" or "ServiceException")
+                    ?.Value
+                    ?.Trim() ?? string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
         }
 
         private static string ResolveFileExtension(string format)

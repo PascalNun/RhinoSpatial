@@ -19,6 +19,8 @@ namespace RhinoSpatial
 
         public int SkippedPrimitiveCount { get; init; }
 
+        public string Copyright { get; init; } = string.Empty;
+
         public string LastError { get; init; } = string.Empty;
     }
 
@@ -162,7 +164,8 @@ namespace RhinoSpatial
                 Primitives = decodedPrimitives,
                 UsesDracoCompression = usesDracoCompression,
                 RequiresDracoCompression = requiresDracoCompression,
-                SkippedPrimitiveCount = skippedPrimitiveCount
+                SkippedPrimitiveCount = skippedPrimitiveCount,
+                Copyright = model.Asset?.Copyright ?? string.Empty
             };
         }
 

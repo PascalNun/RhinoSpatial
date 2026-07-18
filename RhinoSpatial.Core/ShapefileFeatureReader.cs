@@ -20,8 +20,26 @@ namespace RhinoSpatial.Core
         int SkippedOutsideContextCount,
         int FailedFeatureCount);
 
+    public record ShapefileSourceMetadata(
+        string SourceSrs,
+        BoundingBox2D? BoundingBox);
+
     public static class ShapefileFeatureReader
     {
+        public static ShapefileSourceMetadata ReadSourceMetadata(
+            string shapefilePath,
+            string fallbackSrs = "")
+        {
+            if (!File.Exists(shapefilePath))
+            {
+                throw new FileNotFoundException($"Shapefile was not found: {shapefilePath}", shapefilePath);
+            }
+
+            return new ShapefileSourceMetadata(
+                ResolveSourceSrs(shapefilePath, fallbackSrs),
+                TryReadBoundingBox(shapefilePath));
+        }
+
         public static ShapefileReadResult ReadFeatures(
             string shapefilePath,
             string sourceLayerName,

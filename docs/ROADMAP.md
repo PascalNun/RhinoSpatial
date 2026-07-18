@@ -86,6 +86,8 @@ The toolkit should feel dependable in day-to-day use.
 Near-term reliability improvements may include:
 - better persistence of Spatial Context
 - cleaner state restoration when files are reopened
+- keep Spatial Context reference metadata broad across WFS/WMS/WCS and existing local source formats, without turning it into another loader
+- keep startup deterministic: saved selection, then reference extent, then a neutral global view with an explicit SRS fallback warning
 - stronger handling of fallback behavior
 - better status messages
 - better timeout / failure handling
@@ -139,6 +141,7 @@ This includes:
 - keep fallback terrain responsive by limiting it to small study areas, short request times, and clear failure messages
 - support local GeoTIFF DEM paths, Esri ASCII Grid files, and regular XYZ/CSV terrain grids as bounded file-based terrain sources
 - strengthen vertical consistency across terrain, buildings, and contextual outputs
+- keep shared elevation placement independent of whether Google 3D Tiles, Terrain, or LoD2 solves first
 - make elevation handling more robust without overcomplicating the workflow
 
 ### LoD2 diagnostics and provider compatibility
@@ -277,7 +280,7 @@ They should not be treated as:
 - a source for derived or extracted geometry
 
 This means the Google 3D Tiles component should act only as a visual reference or contextual preview layer.
-For preview completeness, it may include coarser parent tile content behind refined tiles when that avoids visible holes. Slight over-coverage is acceptable for this viewer; missing chunks inside the selected context are worse for the intended reference use.
+For preview completeness, a failed refined branch may be promoted to its nearest usable parent, but replacement parent and child tiles should not be displayed together. Slight bounds padding is acceptable for this viewer; missing chunks inside the selected context are worse for the intended reference use.
 
 It should not redefine the identity of the project.
 
