@@ -6,52 +6,59 @@ RhinoSpatial
 
 ## Short Description
 
-A simple geospatial toolkit for working with site context directly in Rhino and Grasshopper.
+Bring maps, terrain, buildings, imagery, and geodata into one aligned Rhino and Grasshopper site context.
 
 ## Long Description
 
-RhinoSpatial helps you bring spatial data directly into Rhino and Grasshopper, so you can work with real site context inside your design environment without first going through a separate GIS workflow.
+RhinoSpatial brings real-world site context directly into Rhino and Grasshopper. Choose your study area once with `Spatial Context`, then add the layers you need. Maps, terrain, imagery, buildings, vector data, and lightweight urban context are placed in one shared spatial framework so they line up.
 
-It is built around simple workflows, sensible defaults, and aligned outputs for contextual modeling, concept work, and early-stage design.
+It is designed for architects, urban designers, landscape architects, and anyone using Rhino or Grasshopper for site analysis, context modeling, concept design, and early-stage studies. The aim is a direct, lightweight workflow with sensible defaults—not a full GIS application inside Grasshopper.
 
-RhinoSpatial currently supports workflows for:
+### One area, multiple aligned layers
 
-- `WFS`
-- `WMS`
-- `LoD2 buildings`
-- `terrain`
-- `GeoTIFF-based raster placement`
-- local Shapefile vector loading
-- local CityGML / CityJSON building loading
-- `lightweight OSM context`
-- Google 3D Tiles reference viewing with a user-managed API key
+A typical workflow is simple:
 
-The goal is to keep geospatial workflows practical, lightweight, and directly usable inside Rhino and Grasshopper. User-provided project data remains the main path; broad fallbacks are included only to make first tests and contextual work easier.
+1. Define the project area once with `Spatial Context`
+2. Add maps, terrain, buildings, imagery, or vector data
+3. Combine the aligned results directly in Rhino and Grasshopper
 
-RhinoSpatial grew out of a practical need: bringing official geodata and site context directly into Rhino and Grasshopper in a way that feels usable for design work. It is intended to keep that process simple, lightweight, and useful, with aligned outputs and minimal setup.
+RhinoSpatial can work with:
 
-Typical workflow:
+- official vector and planning data from WFS or OGC API Features
+- local Shapefile and GeoJSON project data
+- maps, orthophotos, and imagery from WMS or GeoTIFF
+- terrain from WCS, GeoTIFF DEM, Esri ASCII Grid, or XYZ/CSV grids
+- LoD2 buildings from WFS, CityGML, CityJSON, folders, or ZIP archives
+- lightweight OpenStreetMap context for buildings, roads, water, green areas, and rail
+- Google Photorealistic 3D Tiles as an optional visual reference layer
 
-1. define the area once with `Spatial Context`
-2. inspect layers when needed
-3. load one or more aligned sources
-4. work directly with the combined site context in Rhino and Grasshopper
+Public fallback sources make it easier to get oriented and try the workflow, while official or project-specific data remains the preferred path for production work.
 
-Built-in fallbacks currently include global imagery for WMS-style context, a quick global land-elevation fallback for small terrain previews, and public OSM access for lightweight urban context. Fallbacks are convenience/context tools; official or project-specific sources remain the preferred path for production work.
+### Google 3D Tiles
 
-`Load WFS` accepts WFS URLs, OGC API Features URLs, local `.shp` files, and local `.geojson` / GeoJSON `.json` files for vector context.
-
-`Load LoD2 Buildings` accepts one source input for LoD2 WFS URLs, local CityGML/GML/XML/CityJSON files, folders, and ZIP archives. Local file loading is filtered by the selected Spatial Context where metadata and building bounds make that possible, but very large local tiles may still take longer than service-based requests.
-
-The Google 3D Tiles component is a viewer/reference workflow. It requires the user's own Google Maps Platform API key and billing setup, and should not be treated as an editable project-data source, offline cache, bake, or export workflow.
+The Google 3D Tiles component is an optional reference viewer. It requires your own Google Maps Platform API key and billing setup. It is intended for visual context—not as an editable, bakeable, exportable, or offline project-data source.
 
 ## Early Stage Note
 
-RhinoSpatial is currently still in an alpha stage.
+RhinoSpatial is still in active alpha development. Version `0.3.3-alpha` improves layer alignment, Google 3D Tiles behavior, Spatial Context reference sources, and compatibility across WFS, WMS, WCS, LoD2, and local files.
 
-The `0.3.3-alpha` release is a reliability and source-compatibility release in the first complete alpha line. The planned core source set is present together: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the Google 3D Tiles Viewer. This version improves Google 3D Tiles selection and diagnostics, makes shared elevation alignment independent of Grasshopper connection order, broadens Spatial Context reference-source metadata, strengthens WFS/WMS/WCS/LoD2 provider handling, and expands the tested-source catalogue and example material. It has only been tested with a relatively small number of real workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
+The complete planned source set is now present, but individual providers, coordinate systems, geometry types, and file metadata can still expose edge cases.
 
 Feedback, edge cases, and additional test links are very welcome.
+
+Created by Pascal Nünninghoff.
+
+## Categories
+
+- Architecture
+- Environmental Design
+- Import & Export
+- Landscape
+- Urban Planning & City Modeling
+
+## App GUID
+
+`1b7de011-9623-49c8-b867-3a2116c9549f`
 
 ## Download
 
