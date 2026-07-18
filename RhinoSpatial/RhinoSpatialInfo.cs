@@ -14,7 +14,7 @@ namespace RhinoSpatial
 
         public override Guid Id => new Guid("1b7de011-9623-49c8-b867-3a2116c9549f");
 
-        public override string AuthorName => "Pascal Nun";
+        public override string AuthorName => "Pascal Nünninghoff";
 
         public override string AuthorContact => "https://github.com/PascalNun/RhinoSpatial";
 

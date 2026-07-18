@@ -13,7 +13,7 @@
     <RootNamespace>RhinoSpatial</RootNamespace>
     <Product>RhinoSpatial</Product>
     <Title>RhinoSpatial</Title>
-    <Company>Pascal Nun</Company>
+    <Company>Pascal Nünninghoff</Company>
     <Description>RhinoSpatial — a study-oriented geospatial toolkit for Rhino and Grasshopper.</Description>
     <RepositoryUrl>https://github.com/PascalNun/RhinoSpatial</RepositoryUrl>
     <PackageProjectUrl>https://github.com/PascalNun/RhinoSpatial</PackageProjectUrl>
