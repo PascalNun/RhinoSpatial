@@ -1,0 +1,44 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    runs-on: macos-14
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            7.0.x
+            10.0.x
+
+      - name: Restore
+        run: dotnet restore RhinoSpatial.sln
+
+      - name: Build
+        run: dotnet build RhinoSpatial.sln -c Release --no-restore
+
+      - name: Check OGC requests
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- ogc-request-check
+
+      - name: Check reference sources
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- reference-source-check
+
+      - name: Check 3D Tiles selection
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- tiles-selection-check
+
+      - name: Validate source catalogue JSON
+        run: python3 -m json.tool examples/sources.json >/dev/null
