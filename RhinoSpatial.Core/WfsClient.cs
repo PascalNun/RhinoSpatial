@@ -132,7 +132,9 @@ namespace RhinoSpatial.Core
                 throw new ArgumentException("TypeName is required.", nameof(options));
             }
 
-            var requestBaseUrl = string.IsNullOrWhiteSpace(options.GetFeatureBaseUrl) ? options.BaseUrl : options.GetFeatureBaseUrl;
+            var requestBaseUrl = string.IsNullOrWhiteSpace(options.GetFeatureBaseUrl)
+                ? options.BaseUrl
+                : OgcUrlUtilities.PreferSecureSameHostOperationUrl(options.BaseUrl, options.GetFeatureBaseUrl);
             var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(requestBaseUrl, ReservedQueryKeys);
             var queryPrefix = normalizedBaseUrl.Contains('?', StringComparison.Ordinal) ? "&" : "?";
             var builder = new StringBuilder();
@@ -169,10 +171,26 @@ namespace RhinoSpatial.Core
             if (options.BoundingBox is not null)
             {
                 builder.Append("&BBOX=");
-                builder.Append(OgcUrlUtilities.FormatBoundingBox(options.BoundingBox, options.SrsName));
+                builder.Append(UsesAuthorityAxisOrderForWfs(options)
+                    ? OgcUrlUtilities.FormatBoundingBoxWithAuthorityAxisOrder(options.BoundingBox, options.SrsName)
+                    : OgcUrlUtilities.FormatBoundingBox(options.BoundingBox, options.SrsName));
             }
 
             return builder.ToString();
+        }
+
+        private static bool UsesAuthorityAxisOrderForWfs(WfsRequestOptions options)
+        {
+            if (options.Version.StartsWith("1.0", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            // EPSG:4326 WFS implementations remain split between legacy XY and authority
+            // axis order. Keep the established XY behavior there; EPSG:4258 providers
+            // tested by RhinoSpatial use the standards-defined latitude/longitude order.
+            return !string.IsNullOrWhiteSpace(options.SrsName) &&
+                   options.SrsName.Contains("4258", StringComparison.OrdinalIgnoreCase);
         }
 
         public static string BuildGetCapabilitiesRequestUrl(

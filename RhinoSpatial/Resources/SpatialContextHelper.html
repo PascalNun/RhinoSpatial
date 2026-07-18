@@ -288,7 +288,7 @@
           3. Go back to Grasshopper. <code>Spatial Context</code> should update by itself.
         </p>
         <p>
-          If <code>Reference Service</code> and <code>Reference Layer Name</code> are connected, this map will try to zoom to the selected layer automatically.
+          If a <code>Reference Source</code> is connected, this map will try to zoom to its service layer or local-file extent automatically.
         </p>
         <div id="selectedSrsNote" class="selected-srs-note">
           RhinoSpatial has not passed a preferred SRS yet.
@@ -406,7 +406,7 @@
 
     const map = L.map("map", {
       zoomControl: true
-    }).setView([50.1109, 8.6821], 12);
+    }).setView([20, 0], 2);
     const pageParams = new URLSearchParams(window.location.search);
 
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -542,7 +542,7 @@
       }
 
       map.fitBounds(bounds.pad(0.15));
-      setStatus("Map centered on the selected WFS layer extent. Click the rectangle tool, then drag to choose your area.");
+      setStatus("Map centered on the reference-source extent. Click the rectangle tool, then drag to choose your area.");
     }
 
     function tryRestorePersistedSelection() {

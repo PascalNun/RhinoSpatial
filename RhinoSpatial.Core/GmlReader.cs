@@ -368,6 +368,27 @@ namespace RhinoSpatial.Core
         private static bool ShouldSwapAxisOrder(double firstValue, double secondValue, string srsName)
         {
             if (!string.IsNullOrWhiteSpace(srsName) &&
+                srsName.Contains("4258", StringComparison.OrdinalIgnoreCase))
+            {
+                var firstLooksLikeLatitude = Math.Abs(firstValue) <= 90.0;
+                var secondLooksLikeLatitude = Math.Abs(secondValue) <= 90.0;
+                if (firstLooksLikeLatitude && !secondLooksLikeLatitude)
+                {
+                    return true;
+                }
+
+                if (!firstLooksLikeLatitude && secondLooksLikeLatitude)
+                {
+                    return false;
+                }
+
+                if (firstLooksLikeLatitude && secondLooksLikeLatitude)
+                {
+                    return Math.Abs(firstValue) > Math.Abs(secondValue);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(srsName) &&
                 srsName.Contains("EPSG", StringComparison.OrdinalIgnoreCase) &&
                 Math.Abs(firstValue) >= 1_000_000 &&
                 Math.Abs(secondValue) < 1_000_000)

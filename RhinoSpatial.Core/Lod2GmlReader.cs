@@ -567,6 +567,7 @@ namespace RhinoSpatial.Core
         {
             if (!string.IsNullOrWhiteSpace(srsName) &&
                 (srsName.Contains("4326", StringComparison.OrdinalIgnoreCase) ||
+                 srsName.Contains("4258", StringComparison.OrdinalIgnoreCase) ||
                  srsName.Contains("7423", StringComparison.OrdinalIgnoreCase) ||
                  srsName.Contains("4283", StringComparison.OrdinalIgnoreCase) ||
                  srsName.Contains("7844", StringComparison.OrdinalIgnoreCase)))
@@ -606,9 +607,12 @@ namespace RhinoSpatial.Core
         private static int GetCoordinateDimension(XElement posListElement, string srsName, IReadOnlyList<string> rawValues)
         {
             var srsDimensionValue = posListElement
-                .Attributes()
-                .FirstOrDefault(attribute => string.Equals(attribute.Name.LocalName, "srsDimension", StringComparison.OrdinalIgnoreCase))
-                ?.Value;
+                .AncestorsAndSelf()
+                .Select(element => element
+                    .Attributes()
+                    .FirstOrDefault(attribute => string.Equals(attribute.Name.LocalName, "srsDimension", StringComparison.OrdinalIgnoreCase))
+                    ?.Value)
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
             if (int.TryParse(srsDimensionValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedDimension) &&
                 parsedDimension >= 2)
@@ -687,7 +691,8 @@ namespace RhinoSpatial.Core
         private static bool CoordinateReferenceSystemImpliesThreeDimensions(string srsName)
         {
             return !string.IsNullOrWhiteSpace(srsName) &&
-                   (srsName.Contains("7423", StringComparison.OrdinalIgnoreCase) ||
+                   (srsName.Contains("7415", StringComparison.OrdinalIgnoreCase) ||
+                    srsName.Contains("7423", StringComparison.OrdinalIgnoreCase) ||
                     srsName.Contains("4979", StringComparison.OrdinalIgnoreCase));
         }
 
