@@ -7,7 +7,9 @@ It is intentionally small and practical. The point is to confirm that the core d
 ## General Checks
 
 - RhinoSpatial builds cleanly from `RhinoSpatial.sln`
-- sandbox probes from `docs/TEST_SOURCES.md` still run for at least one WFS, one WMS, one WCS, one CityGML file, one Shapefile, and one GeoTIFF file
+- sandbox probes from `docs/TEST_SOURCES.md` still run for at least one bounded WFS GetFeature, WMS GetMap, WCS GetCoverage, one CityGML file, one CityJSON file, one Shapefile, and one GeoTIFF file; capabilities-only checks do not count as full source validation
+- the sandbox `tiles-selection-check` passes before manual Google 3D Tiles validation
+- the sandbox `ogc-request-check` and `reference-source-check` pass before service and local-reference validation
 - component grouping still reads as `Context / Layers / Sources / Viewers`
 - icons load correctly for all components
 - `Spatial Context` still acts as the shared starting point
@@ -25,6 +27,12 @@ It is intentionally small and practical. The point is to confirm that the core d
 - reopen the file
 - confirm the selected area persists
 - confirm reopening the helper redraws the saved selection
+- confirm the saved selection takes priority when a different reference source is still connected
+- without a saved selection, connect representative WFS, WMS, and WCS references and confirm the helper fits their advertised service/layer/coverage extent
+- repeat with local GeoTIFF, Shapefile, GeoJSON, CityJSON, CityGML/GML/XML, Esri ASCII Grid, and XYZ/CSV paths; also test a mixed folder and a LoD ZIP
+- confirm the reference is used only to preload the map and infer an SRS; it must not load source geometry or imagery
+- with no reference and no saved selection, confirm the helper opens at a neutral world view rather than Frankfurt
+- with no inferable project SRS, confirm the component clearly warns that EPSG:3857 is only a fallback
 
 ## WFS
 
@@ -58,6 +66,8 @@ It is intentionally small and practical. The point is to confirm that the core d
 - connect the `Status` output and check whether gaps are reported as returned buildings/surfaces with skipped conversion, or as no returned LoD2 data for that area
 - confirm the status reports the buffered WFS query bounds and the kept buildings still match the visible Spatial Context
 - for suspected provider gaps, compare returned LoD2 local bounds and output Brep bounds; matching bounds with low conversion failures usually points to source coverage rather than dropped geometry
+- run the bounded Sachsen-Anhalt EPSG:4258 probe and confirm geographic axis order does not produce a false empty result; enclosing `srsDimension="3"` metadata must produce XYZ rings
+- load the Rotterdam EPSG:28992 or Den Haag EPSG:7415 CityJSON sample and confirm Dutch RD New XY uses an explicit transform rather than bbox scaling
 
 ## Terrain
 
@@ -68,6 +78,8 @@ It is intentionally small and practical. The point is to confirm that the core d
 - leave the Terrain URL empty and confirm the global fallback returns usable context terrain for a small study area
 - try an intentionally large Spatial Context and confirm the fallback fails quickly with a clear status message instead of hanging Grasshopper
 - connect a user-provided WCS terrain source and confirm explicit source data still wins over fallback behavior
+- confirm ordinary single-part GeoTIFF responses (NRW/PDOK) and multipart GeoTIFF responses (USGS 3DEP) both produce readable terrain rasters
+- use a WCS whose capabilities omit WGS84 bounds and confirm `DescribeCoverage` native bounds still preload the Spatial Context map
 - connect a local `.tif` / `.tiff` DEM path to `Load Terrain` and confirm it produces an aligned terrain mesh or a clear non-overlap warning
 
 ## GeoTIFF
@@ -95,8 +107,12 @@ It is intentionally small and practical. The point is to confirm that the core d
 - confirm the component remains disabled and quiet when Enable is false
 - confirm the component is presented as a viewer/reference workflow, not as a bake/export/import workflow
 - confirm older definitions no longer expose the removed browser/viewer-window inputs or `Viewer URL` output after replacing the component
-- confirm the status reports selected tile URLs, candidate URLs, output bounds, and parent fallback behavior when fallback parent tiles are used
-- confirm small over-coverage is acceptable when it prevents missing chunks inside the selected reference area
+- confirm the status reports the selected refinement frontier, candidate count, target geometric error, per-tile projection-frame counts, output bounds, and branch-level parent fallback behavior
+- confirm decoded tile attribution appears on the component and in the status output
+- confirm replacement parent and child tiles are not displayed together; when a refined branch fails, confirm the affected branch is replaced by its nearest usable parent
+- confirm small bounds padding is acceptable when it prevents missing chunks inside the selected reference area
+- confirm a small Spatial Context stops traversal near its target geometric error without reaching a traversal safety limit
+- in localized mode, connect/solve Google before LoD2 and then repeat with LoD2 before Google; confirm both orders use one shared elevation baseline and remain vertically aligned
 
 ## Combined Workflow
 

@@ -12,6 +12,10 @@ Use these together with:
 - `examples/VALIDATION.md`
 - the sandbox probe command:
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- probe <wfs|wms|wcs> <url>`
+- bounded service request probes:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- wfsfeature <capabilities-url> <layer> <srs> <minX,minY,maxX,maxY> [max-features]`,
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- wmsimage <capabilities-url> <layer> <srs> <minX,minY,maxX,maxY> [width] [height]`,
+  and `dotnet run --project RhinoSpatial.Sandbox.csproj -- wcscoverage <capabilities-url> <coverage> <minX,minY,maxX,maxY> [srs]`
 - local-file smoke commands:
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2file <path>`,
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- geotiff <path>`,
@@ -19,6 +23,12 @@ Use these together with:
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- shapefile <path>`,
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- geojson <path>`,
   and `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogcapi <items-url>`
+- Google 3D Tiles refinement, geographic-bounds, and shared-elevation-baseline check:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- tiles-selection-check`
+- Spatial Context local-reference metadata check:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- reference-source-check`
+- WFS/WMS request-axis check:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogc-request-check`
 
 ## Current Tested Sources
 
@@ -35,6 +45,8 @@ Use these together with:
 | `wfs-spain-catastro-parcels` | Spain | Spanish Cadastre INSPIRE parcels WFS | `https://ovc.catastro.meh.es/INSPIRE/wfsCP.aspx?service=WFS&request=GetCapabilities` | Capabilities parsed successfully; 2 parcel/zoning layers, default EPSG:4326 URN. Intended to validate cadastral WFS behavior, INSPIRE naming, and dense parcel-style polygons outside Germany. |
 | `wfs-czech-cuzk-parcels` | Czechia | CUZK INSPIRE cadastral parcels WFS | `https://services.cuzk.cz/wfs/inspire-cp-wfs.asp?service=WFS&request=GetCapabilities` | Capabilities parsed successfully; 3 parcel/boundary/zoning layers, native EPSG:5514. Intended as a cadastral WFS and unsupported-native-CRS watch source. |
 | `wfs-uk-bgs-geology-625k` | United Kingdom | British Geological Survey 625k geology WFS | `https://ogc.bgs.ac.uk/digmap625k_gsml_insp_gs/wfs?service=WFS&request=GetCapabilities` | Capabilities parsed successfully; 11 GeoSciML/INSPIRE layers, default EPSG:27700. Intended to validate complex feature/layer metadata and UK CRS handling. |
+| `wfs-austria-vienna-open-data` | Austria / Vienna | Vienna Open Government Data WFS | `https://data.wien.gv.at/daten/geo?service=WFS&request=GetCapabilities&version=1.1.0` | Bounded `ogdwien:ADRESSENOGD` request parsed 25 point features in EPSG:4326. Also validates an HTTPS capabilities entry point whose operation URL is advertised as HTTP. |
+| `wfs-finland-nls-administrative-units` | Finland | National Land Survey INSPIRE administrative units WFS | `https://inspire-wfs.maanmittauslaitos.fi/inspire-wfs/au/ows?request=GetCapabilities&service=wfs&version=2.0.0` | Bounded `au:AdministrativeUnit` request around Helsinki parsed 3 polygons in EPSG:4326. Good WFS 2.0 / native EPSG:3067 provider test. |
 | `wfs-mapserver-demo-world` | Global demo | MapServer demo WFS | `https://demo.mapserver.org/cgi-bin/wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities` | Capabilities and `ms:cities` GetFeature parsed successfully. Useful lightweight point/polygon parser smoke test. |
 | `wfs-geoserver-demo-naturalearth` | Global demo | GeoServer Natural Earth demo WFS | `https://ahocevar.com/geoserver/wfs?SERVICE=WFS&REQUEST=GetCapabilities` | Capabilities parsed successfully. Good GeoServer demo service with Natural Earth layers and EPSG:4326 defaults. |
 | `shapefile-naturalearth-countries` | Global sample | Natural Earth admin countries Shapefile | `https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip` | Downloaded and parsed successfully with the sandbox `shapefile` command; 177 features, EPSG:4326. Good local Shapefile/vector smoke test for `Load WFS` local file mode. |
@@ -78,6 +90,8 @@ Use these together with:
 | `wms-france-geopf-raster` | France | IGN Geoplateforme raster WMS | `https://data.geopf.fr/wms-r/wms?SERVICE=WMS&REQUEST=GetCapabilities` | Capabilities parsed successfully; large layer catalogue and 5010 x 5010 max image limit. |
 | `wms-geoserver-demo-naturalearth` | Global demo | GeoServer Natural Earth demo WMS | `https://ahocevar.com/geoserver/wms?SERVICE=WMS&REQUEST=GetCapabilities` | Capabilities parsed successfully. Good lightweight GeoServer WMS regression source. |
 | `wms-norway-geonorge-topo` | Norway | Geonorge / Kartverket topographic WMS | `https://wms.geonorge.no/skwms1/wms.topo?service=WMS&request=GetCapabilities` | Capabilities parsed successfully; 226 layers and 8192 x 8192 max images. Good Nordic/national WMS provider test. |
+| `wms-austria-vienna-open-data` | Austria / Vienna | Vienna Open Government Data WMS | `https://data.wien.gv.at/daten/geo?service=WMS&request=GetCapabilities&version=1.3.0` | Bounded `ADRESSENOGD` request returned a visible 512 x 512 PNG after applying WMS 1.3 EPSG:4326 latitude/longitude axis order. Also exercises the advertised HTTP operation URL quirk. |
+| `wms-finland-nls-administrative-units` | Finland | National Land Survey INSPIRE administrative units WMS | `https://inspire-wms.maanmittauslaitos.fi/inspire-wms/AU/ows?service=wms&request=GetCapabilities` | Bounded `AU.AdministrativeUnit` request returned a valid 512 x 512 EPSG:3857 PNG. Capabilities advertise GetMap on a different official service host. |
 
 ### Terrain / WCS
 
@@ -86,9 +100,9 @@ Use these together with:
 | `terrain-global-skadi-fallback` | Global land areas | Built-in Skadi fallback | none | Built-in terrain fallback. Must stay fast and fail clearly for oversized contexts. |
 | `wcs-germany-dgm200` | Germany | BKG DGM200 WCS | `https://sgx.geodatenzentrum.de/wcs_dgm200_inspire?SERVICE=WCS&REQUEST=GetCapabilities` | Capabilities parsed successfully. Official coarse Germany terrain baseline. |
 | `terrain-hessen-dgm1` | Germany / Hessen | Hessen DGM1 WCS | `https://inspire-hessen.de/raster/dgm1/ows?REQUEST=GetCapabilities&SERVICE=WCS&VERSION=2.1.0` | Existing high-resolution Hessen terrain baseline. |
-| `terrain-nrw-dgm` | Germany / NRW | NRW DGM WCS | `https://www.wcs.nrw.de/geobasis/wcs_nw_dgm?REQUEST=GetCapabilities&SERVICE=WCS` | Capabilities parsed successfully. Good state-level WCS behavior check. |
-| `terrain-netherlands-ahn` | Netherlands | PDOK AHN WCS | `https://service.pdok.nl/rws/ahn/wcs/v1_0?service=WCS&request=GetCapabilities` | Capabilities parsed successfully; exposes `dsm_05m` and `dtm_05m`. Good non-German terrain/WCS test. |
-| `terrain-usgs-3dep` | United States | USGS 3DEP Elevation WCS | `https://elevation.nationalmap.gov/arcgis/services/3DEPElevation/ImageServer/WCSServer?SERVICE=WCS&REQUEST=GetCapabilities` | Capabilities parsed successfully; 14 coverages, WCS 2.0.1 ArcGIS ImageServer stack. Good terrain/WCS provider diversity test. |
+| `terrain-nrw-dgm` | Germany / NRW | NRW DGM WCS | `https://www.wcs.nrw.de/geobasis/wcs_nw_dgm?REQUEST=GetCapabilities&SERVICE=WCS` | Bounded `nw_dgm` request read a 100 x 100 raster with 10,000 valid elevations. DescribeCoverage native bounds now provide Spatial Context preloading when capabilities omit WGS84 bounds. |
+| `terrain-netherlands-ahn` | Netherlands | PDOK AHN WCS | `https://service.pdok.nl/rws/ahn/wcs/v1_0?service=WCS&request=GetCapabilities` | Bounded `dtm_05m` request read a 200 x 200 raster with 40,000 valid elevations. EPSG:28992 bounds and data now transform explicitly for Spatial Context alignment. |
+| `terrain-usgs-3dep` | United States | USGS 3DEP Elevation WCS | `https://elevation.nationalmap.gov/arcgis/services/3DEPElevation/ImageServer/WCSServer?SERVICE=WCS&REQUEST=GetCapabilities` | Bounded `DEP3Elevation` request read a 100 x 100 raster with 10,000 valid elevations. Validates ArcGIS WCS 2.0.1 multipart GeoTIFF extraction. |
 | `terrain-canada-hrdem` | Canada | Natural Resources Canada HRDEM WCS | `https://datacube.services.geo.ca/ows/elevation?service=WCS&request=GetCapabilities` | Capabilities parsed successfully; WCS 1.1.1 with DSM/DTM coverages. Intended as a non-European terrain/WCS provider and WCS version compatibility source. |
 | `wcs-rasdaman-demo` | Global / sample coverages | rasdaman OGC WCS demo | `https://ows.rasdaman.org/rasdaman/ows?SERVICE=WCS&REQUEST=GetCapabilities` | Capabilities parsed successfully. Good non-German WCS 2.1 provider/parser stress test; not a project-data recommendation. |
 
@@ -97,12 +111,13 @@ Use these together with:
 | ID | Region | Source | URL | Current Use |
 | --- | --- | --- | --- | --- |
 | `lod2-hessen-buildings` | Germany / Hessen | Hessen LoD2 WFS | `https://www.geoportal.hessen.de/mapbender/php/wfs.php?FEATURETYPE_ID=5589&INSPIRE=1&REQUEST=GetCapabilities&SERVICE=WFS&VERSION=2.0.0` | Existing LoD2 WFS baseline. Good for terrain/building alignment. |
-| `lod2-sachsen-anhalt` | Germany / Sachsen-Anhalt | Sachsen-Anhalt LoD2 WFS | `https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_LoD2_WFS/guest?request=GetCapabilities&service=WFS&version=2.0.0` | Existing second-state LoD2 WFS baseline. |
+| `lod2-sachsen-anhalt` | Germany / Sachsen-Anhalt | Sachsen-Anhalt LoD2 WFS | `https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_LoD2_WFS/guest?request=GetCapabilities&service=WFS&version=2.0.0` | Bounded `ALKIS_LOD2_BU:BU.Building` request parsed successfully. Validates EPSG:4258 WFS axis order and inherited `srsDimension="3"` on enclosing GML geometry. |
 | `citygml-ogc-building-lod2` | Format sample | OGC CityGML 2.0 LoD2 building sample | `https://schemas.opengis.net/citygml/examples/2.0/building/Building_LOD2-EPSG25832.gml` | Downloaded and parsed successfully with `lod2file`; 1 building / 7 surfaces. |
 | `citygml-ogc-building-garage-lod2` | Format sample | OGC CityGML 2.0 LoD2 building + garage sample | `https://schemas.opengis.net/citygml/examples/2.0/building/Building_and_garage_LOD2-EPSG25832.gml` | Downloaded and parsed successfully with `lod2file`; 1 building / 13 surfaces. |
 | `citygml-ogc-building-lod1` | Format sample | OGC CityGML 2.0 LoD1 building sample | `https://schemas.opengis.net/citygml/examples/2.0/building/Building_LOD1-EPSG25832.gml` | Downloaded and parsed successfully with `lod2file`; 1 building / 6 surfaces. Intended to validate that the LoD2 component can still parse simpler CityGML building geometry gracefully. |
 | `cityjson-local` | User/project data | Bring-your-own CityJSON building file | none | `Load LoD2 Buildings` now accepts local `.json` / `.cityjson` files through the same `LoD2 Source` input. Sandbox smoke test parsed a simple CityJSON solid as 1 building / 6 surfaces. |
-| `cityjson-denhaag-3dcities` | Netherlands / sample | 3D city model CityJSON sample | `https://3d.bk.tudelft.nl/opendata/cityjson/3dcities/v2.0/DenHaag_01.city.json` | Downloaded and parsed successfully with `lod2file`; 1,990 buildings / 16,209 surfaces. Source SRS EPSG:7415 is parsed but remains a CRS-alignment watch item until broader transform support is added. |
+| `cityjson-denhaag-3dcities` | Netherlands / sample | 3D city model CityJSON sample | `https://3d.bk.tudelft.nl/opendata/cityjson/3dcities/v2.0/DenHaag_01.city.json` | Downloaded and parsed successfully with `lod2file`; 1,990 buildings / 16,209 surfaces. EPSG:7415 now uses the supported Dutch RD New horizontal transform for alignment. |
+| `cityjson-rotterdam-delfshaven` | Netherlands / Rotterdam | Delfshaven CityJSON LoD2 sample | `https://3d.bk.tudelft.nl/opendata/cityjson/3dcities/v2.0/3-20-DELFSHAVEN.city.json` | Downloaded and parsed successfully with `lod2file`; 853 buildings / 15,482 surfaces. Tests textured CityJSON and explicit EPSG:28992 alignment. |
 
 ### GeoTIFF / Local Raster
 
