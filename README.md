@@ -79,14 +79,15 @@ For the full tutorial, see the [RhinoSpatial workflow](docs/SHOWCASE.md).
 - [Test source catalogue](docs/TEST_SOURCES.md)
 - [Project scope](docs/PROJECT_SCOPE.md)
 - [Roadmap](docs/ROADMAP.md)
+- [Changelog](CHANGELOG.md)
 
 ## Project Status
 
 RhinoSpatial is currently still in an alpha stage.
 
-The `v0.3.2-alpha` release continues the first complete alpha line where the planned core data layers are present as a coherent toolkit. This release focuses on source compatibility and stabilization: broader vector inputs, cleaner LoD2 source handling, updated test-source documentation, and leaner packaging. The source categories are considered stable at the category level, while individual providers, geometry conversion paths, fallbacks, and documentation are still expected to improve through real-world use.
+The `v0.3.3-alpha` release continues the first complete alpha line where the planned core data layers are present as a coherent toolkit. This release focuses on reliable alignment and broader source compatibility: Google 3D Tiles now use a coherent refinement frontier and stronger projection diagnostics, elevation placement no longer depends on Grasshopper solution order, Spatial Context can infer reference extents from more service and local-file sources, and WFS/WMS/WCS/LoD2 provider handling has been strengthened. The source categories are considered stable at the category level, while individual providers, geometry conversion paths, fallbacks, and documentation are still expected to improve through real-world use.
 
-As of `v0.3.2-alpha`, the originally planned core source set is present: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the Google 3D Tiles reference viewer all share the same Spatial Context workflow.
+As of `v0.3.3-alpha`, the originally planned core source set is present: WFS, WMS, LoD2 Buildings, Terrain, GeoTIFF, OSM, and the Google 3D Tiles reference viewer all share the same Spatial Context workflow.
 
 It has only been tested with a relatively small number of WFS, WMS, LoD2, terrain, GeoTIFF, OSM, and 3D Tiles workflows so far. Behavior may still vary depending on the provider, geometry type, coordinate system, service version, response format, API access, or local file metadata.
 
