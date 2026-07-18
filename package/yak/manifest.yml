@@ -2,7 +2,7 @@
 name: RhinoSpatial
 version: 0.3.3.0
 authors:
-  - Pascal Nun
+  - Pascal Nünninghoff
 description: Study-oriented geospatial toolkit for Rhino and Grasshopper.
 url: https://github.com/PascalNun/RhinoSpatial
 keywords:
