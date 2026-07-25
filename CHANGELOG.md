@@ -2,6 +2,15 @@
 
 RhinoSpatial follows an alpha release line while its existing source categories are stabilized through real project use. Earlier releases remain documented on [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases).
 
+## Unreleased
+
+### Documentation and package presentation
+
+- Reorganized the README around the architect and designer workflow, with a shorter introduction, clearer installation path, and progressive links into technical detail.
+- Added a complete [Component and Source Reference](docs/COMPONENT_REFERENCE.md) so supported formats, inputs, placement behavior, fallbacks, and diagnostics remain available without overwhelming the first page.
+- Refreshed the project scope, roadmap, workflow guide, examples, validation notes, and source catalogue to match the current `0.3.3-alpha` behavior and terminology.
+- Added a self-contained release-package README and corrected package instructions, links, author name, and user-facing metadata.
+
 ## 0.3.3-alpha — 2026-07-18
 
 ### Highlights

@@ -8,11 +8,13 @@ The easiest way to install RhinoSpatial is through Rhino's Package Manager.
 
 1. Open Rhino 8.
 2. Run `PackageManager`.
-3. Search for `RhinoSpatial`.
-4. Install the package.
-5. Restart Rhino / Grasshopper if needed.
+3. Enable **Include pre-releases** while RhinoSpatial remains in alpha.
+4. Search for `RhinoSpatial`.
+5. Install the package.
+6. Restart Rhino / Grasshopper if needed.
 
 You can also open the [RhinoSpatial page on Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
+The [RhinoSpatial website](https://pascalnun.eu/tools/rhinospatial/) provides the user guide and example workflows.
 
 ## Included Files
 
@@ -20,9 +22,14 @@ You can also open the [RhinoSpatial page on Food4Rhino](https://www.food4rhino.c
 - `RhinoSpatial.deps.json`
 - `RhinoSpatial.runtimeconfig.json`
 - `RhinoSpatial.Core.dll`
+- `BitMiracle.LibTiff.NET.dll`
+- `NetTopologySuite.dll`
 - `NetTopologySuite.Features.dll`
 - `NetTopologySuite.IO.Esri.Shapefile.dll`
+- `ProjNET.dll`
+- `SharpGLTF.Core.dll`
 - `README.md`
+- `CHANGELOG.md`
 - `LICENSE`
 - `THIRD-PARTY-NOTICES.md`
 
@@ -64,7 +71,7 @@ Good first components to try are:
 ## Notes
 
 - RhinoSpatial is currently still in an alpha stage.
-- The plugin has only been tested with a limited number of real WFS, WMS, LoD2, terrain, GeoTIFF, OSM, and 3D Tiles workflows so far.
+- The plugin has been exercised against a growing international set of public services and local formats, but provider-specific services and unusual project data can still expose edge cases.
 - Leave imagery, terrain, or OSM source inputs empty only when you want RhinoSpatial's broad fallback behavior for quick context. The terrain fallback is intentionally limited to small study areas and short request times. For project work, prefer your own official or project-specific data sources.
 - `Load WFS` accepts WFS URLs, OGC API Features URLs, local `.shp` files, and local `.geojson` / GeoJSON `.json` files for vector context.
 - `Load LoD2 Buildings` accepts a LoD2 WFS URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive through one `LoD2 Source` input. Large local files may still take time because they have to be inspected before out-of-context buildings can be skipped.

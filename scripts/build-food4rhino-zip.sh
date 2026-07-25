@@ -20,7 +20,7 @@ find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f \
   ! -name '*.pdb' \
   -exec cp {} "$STAGING_DIR/" \;
 
-cp "$ROOT_DIR/README.md" "$STAGING_DIR/README.md"
+cp "$ROOT_DIR/package/food4rhino/PACKAGE_README.md" "$STAGING_DIR/README.md"
 cp "$ROOT_DIR/CHANGELOG.md" "$STAGING_DIR/CHANGELOG.md"
 cp "$ROOT_DIR/LICENSE" "$STAGING_DIR/LICENSE"
 cp "$ROOT_DIR/THIRD-PARTY-NOTICES.md" "$STAGING_DIR/THIRD-PARTY-NOTICES.md"

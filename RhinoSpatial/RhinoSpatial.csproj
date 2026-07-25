@@ -14,9 +14,9 @@
     <Product>RhinoSpatial</Product>
     <Title>RhinoSpatial</Title>
     <Company>Pascal Nünninghoff</Company>
-    <Description>RhinoSpatial — a study-oriented geospatial toolkit for Rhino and Grasshopper.</Description>
+    <Description>Bring maps, terrain, buildings, imagery, and geodata into one aligned Rhino and Grasshopper site context.</Description>
     <RepositoryUrl>https://github.com/PascalNun/RhinoSpatial</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/PascalNun/RhinoSpatial</PackageProjectUrl>
+    <PackageProjectUrl>https://pascalnun.eu/tools/rhinospatial/</PackageProjectUrl>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,12 +1,22 @@
 # RhinoSpatial Workflow
 
-RhinoSpatial is built around one selected study area and multiple aligned
-context layers. This walkthrough follows the reference definition: start with
-one shared `Spatial Context`, then connect WMS, WFS, GeoTIFF, terrain, LoD2,
-OSM, and Google 3D Tiles to that same context.
+This is the visual, step-by-step guide for assembling site context with
+RhinoSpatial. For exact input behavior, supported formats, fallbacks, and
+coordinate-system notes, see the
+[Component and Source Reference](COMPONENT_REFERENCE.md).
+
+RhinoSpatial starts with one selected study area and builds multiple aligned
+context layers around it. Create one shared `Spatial Context`, then connect
+maps, vector data, GeoTIFF, terrain, LoD2 buildings, OSM, and optional Google
+3D Tiles reference context to that same output.
 
 The URLs and files shown in the screenshots are examples. They can be replaced
 with your own project data as long as the source type is supported.
+
+Some screenshots document the reference definition at the time it was
+captured. Current builds use the broader labels `Reference Source` and
+`LoD2 Source` where an earlier screenshot may show `Ref URL` or `LoD2 URL`.
+The workflow and component identities remain the same.
 
 Related downloadable Grasshopper definitions:
 
@@ -22,10 +32,26 @@ Related downloadable Grasshopper definitions:
 Start with `Spatial Context`. Open the map helper, draw one rectangle, and use
 the resulting context output for every data layer.
 
-You can provide an SRS override, a WFS/WMS reference URL and layer, use the
-`Open Map` button, and choose whether to keep absolute coordinates.
+The only required interaction is `Open Map`. An optional `Reference Source`
+can be a WFS, WMS, or WCS service, a supported local geospatial file, a folder,
+or a LoD-oriented ZIP archive. It only helps the map open near the source and
+infer a coordinate system; it does not load the source data.
 
-![Spatial Context reference definition](images/workflow-00-spatial-context.jpg)
+By default, RhinoSpatial places the study near Rhino's origin. Enable
+`Use Absolute Coordinates` only when the project needs the original source
+coordinates.
+
+```mermaid
+flowchart LR
+    R["Reference Source (optional)"] --> S["Spatial Context"]
+    M["Open Map and select one area"] --> S
+    S --> WMS["Maps and imagery"]
+    S --> WFS["Vector data"]
+    S --> T["Terrain"]
+    S --> L["LoD2 buildings"]
+    S --> O["OSM context"]
+    S --> G["Google 3D reference"]
+```
 
 ## 1. Map and Vector Context
 

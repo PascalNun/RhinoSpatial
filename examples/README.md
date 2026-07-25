@@ -1,118 +1,79 @@
-# Examples
+# RhinoSpatial Examples
 
-This folder is the starting point for RhinoSpatial example definitions and manual checks.
+These Grasshopper definitions are starting points for common RhinoSpatial site-context workflows. Download the example closest to your task, replace its service URLs or local-file placeholders with your own project sources, and keep the same shared `Spatial Context`.
 
-The goal is not to collect every possible provider or service variation. The goal is to keep a small, practical set of reference workflows that helps us:
+For a visual introduction, see the [RhinoSpatial workflow guide](../docs/SHOWCASE.md). For exact source formats and component behavior, see the [Component and Source Reference](../docs/COMPONENT_REFERENCE.md).
 
-- show how to assemble site context with RhinoSpatial
-- verify that the core data layers still behave correctly
-- catch regressions when the toolkit is refined
+## Download an example
 
-RhinoSpatial is built around one shared `Spatial Context` and multiple aligned data layers, so the examples are organized around complete study workflows rather than isolated one-off technical tests.
+### Full reference workflow
 
-## Current Structure
+[Download `00-rhinospatial-reference-workflow.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/00-rhinospatial-reference-workflow.gh)
 
-- [Example overview](README.md)
-  Overview of the example strategy
-- [Manual validation checklist](VALIDATION.md)
-  Manual checklist for the current core data layers
-- [Curated source list](sources.json)
-  Curated reference sources and notes for repeatable testing
-- [Test source catalogue](../docs/TEST_SOURCES.md)
-  Sorted provider/source catalogue with current probe notes and future format candidates
-- [Grasshopper examples](gh/)
-  Example Grasshopper definitions for the current showcase/regression workflows
+One definition showing the complete shared workflow with Spatial Context, WMS, WFS, GeoTIFF, terrain, LoD2, OSM, and Google 3D Tiles reference context.
 
-Related project docs:
+### WMS and WFS basics
 
-- [RhinoSpatial workflow](../docs/SHOWCASE.md)
-  Public-facing screenshots and example workflow previews
+[Download `01-wms-wfs-basics.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/01-wms-wfs-basics.gh)
 
-## Current Core Workflow Examples
+Start here for an aligned map image plus editable vector data such as parcels, planning layers, roads, or building footprints.
 
-The current example/regression set is centered around:
+### GeoTIFF and terrain
 
-- `Spatial Context`
-- `Load WFS`
-- `Load WMS`
-- `Load LoD2 Buildings`
-- `Load Terrain`
-- `Load GeoTIFF`
-- `Load OSM`
-- `3D Tiles Viewer (Google)` where a user-managed API key is available
+[Download `02-geotiff-terrain.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/02-geotiff-terrain.gh)
 
-These examples are meant to support:
+A local raster and terrain workflow. The GeoTIFF input is intentionally a placeholder: connect your own georeferenced `.tif` or `.tiff` file. No personal local path or project raster is included.
+
+### LoD2 buildings
+
+[Download `03-lod2-buildings.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/03-lod2-buildings.gh)
+
+Official 3D building and roof context from a LoD2 WFS service or supported CityGML/CityJSON source.
+
+### OSM context
+
+[Download `04-osm-context.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/04-osm-context.gh)
+
+Lightweight OpenStreetMap buildings, roads, water, green areas, and rail for quick site studies and figure-ground or black-plan views.
+
+### Google 3D Tiles reference
+
+[Download `05-google-3d-tiles-reference.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/05-google-3d-tiles-reference.gh)
+
+Optional Google Photorealistic 3D Tiles visual context. The example does not contain an API key. Add your own Google Maps Platform key only to a private working copy and do not publish that edited definition.
+
+## How to use the examples
+
+1. Install the current RhinoSpatial alpha through Package Manager and enable **Include pre-releases**.
+2. Download and open the chosen `.gh` definition.
+3. Replace example URLs, layer names, local files, or API-key placeholders with sources suitable for your project.
+4. Open `Spatial Context` and select a reasonably small study area.
+5. Read each component's `Status` output when a provider or file does not return the expected result.
+
+Public example services can change or become temporarily unavailable. For production work, official or project-specific sources remain the preferred path.
+
+If an older saved definition shows Grasshopper IO archive warnings after a component layout change, replace the affected RhinoSpatial component once and reconnect it. The definitions in this repository should represent the current component layout and open without those warnings.
+
+## Source and testing references
+
+- [Curated example source list](sources.json)
+  Repeatable service and file references used by the example and validation workflows.
+- [Test Source Catalogue](../docs/TEST_SOURCES.md)
+  Broader international provider catalogue, current probe results, known limitations, and future format candidates.
+- [Manual Validation Checklist](VALIDATION.md)
+  Maintainer-facing regression checks for the complete toolkit.
+
+## For maintainers
+
+The examples serve two purposes: they help users start a real workflow, and they provide a small manual regression baseline.
+
+The set intentionally favors complete design studies over isolated technical probes:
 
 - contextual site modeling
-- black-plan / context-plan style studies
+- figure-ground and black-plan studies
 - early-stage design workflows
-- alignment checks across multiple sources
+- alignment checks across imagery, vector, terrain, and buildings
 
-## Current Example Definitions
+The source manifest combines broad fallback references, international compatibility sources, and deeper German/Hessen test data. Hessen remains useful for LoD2, terrain, cadastral, building, and parcel workflows, while international services help expose provider and coordinate-system differences.
 
-The current `.gh` example set has one full reference definition plus a small
-set of focused workflow definitions:
-
-- [Download .gh: Full reference workflow](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/00-rhinospatial-reference-workflow.gh)
-  Full walkthrough definition with the shared `Spatial Context` and all current
-  data layers.
-- [Download .gh: WMS + WFS basics](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/01-wms-wfs-basics.gh)
-  Basic map imagery plus vector data workflow.
-- [Download .gh: GeoTIFF + terrain](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/02-geotiff-terrain.gh)
-  Local raster / terrain workflow. The GeoTIFF example is a local-file placeholder
-  and expects the user to connect their own `.tif` / `.tiff` file.
-- [Download .gh: LoD2 buildings](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/03-lod2-buildings.gh)
-  Official LoD2 building context workflow.
-- [Download .gh: OSM context](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/04-osm-context.gh)
-  Lightweight OSM context workflow for quick site studies and black-plan views.
-- [Download .gh: Google 3D Tiles reference](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/05-google-3d-tiles-reference.gh)
-  Google 3D Tiles visual reference context. The example does not include a
-  Google API key.
-
-These are meant to support:
-
-- quick manual smoke tests
-- screenshot capture for the public project presentation
-- future checks against representative RhinoSpatial workflows
-
-The validation checklist and source manifest remain the broader regression baseline.
-
-If a saved working definition shows Grasshopper IO archive warnings after a component layout change, replace the affected component once and reconnect it. The example definitions in this repository should stay warning-free and represent the current component layout.
-
-The GeoTIFF workflow is a local-file workflow in this release. The example
-definition should not contain a personal local file path or bundled project
-raster; it should clearly ask the user to connect their own georeferenced
-GeoTIFF.
-
-The Google 3D Tiles workflow requires the user's own Google Maps API key. The
-example definitions do not include an API key; if you add your own key, do not
-share that edited file publicly. Example and validation notes should describe
-the component as a visual reference viewer only, not as an editable data source,
-import/export, bake, or offline cache workflow.
-
-## Reference Coverage
-
-The current source manifest mixes:
-
-- broad fallback references that make RhinoSpatial easier to try without local setup
-- non-German public WFS/WMS/WCS and sample-file references for provider compatibility
-- Hessen-specific deep-dive references that have been useful during development
-- Germany-wide official references where they fit the RhinoSpatial workflow well
-
-That balance is intentional, but local references should be understood as test fixtures and examples. The main RhinoSpatial workflow should continue to prefer user-provided project data, with generic fallbacks and public regression links used only for convenience, orientation, and compatibility testing.
-
-Hessen remains a strong practical test bed for:
-
-- LoD2
-- terrain
-- cadastral workflows
-- official building and parcel context
-
-Broad and Germany-wide references are included where they strengthen:
-
-- national-scale WFS/WMS testing
-- fallback behavior checks
-- broader provider validation
-- examples that are not tied to a single federal state
-
-Local CityGML/LoD2 folders and ZIP archives are useful regression inputs, but they can vary widely in file structure and size. Validation should record whether RhinoSpatial skipped files by metadata bounds, filtered buildings before conversion, or had to inspect a large single tile.
+Local CityGML folders and ZIP archives can vary greatly in structure and size. Validation should record whether RhinoSpatial skipped files by metadata bounds, filtered buildings before conversion, or had to inspect a large single tile.

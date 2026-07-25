@@ -1,6 +1,8 @@
 # Validation Checklist
 
-This checklist is the manual validation set for RhinoSpatial.
+This is the maintainer-facing manual validation set for RhinoSpatial. It is
+linked publicly for transparency, but ordinary users do not need to complete it
+before using the plugin.
 
 It is intentionally small and practical. The point is to confirm that the core data layers still feel aligned, usable, and trustworthy after changes.
 

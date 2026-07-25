@@ -1,8 +1,13 @@
 # Test Sources
 
-This file collects public sources that are useful for RhinoSpatial compatibility testing.
+This is a maintainer-facing compatibility catalogue. It records public sources
+that are useful for RhinoSpatial testing; it is not a list of recommended
+project-data providers or an introductory user guide.
 
-The goal is not to recommend these providers for production work. The goal is to keep a broad, practical regression set that covers different countries, server stacks, coordinate systems, formats, and source types.
+The goal is to keep a broad, practical regression set that covers different
+countries, server stacks, coordinate systems, formats, and source types. For
+user-facing source instructions, see the
+[Component and Source Reference](COMPONENT_REFERENCE.md).
 
 The **Current Use** column describes what the source is supposed to validate in RhinoSpatial: parser coverage, provider quirks, CRS behavior, terrain/raster alignment, local-file handling, or manual visual context. If a source is on the watch list, it is intentionally not a recommended example yet.
 

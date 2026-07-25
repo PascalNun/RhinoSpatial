@@ -60,6 +60,16 @@ Created by Pascal Nünninghoff.
 
 `1b7de011-9623-49c8-b867-3a2116c9549f`
 
+## Website
+
+User guide and examples:
+
+- https://pascalnun.eu/tools/rhinospatial/
+
+Support and bug reports:
+
+- https://github.com/PascalNun/RhinoSpatial/issues
+
 ## Download
 
 Food4Rhino listing:
@@ -68,7 +78,7 @@ Food4Rhino listing:
 
 Rhino Package Manager:
 
-- Open Rhino 8, run `PackageManager`, search for `RhinoSpatial`, and install the package.
+- Open Rhino 8, run `PackageManager`, enable **Include pre-releases**, search for `RhinoSpatial`, and install the package.
 
 Current release package:
 
