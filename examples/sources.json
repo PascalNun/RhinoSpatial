@@ -230,8 +230,14 @@
       "notes": [
         "Download and unzip before using with Load WFS local Shapefile mode",
         "Tested with sandbox shapefile command",
-        "EPSG:4326, 177 country features"
-      ]
+        "EPSG:4326, 177 country features",
+        "Unreleased: connect the direct_download_url ZIP directly to Load WFS, Layer empty.",
+        "2026-11-01: validated 214976-byte direct payload, EPSG:4326 metadata and three bounded sample features."
+      ],
+      "last_verified": "2026-11-01",
+      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "COMPATIBILITY_WORKFLOWS.md",
+      "direct_download_url": "https://naturalearth.s3.amazonaws.com/110m_cultural/ne_110m_admin_0_countries.zip"
     },
     {
       "id": "shapefile-naturalearth-populated-places",
@@ -296,8 +302,23 @@
       "notes": [
         "Tested with sandbox ogcapi command",
         "Use directly in the WFS URL input; RhinoSpatial treats it as OGC API Features, not WFS",
-        "Good regression source for bbox-filtered GeoJSON item endpoints"
-      ]
+        "Good regression source for bbox-filtered GeoJSON item endpoints",
+        "2026-11-01: limit=1 probe read 5 unique features across 5 pages, then explicitly stopped at Max Features 5."
+      ],
+      "last_verified": "2026-11-01",
+      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "COMPATIBILITY_WORKFLOWS.md",
+      "pagination_url": "https://demo.pygeoapi.io/master/collections/lakes/items?limit=1",
+      "max_features": 5,
+      "context": {
+        "srs": "EPSG:4326",
+        "bbox": [
+          -100,
+          30,
+          -50,
+          60
+        ]
+      }
     },
     {
       "id": "wfs-geoserver-demo-naturalearth",
@@ -623,7 +644,8 @@
       "notes": [
         "Downloaded and tested with sandbox lod2file command",
         "Parsed 853 buildings and 15482 surfaces",
-        "Source SRS EPSG:28992 is read and transformed explicitly for shared Spatial Context alignment"
+        "Source SRS EPSG:28992 is read and transformed explicitly for shared Spatial Context alignment",
+        "2026-11-01 direct-download retry failed TLS verification on this machine; historical local parser results above are unchanged. Use cityjson-cjio-delft-download for the verified direct-download recipe."
       ]
     },
     {
@@ -857,6 +879,102 @@
         "Use only for bounded contextual preview aligned to Spatial Context",
         "Not a substitute for official editable project data"
       ]
+    },
+    {
+      "id": "terrain-berlin-dgm1-atom",
+      "type": "Terrain ATOM",
+      "purpose": "Official terrain feed discovery, downloads and adjacent-grid mosaic",
+      "url": "https://gdi.berlin.de/data/dgm1/atom/",
+      "notes": [
+        "Connect to Load Terrain, Coverage empty; the same feed is supported as Spatial Context Reference Source without archive downloads.",
+        "Declared 2 km EPSG:25833 grid; source heights and half-meter sample centers retained.",
+        "400 x 400 single-tile Core raster/mesh and 200 x 200 two-tile mosaic verified live; Rhino visual alignment pending.",
+        "16-17 MiB ZIP downloads per tile; subsequent validated cache reuse."
+      ],
+      "last_verified": "2026-11-01",
+      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "COMPATIBILITY_WORKFLOWS.md",
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          391300,
+          5820100,
+          391700,
+          5820500
+        ]
+      },
+      "boundary_context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          391900,
+          5820100,
+          392100,
+          5820300
+        ]
+      }
+    },
+    {
+      "id": "ogcapi-pygeoapi-root",
+      "type": "OGC API Features",
+      "purpose": "Landing-page discovery and existing layer-list workflow",
+      "url": "https://demo.pygeoapi.io/master/",
+      "notes": [
+        "16 feature collections discovered live; select lakes | Large Lakes using List WFS Layers.",
+        "Use the same root and layer with Load WFS. Multi-collection roots require an explicit collection choice.",
+        "Root/collection metadata supported as Reference Source; select a small context before loading."
+      ],
+      "last_verified": "2026-11-01",
+      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "COMPATIBILITY_WORKFLOWS.md",
+      "layer": "lakes",
+      "max_features": 5,
+      "context": {
+        "srs": "EPSG:4326",
+        "bbox": [
+          -100,
+          30,
+          -50,
+          60
+        ]
+      }
+    },
+    {
+      "id": "geojson-naturalearth-countries-download",
+      "type": "GeoJSON download",
+      "purpose": "Direct remote vector-file loading",
+      "url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson",
+      "notes": [
+        "Connect directly to Load WFS with Layer empty; EPSG:4326.",
+        "Validated 838726-byte payload and parsed 177 features live.",
+        "Coarse world polygons are compatibility data; existing oversized-outline filtering can exclude them in small site contexts."
+      ],
+      "last_verified": "2026-11-01",
+      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "cityjson-cjio-delft-download",
+      "type": "CityJSON download",
+      "purpose": "Direct building-download and declared Dutch CRS check",
+      "url": "https://raw.githubusercontent.com/cityjson/cjio/master/tests/data/delft.json",
+      "notes": [
+        "Connect to Load LoD2 Buildings with Layer empty; live parser returned 160 buildings.",
+        "CityJSON 2.0 maintainer fixture containing LoD1 geometry; not a multi-LoD, sequence or template test.",
+        "Source EPSG:7415; RD New XY transform supported, source heights retained.",
+        "For Reference Source use a downloaded local copy and a supported map SRS such as EPSG:3857. Rhino visual checks pending."
+      ],
+      "last_verified": "2026-11-01",
+      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "COMPATIBILITY_WORKFLOWS.md",
+      "native_extent": {
+        "srs": "EPSG:7415",
+        "bbox": [
+          84616.468,
+          447422.999,
+          85140.839,
+          447750.636
+        ]
+      }
     }
   ]
 }

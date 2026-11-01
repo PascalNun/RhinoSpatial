@@ -15,6 +15,7 @@ namespace RhinoSpatial
     {
         private const int DirectLayerWarningThreshold = 8;
         private readonly WfsClient _wfsClient = new();
+        private readonly SourceDownloadCache _downloads = new(AtomDownloadKind.Vector);
         private readonly OgcApiFeaturesClient _ogcApiFeaturesClient = new();
 
         public class SolveResults
@@ -35,6 +36,8 @@ namespace RhinoSpatial
         private class RequestData
         {
             public string BaseUrl { get; init; } = string.Empty;
+
+            public System.Threading.CancellationToken CancellationToken { get; init; }
 
             public List<string> RequestedLayerNames { get; init; } = new();
 
@@ -63,10 +66,11 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WFS Service URL", "WFS URL", "Base URL of the WFS service, OGC API Features collection/items URL, or path to a local Shapefile (.shp) or GeoJSON (.geojson/.json). If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers. Optional for local Shapefile, local GeoJSON, and OGC API Features sources.", GH_ParamAccess.list);
-            pManager.AddIntegerParameter("Max Features", "Max Features", "Maximum number of features to request. Use 0 to request all available features.", GH_ParamAccess.item, 0);
+            pManager.AddTextParameter("WFS Service URL", "WFS URL", "WFS service, OGC API Features root/collection/items URL, direct GeoJSON or vector ZIP URL, or local Shapefile/GeoJSON path. If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers. Optional for files and a single OGC API collection; choose a collection explicitly when an API root exposes several.", GH_ParamAccess.list);
+            pManager.AddIntegerParameter("Max Features", "Max Features", "Per-layer feature cap. Use 0 to follow available pages within the selected area and safety limits; read Status for completeness diagnostics.", GH_ParamAccess.item, 0);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. This is required so WFS, WMS, LoD2, terrain, GeoTIFF, and OSM outputs stay aligned.", GH_ParamAccess.item);
+            pManager[1].Optional = true;
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -128,10 +132,7 @@ namespace RhinoSpatial
 
             dataAccess.GetData(0, ref baseUrl);
 
-            if (!dataAccess.GetDataList(1, layerSelections))
-            {
-                return false;
-            }
+            dataAccess.GetDataList(1, layerSelections);
 
             dataAccess.GetData(2, ref maxFeatures);
             dataAccess.GetData(3, ref spatialContextText);
@@ -155,7 +156,7 @@ namespace RhinoSpatial
             var sourceInfo = VectorSourceResolver.Resolve(baseUrl);
             if (!sourceInfo.IsSupported)
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"WFS URL must be a WFS service URL, an OGC API Features collection/items URL, a local .shp file path, or a local .geojson/.json file path. Source was not found or is unsupported: {baseUrl}");
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"WFS URL must be a WFS service URL, an OGC API Features URL, a supported vector download URL, or a local Shapefile/GeoJSON path. Source was not found or is unsupported: {baseUrl}");
                 return false;
             }
 
@@ -166,14 +167,14 @@ namespace RhinoSpatial
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            if (requestedLayerNames.Count == 0 && sourceInfo.CanUseDefaultLayerName)
+            if (requestedLayerNames.Count == 0 && sourceInfo.CanUseDefaultLayerName && !string.IsNullOrWhiteSpace(sourceInfo.DefaultLayerName))
             {
                 requestedLayerNames.Add(sourceInfo.DefaultLayerName);
             }
 
-            if (requestedLayerNames.Count == 0)
+            if (maxFeatures < 0)
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "At least one valid layer selection is required.");
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "Max Features must be zero or a positive number.");
                 return false;
             }
 
@@ -200,6 +201,7 @@ namespace RhinoSpatial
                 RequestedLayerNames = requestedLayerNames,
                 MaxFeatures = maxFeatures,
                 SpatialContext = spatialContext,
+                CancellationToken = CancelToken,
                 SourceKind = sourceInfo.Kind
             };
 
@@ -212,13 +214,14 @@ namespace RhinoSpatial
             {
                 VectorSourceKind.LocalShapefile => ComputeLocalShapefile(requestData),
                 VectorSourceKind.LocalGeoJson => ComputeLocalGeoJson(requestData),
-                VectorSourceKind.OgcApiFeatures => ComputeOgcApiFeatures(requestData),
-                _ => ComputeWfs(requestData)
+                VectorSourceKind.RemoteDownload => ComputeRemoteVector(requestData),
+                _ => ComputeRemoteService(requestData)
             };
         }
 
         private SolveResults ComputeWfs(RequestData requestData)
         {
+            if (requestData.RequestedLayerNames.Count == 0) throw new InvalidOperationException("Select a WFS layer with List WFS Layers.");
             var resolvedSrsName = requestData.SpatialContext.ResolvedSrs;
             var features = new List<WfsFeature>();
             var statusNotes = new List<string>();
@@ -234,7 +237,7 @@ namespace RhinoSpatial
                     BoundingBox = requestData.SpatialContext.RequestBoundingBox
                 };
 
-                var layerResult = _wfsClient.LoadFeaturesWithStatusAsync(layerRequestOptions).GetAwaiter().GetResult();
+                var layerResult = _wfsClient.LoadFeaturesWithStatusAsync(layerRequestOptions, requestData.CancellationToken).GetAwaiter().GetResult();
                 var filterResult = SpatialFeatureFilter.FilterToBounds(
                     layerResult.Features,
                     requestData.SpatialContext.RequestBoundingBox);
@@ -265,42 +268,96 @@ namespace RhinoSpatial
                     maxFeaturesText,
                     resolvedSrsText,
                     statusNotes),
-                ResolveMessageLevel(features.Count, statusNotes.Count > 0),
-                statusNotes.Count > 0);
+                ResolveMessageLevel(features.Count, statusNotes.Any(note => note.Contains("Using cached WFS", StringComparison.Ordinal) || note.StartsWith("Filtered ", StringComparison.Ordinal))),
+                statusNotes.Any(note => note.Contains("Using cached WFS", StringComparison.Ordinal)));
         }
 
-        private SolveResults ComputeOgcApiFeatures(RequestData requestData)
+        private SolveResults ComputeRemoteService(RequestData requestData)
         {
-            var layerName = requestData.RequestedLayerNames[0];
-            var sourceFeatures = _ogcApiFeaturesClient.LoadFeaturesAsync(
-                    requestData.BaseUrl,
-                    layerName,
-                    requestData.SpatialContext.Wgs84BoundingBox,
-                    requestData.MaxFeatures)
-                .GetAwaiter()
-                .GetResult();
-            var projectedFeatures = WfsFeatureGeometryTransformer.TransformFeatures(
-                sourceFeatures,
-                "EPSG:4326",
-                requestData.SpatialContext.ResolvedSrs);
-            var filterResult = SpatialFeatureFilter.FilterToBounds(
-                projectedFeatures,
-                requestData.SpatialContext.RequestBoundingBox);
-            var features = filterResult.Features;
-            var outputData = BuildVectorOutput(requestData, features);
-            var maxFeaturesText = FormatMaxFeatures(requestData.MaxFeatures);
-            var coordinateText = FormatCoordinateMode(requestData.SpatialContext);
-            var filterNote = BuildOversizedFilterNote(filterResult, "feature");
-            var filterSuffix = FormatOptionalStatusNote(filterNote);
-            var status = features.Count == 0
-                ? $"No features were found for OGC API Features source '{Path.GetFileName(requestData.BaseUrl)}' inside the current Spatial Context.{filterSuffix}"
-                : $"Loaded {features.Count} feature(s) and {outputData.GeometryItemCount} geometry item(s) from OGC API Features source '{layerName}' with {maxFeaturesText} features, assumed GeoJSON CRS EPSG:4326, {coordinateText}{filterSuffix}";
+            var collections = _ogcApiFeaturesClient.TryDiscoverAsync(requestData.BaseUrl, requestData.CancellationToken).GetAwaiter().GetResult();
+            if (collections is null)
+            {
+                if (requestData.RequestedLayerNames.Count == 0) return ComputeRemoteVector(requestData);
+                return ComputeWfs(requestData);
+            }
+            if (collections.Count == 0) throw new InvalidDataException("This OGC API exposes no feature collections.");
+            var names = requestData.RequestedLayerNames;
+            if (names.Count == 0 || (collections.Count == 1 && !names.Contains(collections[0].Id)))
+                names = collections.Count == 1 ? new List<string> { collections[0].Id }
+                    : throw new InvalidOperationException("This OGC API has several collections. Use List WFS Layers and select the collection(s) to load.");
+            if (names.Any(name => !collections.Any(c => c.Id == name)))
+                throw new InvalidOperationException("An OGC API collection selection was not found. Refresh List WFS Layers.");
+            var resolved = CopyRequest(requestData, requestData.BaseUrl, VectorSourceKind.OgcApiFeatures, names);
+            var features = new List<WfsFeature>();
+            var notes = new List<string>();
+            foreach (var name in names)
+            {
+                var result = _ogcApiFeaturesClient.LoadFeaturesWithStatusAsync(requestData.BaseUrl, name,
+                    requestData.SpatialContext.Wgs84BoundingBox, requestData.MaxFeatures, requestData.CancellationToken).GetAwaiter().GetResult();
+                var projected = WfsFeatureGeometryTransformer.TransformFeatures(result.Features, "EPSG:4326", requestData.SpatialContext.ResolvedSrs);
+                var filtered = SpatialFeatureFilter.FilterToBounds(projected, requestData.SpatialContext.RequestBoundingBox);
+                features.AddRange(filtered.Features);
+                notes.Add(name + ": " + result.StatusNote);
+                if (filtered.OversizedEnclosingFeatureCount > 0) notes.Add(BuildOversizedFilterNote(filtered, "feature"));
+            }
+            var output = BuildVectorOutput(resolved, features);
+            return BuildSolveResults(output, features.Count,
+                $"Loaded {features.Count} OGC API feature(s), {output.GeometryItemCount} geometry item(s), {FormatCoordinateMode(requestData.SpatialContext)}. {string.Join(" ", notes)}",
+                features.Count == 0 ? GH_RuntimeMessageLevel.Warning : GH_RuntimeMessageLevel.Remark);
+        }
 
-            return BuildSolveResults(
-                outputData,
-                features.Count,
-                status,
-                ResolveMessageLevel(features.Count, filterResult.OversizedEnclosingFeatureCount > 0));
+        private static RequestData CopyRequest(RequestData source, string path, VectorSourceKind kind, List<string> layers) => new()
+        {
+            BaseUrl = path, SourceKind = kind, RequestedLayerNames = layers,
+            MaxFeatures = source.MaxFeatures, SpatialContext = source.SpatialContext, CancellationToken = source.CancellationToken
+        };
+
+        private SolveResults ComputeRemoteVector(RequestData requestData)
+        {
+            var tile = new Lod2AtomLink(new Uri(requestData.BaseUrl), "Vector download", "", null);
+            var downloaded = _downloads.DownloadAsync(tile, cancellationToken: requestData.CancellationToken).GetAwaiter().GetResult();
+            using var files = SourceFilesLease.Open(downloaded.FilePath, requestData.CancellationToken);
+            var candidates = files.Files.Where(path => Path.GetExtension(path).Equals(".shp", StringComparison.OrdinalIgnoreCase) ||
+                Path.GetExtension(path).Equals(".geojson", StringComparison.OrdinalIgnoreCase) || Path.GetExtension(path).Equals(".json", StringComparison.OrdinalIgnoreCase)).ToList();
+            var features = new List<WfsFeature>();
+            var names = new List<string>();
+            var notes = new List<string>();
+            var failed = false;
+            foreach (var file in candidates)
+            {
+                requestData.CancellationToken.ThrowIfCancellationRequested();
+                var name = candidates.Count == 1 && requestData.RequestedLayerNames.Count == 1
+                    ? requestData.RequestedLayerNames[0] : Path.GetFileNameWithoutExtension(file);
+                if (requestData.RequestedLayerNames.Count > 0 && candidates.Count > 1 && !requestData.RequestedLayerNames.Contains(name)) continue;
+                if (Path.GetExtension(file).Equals(".shp", StringComparison.OrdinalIgnoreCase))
+                {
+                    var metadata = ShapefileFeatureReader.ReadSourceMetadata(file);
+                    if (string.IsNullOrWhiteSpace(metadata.SourceSrs)) throw new InvalidDataException("Downloaded Shapefile must have a resolvable source CRS in its .prj file.");
+                    names.Add(name);
+                    var read = ShapefileFeatureReader.ReadFeatures(file, name, requestData.SpatialContext, requestData.MaxFeatures);
+                    features.AddRange(read.Features);
+                    failed |= read.FailedFeatureCount > 0;
+                    notes.Add($"{name}: scanned {read.SourceFeatureCount}, outside {read.SkippedOutsideContextCount}, failed {read.FailedFeatureCount}.");
+                }
+                else
+                {
+                    var json = File.ReadAllText(file);
+                    using var document = System.Text.Json.JsonDocument.Parse(json);
+                    if (!document.RootElement.TryGetProperty("type", out var type) || type.GetString() is not ("Feature" or "FeatureCollection")) continue;
+                    names.Add(name);
+                    var projected = WfsFeatureGeometryTransformer.TransformFeatures(GeoJsonReader.ReadFeatures(json, name),
+                        GeoJsonReader.TryReadSourceSrs(json) ?? "EPSG:4326", requestData.SpatialContext.ResolvedSrs);
+                    var filtered = SpatialFeatureFilter.FilterToBounds(projected, requestData.SpatialContext.RequestBoundingBox);
+                    features.AddRange(requestData.MaxFeatures > 0 ? filtered.Features.Take(requestData.MaxFeatures) : filtered.Features);
+                    if (filtered.OversizedEnclosingFeatureCount > 0) notes.Add(BuildOversizedFilterNote(filtered, "feature"));
+                }
+            }
+            if (names.Count == 0) throw new InvalidDataException("The vector download contains no matching Shapefile or GeoJSON layer.");
+            var resolved = CopyRequest(requestData, downloaded.FilePath, VectorSourceKind.RemoteDownload, names);
+            var output = BuildVectorOutput(resolved, features);
+            return BuildSolveResults(output, features.Count,
+                $"Loaded {features.Count} feature(s) from a validated vector download ({(downloaded.UsedCache ? "cached" : "downloaded")}), {FormatCoordinateMode(requestData.SpatialContext)}. {string.Join(" ", notes)}",
+                features.Count == 0 || failed ? GH_RuntimeMessageLevel.Warning : GH_RuntimeMessageLevel.Remark);
         }
 
         private SolveResults ComputeLocalShapefile(RequestData requestData)

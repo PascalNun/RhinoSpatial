@@ -133,20 +133,20 @@ namespace RhinoSpatial.Core
 
             var projectionText = File.ReadAllText(prjPath);
             var normalized = NormalizeKnownProjection(projectionText);
-            return string.IsNullOrWhiteSpace(normalized) ? fallbackSrs : normalized;
+            return string.IsNullOrWhiteSpace(normalized)
+                ? throw new InvalidOperationException("The Shapefile .prj contains an unsupported CRS; no context-CRS assumption was used.") : normalized;
         }
 
         private static string NormalizeKnownProjection(string projectionText)
         {
             var text = projectionText ?? string.Empty;
-            var authorityMatch = Regex.Match(
-                text,
-                "AUTHORITY\\[\\s*\"EPSG\"\\s*,\\s*\"(?<epsg>\\d+)\"\\s*\\]",
-                RegexOptions.IgnoreCase);
-            if (authorityMatch.Success)
+            try
             {
-                return $"EPSG:{authorityMatch.Groups["epsg"].Value}";
+                var coordinateSystem = new ProjNet.CoordinateSystems.CoordinateSystemFactory().CreateFromWkt(text);
+                if (coordinateSystem.Authority?.Equals("EPSG", StringComparison.OrdinalIgnoreCase) == true && coordinateSystem.AuthorityCode > 0)
+                    return "EPSG:" + coordinateSystem.AuthorityCode.ToString(CultureInfo.InvariantCulture);
             }
+            catch { /* Unsupported WKT dialects may still have a known, explicit CRS name below. */ }
 
             if (text.Contains("ETRS_1989_UTM_Zone_32N", StringComparison.OrdinalIgnoreCase) ||
                 text.Contains("ETRS89 / UTM zone 32N", StringComparison.OrdinalIgnoreCase))
@@ -166,8 +166,9 @@ namespace RhinoSpatial.Core
                 return "EPSG:3857";
             }
 
-            if (text.Contains("WGS_1984", StringComparison.OrdinalIgnoreCase) ||
-                text.Contains("WGS 84", StringComparison.OrdinalIgnoreCase))
+            if ((text.TrimStart().StartsWith("GEOGCS[", StringComparison.OrdinalIgnoreCase) ||
+                 text.TrimStart().StartsWith("GEOGCRS[", StringComparison.OrdinalIgnoreCase)) &&
+                (text.Contains("WGS_1984", StringComparison.OrdinalIgnoreCase) || text.Contains("WGS 84", StringComparison.OrdinalIgnoreCase)))
             {
                 return "EPSG:4326";
             }

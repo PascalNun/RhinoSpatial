@@ -8,6 +8,8 @@ RhinoSpatial is organized around one rule:
 
 Every loader consumes the same `Spatial Context`, so maps, vector data, terrain, buildings, rasters, OSM context, and visual reference layers can share one Rhino and Grasshopper study space.
 
+> The source-compatibility additions described here are **Unreleased**. The public 0.4.0 package and installed plugin are unchanged. See the [example recipes](../examples/COMPATIBILITY_WORKFLOWS.md) for tested inputs.
+
 ## Component groups
 
 The Grasshopper tab is organized as:
@@ -63,6 +65,7 @@ The component returns one `Spatial Context` output for all aligned source and vi
 Supported reference metadata includes:
 
 - WFS, WMS, and WCS service URLs
+- OGC API Features landing/collection metadata and ATOM feed coverage (Unreleased)
 - GeoTIFF
 - Shapefile
 - GeoJSON
@@ -93,7 +96,7 @@ Terrain, LoD2 buildings, and localized Google 3D Tiles participate in one shared
 
 ### List WFS Layers
 
-Connect a WFS service URL to inspect the layers advertised by its `GetCapabilities` response. Each output entry combines the service layer name and title. Use `List Item` to select one layer, or explicitly merge several entries for a multi-layer WFS request.
+Connect a WFS service URL to inspect the layers advertised by its `GetCapabilities` response. OGC API Features roots and collection metadata URLs are also accepted; the component follows advertised data/items links and returns collection ids and titles. Each output entry combines the service layer name and title. Use `List Item` to select one layer, or explicitly merge several entries for a multi-layer WFS request.
 
 Public interface:
 
@@ -118,14 +121,15 @@ Use `Load WFS` for parcels, planning layers, boundaries, roads, building footpri
 The public component name is retained for Grasshopper compatibility, but the accepted source category is broader than WFS:
 
 - WFS service URLs
-- OGC API Features collection or items URLs
+- OGC API Features landing-page, collection-list, collection or items URLs
+- direct GeoJSON URLs and ZIPs containing GeoJSON or complete Shapefile companion sets
 - local Shapefiles (`.shp`)
 - local GeoJSON (`.geojson` or GeoJSON `.json`)
 
 Public inputs:
 
 - `WFS URL` — service URL, OGC API Features URL, or local vector-file path
-- `Layer` — one or more WFS layer entries; optional for local files and OGC API Features
+- `Layer` — one or more WFS layer entries; optional for files and a single OGC API collection; choose explicitly when a root exposes multiple collections
 - `Max Features` — request limit; the default `0` requests all available features within the bounded query
 - `Spatial Context` — the shared selected area and placement context
 
@@ -140,7 +144,11 @@ The `Geometry` output is a tree grouped by layer and feature.
 
 For local vector files, connect the file path directly to `WFS URL`. `Layer` can remain empty and is used only as a label when provided. OGC API Features URLs can also be connected directly; RhinoSpatial requests GeoJSON features for the context bounding box.
 
-`Max Features` limits the request when a provider supports it. Use `0` to request all features available within the bounded query, but keep broad or dense study areas conservative.
+`Max Features` is a deliberate per-layer cap. `0` follows available pages within the bounded query. OGC API next links and WFS next links are supported; WFS 2 can also advance `STARTINDEX` by the actual returned count. Duplicate ids are removed. Identical records without stable ids remain separate, with a deduplication caveat; declared GeoJSON CRS changes between pages are rejected. Repeated pages, failed required pages and known incomplete responses fail explicitly instead of returning partial selections. Without a matching total, the status states that completeness cannot be independently verified. Legacy WFS without next links cannot be assumed pageable.
+
+Pagination has safety limits of 100 pages, 100,000 unique features, 128 MiB total text and two minutes; a single response is limited to 16 MiB. Hitting a safety limit while more data is advertised returns an error; hitting the user's cap is reported as intentional. These bounds apply to service paging, not a promise that every server implements filtering correctly.
+
+Direct vector downloads are limited to 128 MiB compressed, 256 MiB per expanded file and 1 GiB expanded per archive. ZIPs require `.shp`, `.shx`, `.dbf` and a resolvable `.prj` for each imported Shapefile. Unsafe paths, symlinks, duplicate paths and incomplete transfers are rejected. Validated payloads persist under `RhinoSpatial/VectorDownloadCache`; revisionless URLs refresh after one day. Source JSON is inspected by content, and GeoJSON may contain a FeatureCollection or a single Feature. Unknown declared CRS metadata fails rather than assuming the context.
 
 ### Outputs and parsing
 
@@ -214,6 +222,7 @@ Use `Load Terrain` to create ground geometry aligned with the same study area as
 Supported sources include:
 
 - WCS services
+- ATOM feeds containing supported GeoTIFF, ASC or regular XYZ/CSV terrain tiles
 - local GeoTIFF DEM (`.tif` or `.tiff`)
 - Esri ASCII Grid (`.asc`)
 - regular XYZ or CSV point grids with x, y, z columns
@@ -221,7 +230,7 @@ Supported sources include:
 
 Public inputs:
 
-- `Terrain URL` — WCS URL or local DEM/grid path; leave empty for the quick global fallback
+- `Terrain URL` — WCS URL, terrain ATOM feed or local DEM/grid path; leave empty for the quick global fallback
 - `Coverage` — optional WCS coverage id or EPSG override for local text grids
 - `Spatial Context` — the shared selected area and placement context
 
@@ -235,6 +244,8 @@ Esri ASCII Grid samples are placed at cell centers, while reference metadata des
 
 XYZ/CSV terrain requires finite, evenly spaced X and Y coordinates. Sparse regular grids retain missing cells as NoData; irregularly spaced samples return an error instead of being stretched onto an artificial grid.
 
+For ATOM, connect the feed directly and leave `Coverage` empty. Text grids require a declared native feed CRS; GeoTIFFs use embedded metadata. Tiles are selected from supported spatial metadata or explicitly declared UTM grids. Compatible north-up grids are cropped to the study area and merged before mesh construction, so adjacent samples and the elevation baseline remain consistent. Incompatible spacing/CRS/alignment and conflicting overlap heights fail explicitly. The mosaic is limited to 4,194,304 cells and eight million aggregate cropped source samples. See the [Berlin DGM1 example](../examples/COMPATIBILITY_WORKFLOWS.md#berlin-dgm1-terrain-from-atom). Downloads use the shared ATOM limits below and persist under `RhinoSpatial/TerrainAtomCache`.
+
 The built-in fallback is intended for small-area orientation and short request times. It fails quickly with a useful status when the area is too large, no usable elevation samples are available, or the request cannot complete promptly. Project work should prefer official or project-specific terrain.
 
 The WCS path supports ordinary single-part GeoTIFF responses and multipart GeoTIFF responses. Where capabilities omit a WGS84 extent, RhinoSpatial can use `DescribeCoverage` metadata to orient the context.
@@ -246,7 +257,8 @@ Use `Load LoD2 Buildings` for official building massing, roof forms, and 3D urba
 One `LoD2 Source` input accepts:
 
 - a LoD2 WFS service URL
-- an ATOM download-service URL with selectable CityGML ZIP tiles
+- an ATOM download-service URL with selectable CityGML/CityJSON tiles
+- a direct supported building-file or ZIP/GMZ download URL
 - local CityGML/GML/XML
 - local CityJSON
 - a folder containing supported building files
@@ -256,7 +268,7 @@ For WFS sources, select a building layer when needed. For ATOM and local data, `
 
 Public inputs:
 
-- `LoD2 Source` — WFS or ATOM URL, supported local file, folder, or ZIP path
+- `LoD2 Source` — WFS/ATOM URL, direct supported download URL, local file, folder, or ZIP path
 - `Layer` — optional WFS layer name or local output label
 - `Spatial Context` — the shared selected area and placement context
 
@@ -268,17 +280,17 @@ Connect the service URL and a `Spatial Context`; no tile naming, manual download
 
 Tile selection supports GeoRSS Simple boxes/polygons and GeoRSS GML envelopes, including native projected bounds. GeoRSS Simple coordinates are latitude/longitude independently of a dataset's CRS category. GML uses its declared CRS and authority axis order; an omitted CRS defaults to WGS84 latitude/longitude. Relative links and `xml:base` are resolved against the response URL.
 
-Some feeds, including Berlin's, publish a single dataset extent and many download links. These require additional tile information. The supported grid convention is a declared square grid size, an EPSG:25832 or EPSG:25833 category, an enclosing geographic extent, and filenames ending in `_EEE_NNNN` with southwest UTM coordinates in kilometres. Berlin explicitly links a `1x1 Km` tile index. This rule depends on metadata and the supported naming convention, not the service hostname. Arbitrary numeric filenames or whole-dataset bounds are never sufficient on their own. A feed with missing, ambiguous or unsupported spatial metadata returns a limitation before downloading building archives. Start from the service feed so its enclosing extent remains available.
+Some feeds, including Berlin's, publish a single dataset extent and many download links. These require additional tile information. The supported grid convention is a declared square grid size, an EPSG:25832 or EPSG:25833 category, an enclosing geographic extent, and filenames ending in `_EEE_NNNN` with southwest UTM coordinates in kilometres. Berlin buildings explicitly link a `1x1 Km` tile index; terrain uses a declared `2x2 Km` index. Coarse enclosing coverage allows a one-declared-tile margin for edge/buffer tiles; distant contradictory grids are rejected. This rule depends on metadata and the supported naming convention, not the service hostname. Arbitrary numeric filenames or whole-dataset bounds are never sufficient on their own. A feed with missing, ambiguous or unsupported spatial metadata returns a limitation before downloading building archives. Start from the service feed so its enclosing extent remains available.
 
-ATOM currently imports ZIP/GMZ containers holding CityGML (`.gml`, `.citygml`, `.xml`). Other archive formats and remote CityJSON downloads return an explicit unsupported-format error. Local CityJSON/file/folder/ZIP workflows remain supported. Downloaded CityGML must declare a source CRS that can transform into the context; no guessed CRS or approximate bounding-box placement is used. Standard AdV names such as `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH` resolve to UTM XY; published heights are retained without a vertical-datum conversion.
+ATOM and direct building download URLs support CityGML (`.gml`, `.citygml`, `.xml`) and CityJSON (`.json`, `.cityjson`), including ZIP/GMZ containers. Downloaded CityJSON must declare `metadata.referenceSystem`; sequences and geometry templates are not added by this batch. Local CityJSON/file/folder/ZIP workflows remain supported. Downloaded CityGML must declare a source CRS that can transform into the context; no guessed CRS or approximate bounding-box placement is used. Standard AdV names such as `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH` resolve to UTM XY; published heights are retained without a vertical-datum conversion.
 
-Use a building dataset, not a terrain feed: Berlin's `/data/a_lod2/atom/` supplies LoD2 buildings, while `/data/dgm1/atom/` supplies CSV terrain grids. Explicit CSV/raster download MIME types are rejected before grid selection with a source-format explanation. `Load Terrain` supports local grids and WCS, but does not yet read ATOM feeds.
+Use a building dataset, not a terrain feed: Berlin's `/data/a_lod2/atom/` supplies LoD2 buildings, while `/data/dgm1/atom/` supplies CSV terrain grids. Explicit CSV/raster download MIME types are rejected before grid selection with a source-format explanation. Use the DGM1 feed directly with `Load Terrain`; its terrain-specific parser and mosaic path are separate from the building reader.
 
-Completed ZIPs persist in the user's local application-data folder under `RhinoSpatial/Lod2AtomCache`. Repeated solutions reuse them, including after restarting Rhino. The cache key includes the download URL and feed entry's `updated` value. With no revision value, archives refresh after one day. Cached length and SHA-256 are checked before reuse. Downloads are written to temporary files, checked for complete transfer and readable CityGML, and promoted only on success. Failures can be retried; successfully completed tiles remain cached. Delete this cache directory while RhinoSpatial is idle to reclaim space or force fresh downloads. Feed metadata is refreshed after five minutes within the running process.
+Completed ZIPs persist in the user's local application-data folder under `RhinoSpatial/Lod2AtomCache`. Repeated solutions reuse them, including after restarting Rhino. The cache key includes the download URL and feed entry's `updated` value. With no revision value, archives refresh after one day. Cached length and SHA-256 are checked before reuse. Downloads are written to temporary files, checked for complete transfer and supported readable payloads, and promoted only on success. Failures can be retried; successfully completed tiles remain cached. Delete this cache directory while RhinoSpatial is idle to reclaim space or force fresh downloads. Feed metadata is refreshed after five minutes within the running process.
 
 The component displays tile/download progress while working. `Status` reports selected tile filenames, downloaded and cached counts, cache location, parsed buildings, source CRS and conversion diagnostics. A failed required download or CityGML parse returns an error rather than presenting a partial area as complete.
 
-Limits are 64 feeds, 8 subfeed levels, 50,000 download entries and 32 selected tiles per solution; 512 MiB compressed per archive, 256 MiB per expanded file and 1 GiB total expanded per archive. Feed requests time out after 30 seconds, discovery after two minutes, individual downloads after three minutes and the download batch after five minutes. Reduce the study area or use a more specific spatially indexed feed if a limit is reached. ATOM metadata is not yet supported by `Spatial Context → Reference Source`; define the area with the map or use an existing supported reference.
+Limits are 64 feeds, 8 subfeed levels, 50,000 download entries and 32 selected tiles per solution; 512 MiB compressed per archive, 256 MiB per expanded file and 1 GiB total expanded per archive. Feed requests time out after 30 seconds, discovery after two minutes, individual downloads after three minutes and the download batch after five minutes. Reduce the study area or use a more specific spatially indexed feed if a limit is reached. ATOM feed coverage and native CRS are supported by `Spatial Context → Reference Source`. Use a service feed containing coverage; a dataset feed lacking coverage reports that limitation. Reference processing reads feed metadata without downloading archives. Saved map selections retain priority.
 
 ### Filtering and performance
 

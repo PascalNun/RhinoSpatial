@@ -9,6 +9,17 @@ namespace RhinoSpatial.Sandbox
     {
         static async Task Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("compatibility-probe", StringComparison.OrdinalIgnoreCase))
+            {
+                try { await SourceCompatibilityProbe.RunAsync(args); }
+                catch (Exception ex) { Console.Error.WriteLine(ex.Message); Environment.ExitCode = 1; }
+                return;
+            }
+            if (args.Length > 0 && args[0].Equals("source-compatibility-check", StringComparison.OrdinalIgnoreCase))
+            {
+                await SourceCompatibilityChecks.RunAsync();
+                return;
+            }
             if (args.Length > 0 && string.Equals(args[0], "lod2-atom-check", StringComparison.OrdinalIgnoreCase))
             {
                 await Lod2AtomChecks.RunAsync();
@@ -1206,7 +1217,9 @@ namespace RhinoSpatial.Sandbox
                 : 0;
             var startedAt = DateTime.UtcNow;
             var client = new OgcApiFeaturesClient();
-            var features = await client.LoadFeaturesAsync(args[1], "ogcapi", bbox, maxFeatures);
+            var result = await client.LoadFeaturesWithStatusAsync(args[1], "ogcapi", bbox, maxFeatures);
+            var features = result.Features;
+            Console.WriteLine(result.StatusNote);
             var elapsed = DateTime.UtcNow - startedAt;
 
             Console.WriteLine("OGC API Features probe");

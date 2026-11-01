@@ -17,6 +17,7 @@ namespace RhinoSpatial
         private static readonly TimeSpan GlobalFallbackTimeout = TimeSpan.FromSeconds(12);
 
         private readonly WcsClient _wcsClient = new();
+        private readonly TerrainAtomLoader _atom = new();
         private readonly GlobalSkadiTerrainClient _globalTerrainClient = new();
 
         public class SolveResults
@@ -41,7 +42,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of the terrain (WCS) service, or path to a local GeoTIFF/ASCII Grid/XYZ/CSV DEM. Leave empty to use the built-in quick global terrain fallback for small study areas.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Terrain Service URL", "Terrain URL", "Base URL of a terrain WCS or supported ATOM download service, or path to a local GeoTIFF/ASCII Grid/XYZ/CSV DEM. Leave empty to use the built-in quick global terrain fallback for small study areas.", GH_ParamAccess.item);
             pManager.AddTextParameter("Coverage Id", "Coverage", "Optional coverage id. For local text-grid terrain, this can be an EPSG code such as EPSG:25832; otherwise leave empty to use the Spatial Context SRS.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
 
@@ -78,6 +79,7 @@ namespace RhinoSpatial
                     results = ComputeAsync(requestData, CancellationToken.None).GetAwaiter().GetResult();
                 }
 
+                Message = string.Empty;
                 dataAccess.SetDataList(0, results.TerrainMeshes);
                 dataAccess.SetData(1, results.Status);
 
@@ -158,6 +160,29 @@ namespace RhinoSpatial
             if (source.Kind == TerrainSourceKind.LocalTextGridDem)
             {
                 return ComputeLocalTextGridTerrain(source, spatialContext);
+            }
+
+            if (!System.Text.RegularExpressions.Regex.IsMatch(source.BaseUrl, @"[?&]service=wcs(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                var progressActive = 1;
+                TerrainAtomResult? atom;
+                try
+                {
+                    atom = await _atom.TryLoadAsync(source.BaseUrl, spatialContext, progress =>
+                        Eto.Forms.Application.Instance.AsyncInvoke(() =>
+                        {
+                            if (System.Threading.Volatile.Read(ref progressActive) != 0 && !cancellationToken.IsCancellationRequested && OnPingDocument() is not null)
+                            { Message = progress; OnDisplayExpired(false); }
+                        }), cancellationToken).ConfigureAwait(false);
+                }
+                finally { System.Threading.Volatile.Write(ref progressActive, 0); }
+                if (atom is not null)
+                {
+                    var terrain = BuildTerrainMesh(atom.Raster, atom.Bounds, spatialContext, out var baseline);
+                    SpatialTerrainCache.Store(spatialContext, atom.Raster.SrsName, atom.Bounds, atom.Raster, baseline);
+                    return new SolveResults { TerrainMeshes = new List<Mesh> { terrain },
+                        Status = atom.Status + " " + BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates) + BuildMissingElevationNote(atom.Raster), MessageLevel = GH_RuntimeMessageLevel.Remark };
+                }
             }
 
             try

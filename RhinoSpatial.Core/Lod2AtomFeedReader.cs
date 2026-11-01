@@ -6,7 +6,7 @@ using System.Xml.Linq;
 namespace RhinoSpatial.Core;
 
 public record AtomSpatialExtent(string SrsName, BoundingBox2D Bounds);
-public record Lod2AtomLink(Uri Url, string Title, string Revision, AtomSpatialExtent? Extent);
+public record Lod2AtomLink(Uri Url, string Title, string Revision, AtomSpatialExtent? Extent, string NativeSrs = "");
 public record Lod2AtomFeed(IReadOnlyList<Lod2AtomLink> Feeds, IReadOnlyList<Lod2AtomLink> Downloads);
 
 /// <summary>Reads download metadata only; never opens building archives to locate tiles.</summary>
@@ -15,7 +15,7 @@ public static class Lod2AtomFeedReader
     public static readonly XNamespace Atom = "http://www.w3.org/2005/Atom";
     private static readonly XNamespace GeoRss = "http://www.georss.org/georss";
 
-    public static Lod2AtomFeed Read(XDocument document, Uri source, AtomSpatialExtent? inheritedExtent = null)
+    public static Lod2AtomFeed Read(XDocument document, Uri source, AtomSpatialExtent? inheritedExtent = null, AtomDownloadKind kind = AtomDownloadKind.Buildings)
     {
         var root = document.Root;
         if (root?.Name != Atom + "feed")
@@ -38,16 +38,16 @@ public static class Lod2AtomFeedReader
             foreach (var link in links)
             {
                 var contentType = ((string?)link.Attribute("type") ?? "").Split(';')[0].Trim();
-                if (contentType.Equals("text/csv", StringComparison.OrdinalIgnoreCase) ||
-                    contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException($"This ATOM download advertises '{contentType}', not CityGML building data. Load LoD2 Buildings requires a CityGML download feed. Terrain ATOM feeds are not supported; use local terrain files or a WCS source with Load Terrain.");
+                if (kind == AtomDownloadKind.Buildings && (contentType.Equals("text/csv", StringComparison.OrdinalIgnoreCase) ||
+                    contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidOperationException($"This ATOM download advertises '{contentType}', not CityGML building data. Load LoD2 Buildings requires a CityGML download feed. Use the terrain download feed with Load Terrain instead.");
                 var url = ResolveUrl(link, source);
                 var tileExtent = ReadExtent(link);
                 if (tileExtent is null && links.Count == 1)
                     tileExtent = extent;
                 if (tileExtent is null && gridSize.HasValue && srs is not null)
                     tileExtent = ReadDeclaredGridTile(url, srs, gridSize.Value, coverage);
-                downloads.Add(CreateLink(link, entry, url, tileExtent));
+                downloads.Add(CreateLink(link, entry, url, tileExtent) with { NativeSrs = srs ?? "" });
             }
         }
 
@@ -83,7 +83,7 @@ public static class Lod2AtomFeedReader
         var type = ((string?)link.Attribute("type") ?? "").ToLowerInvariant();
         var href = ((string?)link.Attribute("href") ?? "").Split('?', '#')[0];
         return (relation == "enclosure" && !type.Contains("atom+xml")) || type.Contains("zip") || type.Contains("gmz") || type.Contains("7z") ||
-               new[] { ".zip", ".gmz", ".7z", ".gz", ".tar", ".rar" }.Any(extension => href.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
+               new[] { ".zip", ".gmz", ".7z", ".gz", ".tar", ".rar", ".cityjson", ".json", ".geojson", ".gml", ".citygml", ".asc", ".xyz", ".csv", ".tif", ".tiff" }.Any(extension => href.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
     }
 
     public static Uri ResolveUrl(XElement link, Uri source)
@@ -100,7 +100,7 @@ public static class Lod2AtomFeedReader
         return new UriBuilder(uri) { Fragment = "" }.Uri;
     }
 
-    private static string? ReadCategorySrs(XElement owner)
+    public static string? ReadCategorySrs(XElement owner)
     {
         var codes = owner.Elements(Atom + "category")
             .Select(category => Regex.Match((string?)category.Attribute("term") ?? "", @"EPSG(?::|/)(?:[^:/]*[:/])?(\d+)$", RegexOptions.IgnoreCase))
@@ -135,7 +135,7 @@ public static class Lod2AtomFeedReader
         var bounds = new BoundingBox2D(x, y, x + size, y + size);
         var extent = new AtomSpatialExtent(srs, bounds);
         var coverageBounds = TransformBounds(coverage, srs);
-        if (!Intersects(bounds, coverageBounds))
+        if (!Intersects(bounds, new BoundingBox2D(coverageBounds.MinX - size, coverageBounds.MinY - size, coverageBounds.MaxX + size, coverageBounds.MaxY + size)))
             throw new InvalidOperationException($"The declared ATOM grid and coverage disagree for '{url.LocalPath}'. Tile placement cannot be determined safely.");
         return extent;
     }

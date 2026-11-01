@@ -10,6 +10,8 @@ namespace RhinoSpatial.Core
 
         public int MaxFeatures { get; set; }
 
+        public int StartIndex { get; set; }
+
         public string Version { get; set; } = "1.1.0";
 
         public string SrsName { get; set; } = string.Empty;

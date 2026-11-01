@@ -222,11 +222,21 @@ namespace RhinoSpatial.Core
                 "XYZ/CSV terrain grid");
         }
 
-        private static TerrainTextGridReadResult ReadXyzGrid(string filePath, string coverageId, string sourceSrs)
+        public static TerrainTextGridReadResult ReadWindow(string filePath, string coverageId, string sourceSrs,
+            BoundingBox2D bounds, System.Threading.CancellationToken cancellationToken = default)
+        {
+            if (Path.GetExtension(filePath).Equals(".asc", StringComparison.OrdinalIgnoreCase))
+                return ReadRaster(filePath, coverageId, sourceSrs);
+            return ReadXyzGrid(filePath, coverageId, sourceSrs, bounds, cancellationToken);
+        }
+
+        private static TerrainTextGridReadResult ReadXyzGrid(string filePath, string coverageId, string sourceSrs,
+            BoundingBox2D? bounds = null, System.Threading.CancellationToken cancellationToken = default)
         {
             var samples = new List<(double X, double Y, float Z)>();
             foreach (var line in File.ReadLines(filePath))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var parts = SplitFields(line);
                 if (parts.Length < 3 ||
                     !double.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x) ||
@@ -237,6 +247,8 @@ namespace RhinoSpatial.Core
                 }
 
                 RequireFinitePosition(x, y);
+                if (bounds is not null && (x < bounds.MinX || x > bounds.MaxX || y < bounds.MinY || y > bounds.MaxY)) continue;
+                if (bounds is not null && samples.Count >= 4194304) throw new InvalidOperationException("Terrain window exceeds four million samples; select a smaller area.");
                 samples.Add((x, y, z));
             }
 

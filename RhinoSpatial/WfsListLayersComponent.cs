@@ -26,7 +26,7 @@ namespace RhinoSpatial
 
         public WfsListLayersComponent()
             : base("List WFS Layers", "WFS Layers",
-                "List available layers from a WFS GetCapabilities response.",
+                "List WFS layers or OGC API Features collections from a service root or metadata URL.",
                 "RhinoSpatial", "Layers")
         {
         }
@@ -117,7 +117,9 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var layers = _wfsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult();
+            var collections = new OgcApiFeaturesClient().TryDiscoverAsync(requestData.BaseUrl).GetAwaiter().GetResult();
+            var layers = collections is null ? _wfsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult()
+                : System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(collections, c => new WfsLayerInfo(c.Id, c.Title, "EPSG:4326", new List<string>(), c.Wgs84Bounds)));
 
             return new SolveResults
             {

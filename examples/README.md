@@ -54,6 +54,13 @@ Public example services can change or become temporarily unavailable. For produc
 
 If an older saved definition shows Grasshopper IO archive warnings after a component layout change, replace the affected RhinoSpatial component once and reconnect it. The definitions in this repository should represent the current component layout and open without those warnings.
 
+## Compatibility workflows (Unreleased)
+
+The [source compatibility recipes](COMPATIBILITY_WORKFLOWS.md) save tested URLs,
+collection choices, bounds and observed results for API-root discovery, paging,
+Berlin DGM1 ATOM terrain, direct GeoJSON/Shapefile ZIPs and CityJSON downloads.
+These require the development build; the public 0.4.0 package is unchanged.
+
 ## Source and testing references
 
 - [Curated example source list](sources.json)

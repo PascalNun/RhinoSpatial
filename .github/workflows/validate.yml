@@ -46,6 +46,9 @@ jobs:
       - name: Check ATOM downloads and cache
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- lod2-atom-check
 
+      - name: Check source compatibility
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- source-compatibility-check
+
       - name: Check 3D Tiles selection
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- tiles-selection-check
 

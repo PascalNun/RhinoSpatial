@@ -2,6 +2,16 @@
 
 RhinoSpatial improves its established source categories through real project use. Earlier releases remain documented on [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases).
 
+## Unreleased
+
+- Follow OGC API next links and supported WFS paging with explicit user caps, deduplication, repeated-page protection and completeness diagnostics. Preserve raw GML for the building loader.
+- Discover feature collections from OGC API landing pages, collection lists and advertised links using the existing layer-list/vector components. Layer selection is optional for a single collection and direct files.
+- Load bounded, validated direct GeoJSON and Shapefile ZIP downloads, plus remote CityJSON/CityGML building files. Check companion files, CRS metadata, archive paths and expanded sizes; reuse validated downloads.
+- Load terrain ATOM feeds through `Load Terrain`, using declared placement metadata and an aligned raster mosaic. Preserve source sample centers, NoData holes and the shared elevation baseline; reject incompatible grids or conflicting heights.
+- Use ATOM and OGC API metadata as Spatial Context references without intentionally downloading feature data or archives. Existing saved selections retain priority.
+- Correct projected Shapefile WKT authority detection so nested datum/ellipsoid EPSG codes cannot override the actual source CRS. Unsupported declared CRS metadata fails explicitly.
+- Add deterministic compatibility checks to CI and save [copyable example workflows](examples/COMPATIBILITY_WORKFLOWS.md), source URLs and live probe results. New Rhino/Grasshopper visual checks remain pending; component GUIDs and input/output layouts are retained. No public release or installed-plugin replacement is included in this batch.
+
 ## 0.4.0 — 2026-11-01
 
 Version 0.4.0 is the recommended public release and is published as GitHub Latest. Component names, GUIDs and normal input/output connections are retained. Provider-specific compatibility continues to evolve.

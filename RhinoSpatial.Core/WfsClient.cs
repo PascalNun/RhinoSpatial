@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Threading.Tasks;
+using System.Threading;
 
 namespace RhinoSpatial.Core
 {
@@ -31,6 +32,7 @@ namespace RhinoSpatial.Core
             "MAXFEATURES",
             "COUNT",
             "OUTPUTFORMAT",
+            "STARTINDEX",
             "BBOX"
         };
 
@@ -40,17 +42,25 @@ namespace RhinoSpatial.Core
             SharedHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         }
 
+        private readonly HttpClient _http;
+        public WfsClient() : this(null) { }
+        public WfsClient(HttpClient? httpClient) => _http = httpClient ?? SharedHttpClient;
+
         private sealed record FeatureResponseCacheEntry(WfsFeatureResponse Response, DateTimeOffset StoredAtUtc);
 
-        public async Task<List<WfsFeature>> LoadFeaturesAsync(WfsRequestOptions options)
+        public Task<List<WfsFeature>> LoadFeaturesAsync(WfsRequestOptions options) => LoadFeaturesAsync(options, CancellationToken.None);
+
+        public async Task<List<WfsFeature>> LoadFeaturesAsync(WfsRequestOptions options, CancellationToken cancellationToken)
         {
-            var result = await LoadFeaturesWithStatusAsync(options);
+            var result = await LoadFeaturesWithStatusAsync(options, cancellationToken);
             return result.Features;
         }
 
-        public async Task<WfsFeatureLoadResult> LoadFeaturesWithStatusAsync(WfsRequestOptions options)
+        public Task<WfsFeatureLoadResult> LoadFeaturesWithStatusAsync(WfsRequestOptions options) => LoadFeaturesWithStatusAsync(options, CancellationToken.None);
+
+        public async Task<WfsFeatureLoadResult> LoadFeaturesWithStatusAsync(WfsRequestOptions options, CancellationToken cancellationToken)
         {
-            var featureResponse = await LoadFeatureResponseAsync(options);
+            var featureResponse = await LoadFeatureResponseAsync(options, cancellationToken);
 
             if (TryReadFeatures(featureResponse.ResponseText, featureResponse.AppliedOptions.TypeName, out var features))
             {
@@ -60,35 +70,40 @@ namespace RhinoSpatial.Core
             throw CreateUnsupportedFeatureResponseException(featureResponse.ResponseText);
         }
 
-        public async Task<WfsFeatureResponse> LoadFeatureResponseAsync(WfsRequestOptions options)
+        public Task<WfsFeatureResponse> LoadFeatureResponseAsync(WfsRequestOptions options) => LoadFeatureResponseAsync(options, CancellationToken.None);
+
+        public async Task<WfsFeatureResponse> LoadFeatureResponseAsync(WfsRequestOptions options, CancellationToken cancellationToken)
         {
-            options = await PrepareRequestOptionsAsync(options);
+            options = await PrepareRequestOptionsAsync(options).WaitAsync(cancellationToken);
             var cacheKey = BuildFeatureResponseCacheKey(options);
 
-            if (TryGetCachedFeatureResponse(cacheKey, allowStale: false, out var cachedResponse))
+            if (ReferenceEquals(_http, SharedHttpClient) && TryGetCachedFeatureResponse(cacheKey, allowStale: false, out var cachedResponse))
             {
                 return cachedResponse;
             }
 
-            var loadTask = FeatureResponseTaskCache.GetOrAdd(cacheKey, _ => LoadFeatureResponseUncachedAsync(options));
+            var useSharedTask = !cancellationToken.CanBeCanceled && ReferenceEquals(_http, SharedHttpClient);
+            var loadTask = useSharedTask
+                ? FeatureResponseTaskCache.GetOrAdd(cacheKey, _ => LoadFeatureResponseUncachedAsync(options))
+                : LoadFeatureResponseUncachedAsync(options, cancellationToken);
 
             try
             {
                 var response = await loadTask;
-                FeatureResponseCache[cacheKey] = new FeatureResponseCacheEntry(response, DateTimeOffset.UtcNow);
+                if (ReferenceEquals(_http, SharedHttpClient)) FeatureResponseCache[cacheKey] = new FeatureResponseCacheEntry(response, DateTimeOffset.UtcNow);
                 return response;
             }
-            catch (Exception ex) when (IsTransientFailure(ex) &&
+            catch (Exception ex) when (!cancellationToken.IsCancellationRequested && ReferenceEquals(_http, SharedHttpClient) && IsTransientFailure(ex) &&
                                        TryGetCachedFeatureResponse(cacheKey, allowStale: true, out var staleCachedResponse))
             {
                 return staleCachedResponse with
                 {
-                    StatusNote = "Using cached WFS result because the live WFS service was temporarily unavailable."
+                    StatusNote = staleCachedResponse.StatusNote + " Using cached WFS result because the live WFS service was temporarily unavailable."
                 };
             }
             finally
             {
-                if (loadTask.IsCompleted)
+                if (useSharedTask && loadTask.IsCompleted)
                 {
                     FeatureResponseTaskCache.TryRemove(cacheKey, out _);
                 }
@@ -107,6 +122,7 @@ namespace RhinoSpatial.Core
             var cacheKey = string.IsNullOrWhiteSpace(requestedVersion)
                 ? normalizedBaseUrl
                 : $"{normalizedBaseUrl}|VERSION={requestedVersion}";
+            if (!ReferenceEquals(_http, SharedHttpClient)) return await LoadCapabilitiesUncachedAsync(normalizedBaseUrl, requestedVersion);
             var loadTask = CapabilitiesCache.GetOrAdd(cacheKey, _ => LoadCapabilitiesUncachedAsync(normalizedBaseUrl, requestedVersion));
 
             try
@@ -115,7 +131,7 @@ namespace RhinoSpatial.Core
             }
             catch
             {
-                CapabilitiesCache.TryRemove(normalizedBaseUrl, out _);
+                CapabilitiesCache.TryRemove(cacheKey, out _);
                 throw;
             }
         }
@@ -167,6 +183,8 @@ namespace RhinoSpatial.Core
                 builder.Append("&OUTPUTFORMAT=");
                 builder.Append(Uri.EscapeDataString(options.OutputFormat));
             }
+
+            if (options.StartIndex > 0) builder.Append("&STARTINDEX=" + options.StartIndex);
 
             if (options.BoundingBox is not null)
             {
@@ -249,7 +267,7 @@ namespace RhinoSpatial.Core
             throw lastException ?? new InvalidOperationException("The WFS capabilities request sequence did not produce a capabilities response.");
         }
 
-        private async Task<WfsFeatureResponse> LoadFeatureResponseUncachedAsync(WfsRequestOptions options)
+        private async Task<WfsFeatureResponse> LoadFeatureResponseUncachedAsync(WfsRequestOptions options, CancellationToken cancellationToken = default)
         {
             Exception? lastRequestException = null;
 
@@ -259,12 +277,23 @@ namespace RhinoSpatial.Core
 
                 try
                 {
-                    var response = await GetStringAsync(requestUrl);
+                    var pageOptions = CloneOptions(candidateOptions);
+                    var supportsOffset = pageOptions.Version.StartsWith("2.", StringComparison.Ordinal);
+                    if (supportsOffset) pageOptions.MaxFeatures = options.MaxFeatures > 0
+                        ? Math.Min(options.MaxFeatures, FeatureCollectionPager.PageSize) : FeatureCollectionPager.PageSize;
+                    var paged = await FeatureCollectionPager.LoadHttpAsync(BuildGetFeatureRequestUrl(pageOptions),
+                        async (url, token) => { var page = await SourceHttp.ReadAsync(_http, url, token).ConfigureAwait(false); return new FeaturePageContent(page.Text, page.Url); },
+                        options.MaxFeatures,
+                        supportsOffset ? (offset, count) => {
+                            var next = CloneOptions(pageOptions); next.StartIndex = candidateOptions.StartIndex + offset; next.MaxFeatures = count;
+                            return BuildGetFeatureRequestUrl(next);
+                        } : null, cancellationToken).ConfigureAwait(false);
+                    var response = paged.Text;
                     var statusNote = lastRequestException is null
                         ? string.Empty
                         : $"Retried WFS request with output format '{candidateOptions.OutputFormat}' after the provider rejected an earlier request.";
 
-                    return new WfsFeatureResponse(response, candidateOptions, statusNote);
+                    return new WfsFeatureResponse(response, candidateOptions, (statusNote + " " + paged.StatusNote).Trim());
                 }
                 catch (Exception ex) when (ShouldTryNextRequestCandidate(ex))
                 {
@@ -330,6 +359,7 @@ namespace RhinoSpatial.Core
                 GetFeatureBaseUrl = source.GetFeatureBaseUrl,
                 TypeName = source.TypeName,
                 MaxFeatures = source.MaxFeatures,
+                StartIndex = source.StartIndex,
                 Version = version,
                 SrsName = source.SrsName,
                 OutputFormat = outputFormat,
@@ -345,6 +375,7 @@ namespace RhinoSpatial.Core
                 GetFeatureBaseUrl = options.GetFeatureBaseUrl,
                 TypeName = options.TypeName,
                 MaxFeatures = options.MaxFeatures,
+                StartIndex = options.StartIndex,
                 Version = options.Version,
                 SrsName = options.SrsName,
                 OutputFormat = options.OutputFormat,
@@ -428,6 +459,8 @@ namespace RhinoSpatial.Core
             builder.Append(options.TypeName);
             builder.Append('|');
             builder.Append(options.MaxFeatures);
+            builder.Append('|');
+            builder.Append(options.StartIndex);
             builder.Append('|');
             builder.Append(options.Version);
             builder.Append('|');
@@ -548,7 +581,7 @@ namespace RhinoSpatial.Core
             try
             {
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-                using var response = await SharedHttpClient.SendAsync(request);
+                using var response = await _http.SendAsync(request);
                 var responseText = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)

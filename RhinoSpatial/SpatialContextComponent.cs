@@ -20,6 +20,7 @@ namespace RhinoSpatial
         private const string BoundingBox7844Key = "BoundingBox7844";
 
         private readonly WfsClient _wfsClient = new();
+        private readonly RemoteReferenceMetadataReader _remoteReference = new();
         private readonly WmsClient _wmsClient = new();
         private readonly WcsClient _wcsClient = new();
         private bool _lastOpenMapRequest;
@@ -326,6 +327,21 @@ namespace RhinoSpatial
                     "No project SRS or reference metadata was provided, so Spatial Context is using the global EPSG:3857 fallback. Enter the project SRS for accurate project-coordinate work.",
                     GH_RuntimeMessageLevel.Warning);
             }
+
+            try
+            {
+                var remote = _remoteReference.TryReadAsync(requestData.BaseUrl,
+                    RhinoSpatialInputParser.ParseLayerName(requestData.LayerSelection)).GetAwaiter().GetResult();
+                if (remote is not null)
+                {
+                    var supported = NormalizeSupportedMapSrs(remote.SrsName);
+                    return string.IsNullOrEmpty(supported)
+                        ? ("EPSG:3857", "Reference CRS is not supported by the map helper; using EPSG:3857.", GH_RuntimeMessageLevel.Warning)
+                        : (supported, string.Empty, null);
+                }
+            }
+            catch (Exception ex)
+            { return ("EPSG:3857", "Could not read reference metadata: " + ex.Message, GH_RuntimeMessageLevel.Warning); }
 
             if (ReferenceSourceMetadataReader.IsLocalSource(requestData.BaseUrl))
             {
@@ -745,6 +761,15 @@ namespace RhinoSpatial
             {
                 return (null, normalizedRequestedSrs);
             }
+
+            try
+            {
+                var remote = await _remoteReference.TryReadAsync(baseUrl, RhinoSpatialInputParser.ParseLayerName(layerSelection ?? string.Empty));
+                if (remote is not null)
+                    return (remote.Wgs84BoundingBox, string.IsNullOrWhiteSpace(normalizedRequestedSrs)
+                        ? NormalizeSupportedMapSrs(remote.SrsName) : normalizedRequestedSrs);
+            }
+            catch { return (null, normalizedRequestedSrs); }
 
             if (ReferenceSourceMetadataReader.IsLocalSource(baseUrl))
             {

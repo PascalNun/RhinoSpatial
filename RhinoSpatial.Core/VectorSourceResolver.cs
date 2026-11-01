@@ -10,7 +10,8 @@ namespace RhinoSpatial.Core
         Wfs,
         OgcApiFeatures,
         LocalShapefile,
-        LocalGeoJson
+        LocalGeoJson,
+        RemoteDownload
     }
 
     public record VectorSourceInfo(
@@ -58,6 +59,10 @@ namespace RhinoSpatial.Core
                     ResolveOgcApiFeaturesLayerName(trimmed));
             }
 
+            if (IsHttpUrl(trimmed) && new[] { ".geojson", ".json", ".zip" }.Contains(Path.GetExtension(new Uri(trimmed).AbsolutePath), StringComparer.OrdinalIgnoreCase) &&
+                !System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"[?&]service=wfs(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                return new VectorSourceInfo(trimmed, VectorSourceKind.RemoteDownload, Path.GetFileNameWithoutExtension(new Uri(trimmed).AbsolutePath));
+
             if (IsHttpUrl(trimmed))
             {
                 return new VectorSourceInfo(trimmed, VectorSourceKind.Wfs, string.Empty);
@@ -94,6 +99,8 @@ namespace RhinoSpatial.Core
             {
                 return Uri.UnescapeDataString(pathParts[collectionIndex + 1]);
             }
+
+            if (pathParts.LastOrDefault()?.Equals("collections", StringComparison.OrdinalIgnoreCase) == true) return string.Empty;
 
             return string.IsNullOrWhiteSpace(pathParts.LastOrDefault())
                 ? "OGC API Features"

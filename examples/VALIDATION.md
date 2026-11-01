@@ -145,3 +145,19 @@ It is intentionally small and practical. The point is to confirm that the core d
 - run `scripts/build-yak.sh` on a machine with Rhino's Yak CLI available
 - confirm the generated Yak package includes the same user-facing docs, including `INSTALL.md`
 - confirm ignored staging/package artifacts are not committed
+
+
+## Unreleased source compatibility
+
+Use [COMPATIBILITY_WORKFLOWS.md](COMPATIBILITY_WORKFLOWS.md) and record the Rhino
+version/platform and actual results. These checks are pending for this batch:
+
+- [ ] Existing saved definitions open without changed GUIDs or parameter-layout warnings.
+- [ ] API-root layer listing, explicit multi-collection choice and optional single-collection Layer work in Grasshopper.
+- [ ] Paging status distinguishes the user cap, unknown totals and an incomplete/failed page.
+- [ ] Berlin DGM1 single- and two-tile windows load with responsive asynchronous progress; cancellation and retry work.
+- [ ] DGM1 mesh, building roofs and WMS agree in XY and Z under one localized context, regardless of solve order.
+- [ ] NoData holes stay open and no seam appears at the terrain tile boundary.
+- [ ] ATOM/API references orient a fresh map without geometry downloads, while saved selections retain priority.
+- [ ] Direct GeoJSON, Shapefile ZIP and CityJSON URLs load; invalid CRS/companions return clear messages.
+- [ ] Repeat the relevant checks on Windows before a public release.

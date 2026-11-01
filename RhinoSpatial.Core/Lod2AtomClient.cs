@@ -12,7 +12,7 @@ namespace RhinoSpatial.Core;
 public record Lod2AtomSelection(IReadOnlyList<Lod2AtomLink> Tiles, int FeedCount, int DownloadCount);
 public record Lod2AtomCachedTile(Lod2AtomLink Tile, string FilePath, bool UsedCache);
 
-public sealed class Lod2AtomClient
+public class AtomDownloadClient
 {
     private static readonly HttpClient SharedHttpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
     private static readonly ConcurrentDictionary<string, (DateTime Expires, XDocument Document, Uri Url)> FeedCache = new(StringComparer.Ordinal);
@@ -23,10 +23,15 @@ public sealed class Lod2AtomClient
     private const long MaximumDownloadBytes = 512L * 1024 * 1024;
     private const long MaximumExpandedBytes = 1024L * 1024 * 1024;
 
-    public Lod2AtomClient(HttpClient? httpClient = null, string? cacheDirectory = null)
+    private readonly AtomDownloadKind _kind;
+    private readonly SourceDownloadCache _downloads;
+
+    public AtomDownloadClient(HttpClient? httpClient = null, string? cacheDirectory = null, AtomDownloadKind kind = AtomDownloadKind.Buildings)
     {
         _http = httpClient ?? SharedHttpClient;
-        _cacheDirectory = cacheDirectory ?? DefaultCacheDirectory;
+        _kind = kind;
+        _cacheDirectory = cacheDirectory ?? (kind == AtomDownloadKind.Buildings ? DefaultCacheDirectory : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RhinoSpatial", "TerrainAtomCache"));
+        _downloads = new SourceDownloadCache(kind, _http, _cacheDirectory);
     }
 
     public async Task<Lod2AtomSelection?> TrySelectAsync(string source, SpatialContext2D context, CancellationToken cancellationToken = default)
@@ -67,7 +72,7 @@ public sealed class Lod2AtomClient
             cancellationToken.ThrowIfCancellationRequested();
             if (++feedCount > 64 || current.Depth > 8)
                 throw new InvalidOperationException("ATOM feed traversal limit reached. Select a more specific dataset feed.");
-            var feed = Lod2AtomFeedReader.Read(current.Document, current.Url, current.Extent);
+            var feed = Lod2AtomFeedReader.Read(current.Document, current.Url, current.Extent, _kind);
             downloadCount += feed.Downloads.Count;
             if (downloadCount > 50000)
                 throw new InvalidOperationException("The ATOM catalogue exceeds the supported download-entry limit.");
@@ -93,7 +98,7 @@ public sealed class Lod2AtomClient
             }
         }
         if (missing.Count > 0)
-            throw new InvalidOperationException($"The ATOM feed does not provide sufficient per-tile spatial metadata to select downloads safely. Example entries: {string.Join(", ", missing)}. No building archives were downloaded. Use a spatially indexed feed or local tiles.");
+            throw new InvalidOperationException($"The ATOM feed does not provide sufficient per-tile spatial metadata to select downloads safely. Example entries: {string.Join(", ", missing)}. No data archives were downloaded. Use a spatially indexed feed or local tiles.");
         if (tiles.Count > 32)
             throw new InvalidOperationException($"The area selects {tiles.Count} ATOM tiles; the limit is 32 per solution. Select a smaller study area.");
         return new Lod2AtomSelection(tiles.Values.OrderBy(tile => tile.Url.AbsoluteUri, StringComparer.Ordinal).ToList(), feedCount, downloadCount);
@@ -168,129 +173,41 @@ public sealed class Lod2AtomClient
             try
             {
                 var prefix = $"ATOM {result.Count + 1}/{selection.Tiles.Count}";
-                var cachedTile = await DownloadTileAsync(tile, note => progress?.Invoke($"{prefix}: {note}"), cancellationToken).ConfigureAwait(false);
+                var cachedTile = await _downloads.DownloadAsync(tile, note => progress?.Invoke($"{prefix}: {note}"), cancellationToken).ConfigureAwait(false);
                 result.Add(cachedTile);
                 progress?.Invoke($"{prefix}: {(cachedTile.UsedCache ? "reused cache" : "download complete")}");
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                throw new InvalidOperationException($"Could not load ATOM tile '{tile.Title}': {ex.Message} Completed {result.Count}/{selection.Tiles.Count} tile(s); successful downloads remain cached. No partial building result was returned.", ex);
+                throw new InvalidOperationException($"Could not load ATOM tile '{tile.Title}': {ex.Message} Completed {result.Count}/{selection.Tiles.Count} tile(s); successful downloads remain cached. No partial source result was returned.", ex);
             }
         }
         return result;
     }
 
-    private sealed record CacheStamp(long Length, string Hash, DateTime DownloadedUtc);
+    public Task<Lod2AtomCachedTile> DownloadFileAsync(Lod2AtomLink tile, CancellationToken cancellationToken = default) =>
+        _downloads.DownloadAsync(tile, cancellationToken: cancellationToken);
 
-    private async Task<Lod2AtomCachedTile> DownloadTileAsync(Lod2AtomLink tile, Action<string> progress, CancellationToken cancellationToken)
+    public async Task<ReferenceSourceMetadata?> TryReadReferenceAsync(string source, CancellationToken cancellationToken = default)
     {
-        Directory.CreateDirectory(_cacheDirectory);
-        var key = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(tile.Url.AbsoluteUri + "\n" + tile.Revision)));
-        var target = Path.Combine(_cacheDirectory, key + ".zip");
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMinutes(3));
-        var temporary = target + "." + Guid.NewGuid().ToString("N") + ".partial";
-        try
-        {
-            // A filesystem lock also serializes writers from separate Rhino processes.
-            await using var cacheLock = await AcquireLockAsync(target + ".lock", timeout.Token).ConfigureAwait(false);
-            if (await IsValidCacheAsync(target, tile.Revision, timeout.Token).ConfigureAwait(false))
-                return new Lod2AtomCachedTile(tile, target, true);
-            using var response = await _http.GetAsync(tile.Url, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-            var expectedLength = response.Content.Headers.ContentLength;
-            if (expectedLength > MaximumDownloadBytes)
-                throw new InvalidOperationException("Archive exceeds the 512 MiB download limit.");
-            await using (var input = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false))
-            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true))
-            {
-                var buffer = new byte[81920];
-                long count = 0;
-                long lastProgressBytes = 0;
-                int read;
-                while ((read = await input.ReadAsync(buffer, timeout.Token).ConfigureAwait(false)) != 0)
-                {
-                    count += read;
-                    if (count > MaximumDownloadBytes) throw new InvalidOperationException("Archive exceeds the 512 MiB download limit.");
-                    await output.WriteAsync(buffer.AsMemory(0, read), timeout.Token).ConfigureAwait(false);
-                    if (count - lastProgressBytes >= 1024 * 1024)
-                    {
-                        progress($"downloaded {count / (1024 * 1024)} MiB" + (expectedLength.HasValue ? $" / {expectedLength.Value / (1024 * 1024)} MiB" : ""));
-                        lastProgressBytes = count;
-                    }
-                }
-                if (expectedLength.HasValue && count != expectedLength.Value)
-                    throw new InvalidDataException("The archive download was incomplete.");
-            }
-            await ValidateArchiveAsync(temporary, timeout.Token).ConfigureAwait(false);
-            await using var validated = File.OpenRead(temporary);
-            var stamp = new CacheStamp(validated.Length, Convert.ToHexString(await SHA256.HashDataAsync(validated, timeout.Token).ConfigureAwait(false)), DateTime.UtcNow);
-            validated.Close();
-            File.Move(temporary, target, overwrite: true);
-            await File.WriteAllTextAsync(temporary, JsonSerializer.Serialize(stamp), timeout.Token).ConfigureAwait(false);
-            File.Move(temporary, target + ".json", overwrite: true);
-            return new Lod2AtomCachedTile(tile, target, false);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw new TimeoutException("The ATOM archive download timed out after three minutes.");
-        }
-        finally
-        {
-            if (File.Exists(temporary)) File.Delete(temporary);
-        }
+        var feed = await LoadFeedAsync(new Uri(source), true, cancellationToken).ConfigureAwait(false);
+        if (feed is null) return null;
+        var root = feed.Value.Document.Root!;
+        var extents = root.Elements(Lod2AtomFeedReader.Atom + "entry").Prepend(root)
+            .Select(Lod2AtomFeedReader.ReadExtent).Where(e => e is not null).Cast<AtomSpatialExtent>().ToList();
+        if (extents.Count == 0) throw new InvalidDataException("The ATOM feed has no readable coverage extent; use its service-level feed or select an area manually.");
+        var boxes = extents.Select(e => Lod2AtomFeedReader.TransformBounds(e, "EPSG:4326")).ToList();
+        var wgs = new BoundingBox2D(boxes.Min(b => b.MinX), boxes.Min(b => b.MinY), boxes.Max(b => b.MaxX), boxes.Max(b => b.MaxY));
+        var codes = root.Elements(Lod2AtomFeedReader.Atom + "entry").Prepend(root)
+            .Select(Lod2AtomFeedReader.ReadCategorySrs).Where(s => s is not null).Distinct().ToList();
+        var srs = codes.Count == 1 ? codes[0]! : "EPSG:4326";
+        var native = Lod2AtomFeedReader.TransformBounds(new AtomSpatialExtent("EPSG:4326", wgs), srs);
+        return new ReferenceSourceMetadata("ATOM", srs, native, wgs, extents.Count);
     }
+}
 
-    private static async Task<FileStream> AcquireLockAsync(string path, CancellationToken cancellationToken)
-    {
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try { return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-            catch (IOException) { await Task.Delay(150, cancellationToken).ConfigureAwait(false); }
-        }
-    }
-
-    private static async Task<bool> IsValidCacheAsync(string path, string revision, CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (!File.Exists(path) || !File.Exists(path + ".json")) return false;
-            var stamp = JsonSerializer.Deserialize<CacheStamp>(await File.ReadAllTextAsync(path + ".json", cancellationToken).ConfigureAwait(false));
-            if (stamp is null || new FileInfo(path).Length != stamp.Length ||
-                (string.IsNullOrWhiteSpace(revision) && DateTime.UtcNow - stamp.DownloadedUtc > TimeSpan.FromDays(1))) return false;
-            await using var stream = File.OpenRead(path);
-            return Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false)) == stamp.Hash;
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException) { return false; }
-    }
-
-    private static async Task ValidateArchiveAsync(string path, CancellationToken cancellationToken)
-    {
-        using var archive = ZipFile.OpenRead(path);
-        if (archive.Entries.Count > 10000) throw new InvalidDataException("ZIP contains too many entries.");
-        long expandedBytes = 0;
-        var buildingFiles = 0;
-        foreach (var entry in archive.Entries)
-        {
-            if (entry.Length > 256L * 1024 * 1024 || (expandedBytes += entry.Length) > MaximumExpandedBytes)
-                throw new InvalidDataException("ZIP exceeds the supported expanded-size limit (256 MiB per file, 1 GiB total).");
-            var extension = Path.GetExtension(entry.FullName).ToLowerInvariant();
-            if (extension is not (".gml" or ".citygml" or ".xml")) continue;
-            await using var stream = entry.Open();
-            using var reader = XmlReader.Create(stream, new XmlReaderSettings
-            {
-                Async = true, DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 256L * 1024 * 1024
-            });
-            await reader.MoveToContentAsync().ConfigureAwait(false);
-            if (reader.LocalName == "CityModel" && reader.NamespaceURI.StartsWith("http://www.opengis.net/citygml", StringComparison.Ordinal))
-            {
-                buildingFiles++;
-                // Verify XML and decompression through EOF before publishing a completed cache file.
-                while (await reader.ReadAsync().ConfigureAwait(false)) cancellationToken.ThrowIfCancellationRequested();
-            }
-        }
-        if (buildingFiles == 0)
-            throw new InvalidDataException("Unsupported or invalid archive: expected a ZIP containing CityGML building data. Other archive formats and remote CityJSON downloads are not supported.");
-    }
+// Keep the original building client API available for existing callers.
+public sealed class Lod2AtomClient : AtomDownloadClient
+{
+    public Lod2AtomClient(HttpClient? httpClient = null, string? cacheDirectory = null) : base(httpClient, cacheDirectory) { }
 }

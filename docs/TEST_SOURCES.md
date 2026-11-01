@@ -44,6 +44,28 @@ Use these together with:
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom <feed-url> <srs> <minX,minY,maxX,maxY>`
   Add `download` to download/reuse selected archives and parse buildings through the existing CityGML reader.
 
+## Unreleased source-compatibility validation (2026-11-01)
+
+The [implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records scope and
+status; [example workflows](../examples/COMPATIBILITY_WORKFLOWS.md) save copyable
+URLs, context bounds, layer choices and reproduction commands. The source manifest
+includes verification dates and distinguishes development-only behavior.
+
+`dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- source-compatibility-check`
+exercises deterministic HTTP fixtures for pagination, caps, totals, duplicate and
+repeated pages, redirects, discovery, cancellation, validated downloads, unsafe or
+incomplete archives, projected WKT authority, terrain mosaics and metadata-only
+references. It is included in CI and makes no external requests.
+
+Live probes found 16 collections at the pygeoapi root and loaded five lakes across
+five pages with an intentional cap. Berlin DGM1 yielded a 400 × 400 single-tile
+raster and a 200 × 200 two-tile mosaic, both built into Core meshes. Direct Natural
+Earth GeoJSON parsed 177 features, its Shapefile ZIP returned three sample features,
+and the cjio Delft CityJSON fixture parsed 160 buildings. These are download/parser/
+Core-placement checks; new interactive Rhino/Grasshopper and Windows validation
+remains pending. The older Delft-hosted CityJSON URL failed TLS in this batch;
+historical local-file results below remain historical results.
+
 ## Deterministic correctness regressions
 
 The source-reader checks generate temporary, non-private fixtures for ASCII corner/center origins, reference extents, optional NoData, wrapped/truncated/excess cell values, invalid headers, sparse and irregular XYZ grids, non-finite positions, GeoJSON null attributes, empty geometries, malformed points, and versioned EPSG names. They cover format behavior documented by [Esri](https://help.arcgis.com/en/arcgisdesktop/10.0/help/009t/009t0000000z000000.htm) and [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html).
@@ -73,7 +95,7 @@ Bounded comparison requests for the same Museum Island EPSG:25833 bounds also re
 - WFS: `https://gdi.berlin.de/services/wfs/alkis?SERVICE=WFS&REQUEST=GetCapabilities`, layer `alkis:gebaeudeflaechen`
 - WMS: `https://gdi.berlin.de/services/wms/alkis_gebaeude?SERVICE=WMS&REQUEST=GetCapabilities`, layer `gebaeude`
 
-These confirm bounded source loading and compatible native coordinate metadata. They do **not** prove visual alignment, Brep quality, progress display or saved-definition compatibility in Rhino. Complete the ATOM entries in `examples/VALIDATION.md` before release. ATOM reference-map preloading remains deferred; use the map helper or another supported reference source.
+These confirm bounded source loading and compatible native coordinate metadata. They do **not** prove visual alignment, Brep quality, progress display or saved-definition compatibility in Rhino. Complete the ATOM entries in `examples/VALIDATION.md` before release. The unreleased compatibility branch adds ATOM reference-map preloading from feed metadata; interactive validation of that addition remains pending.
 
 ## Current Tested Sources
 

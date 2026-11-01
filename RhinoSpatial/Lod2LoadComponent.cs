@@ -241,6 +241,15 @@ namespace RhinoSpatial
                 return ComputeLocalCityGmlSource(requestData);
             }
 
+            if (new[] { ".zip", ".gmz", ".cityjson", ".json", ".gml", ".citygml", ".xml" }
+                .Contains(Path.GetExtension(new Uri(requestData.Source).AbsolutePath), StringComparer.OrdinalIgnoreCase) &&
+                !System.Text.RegularExpressions.Regex.IsMatch(requestData.Source, @"[?&]service=wfs(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                var tile = new Lod2AtomLink(new Uri(requestData.Source), "Building download", "", null);
+                var downloaded = _atomClient.DownloadFileAsync(tile, cancellationToken).GetAwaiter().GetResult();
+                return ComputeDownloadedBuildings(requestData, new[] { downloaded });
+            }
+
             // Explicit WFS URLs retain their existing request path without an extra discovery GET.
             if (!System.Text.RegularExpressions.Regex.IsMatch(requestData.Source, @"[?&]service=wfs(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             {
@@ -350,15 +359,7 @@ namespace RhinoSpatial
                 Volatile.Write(ref progressActive, 0);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            var localRequest = new RequestData
-            {
-                Source = downloaded[0].FilePath,
-                SourceKind = Lod2SourceKind.Zip,
-                LocalSourcePaths = downloaded.Select(tile => tile.FilePath).ToList(),
-                SpatialContext = requestData.SpatialContext,
-                LayerName = requestData.LayerName
-            };
-            var result = ComputeLocalCityGmlSource(localRequest);
+            var result = ComputeDownloadedBuildings(requestData, downloaded);
             var cachedCount = downloaded.Count(tile => tile.UsedCache);
             return new SolveResults
             {
@@ -367,6 +368,47 @@ namespace RhinoSpatial
                 MessageLevel = result.MessageLevel,
                 Status = $"ATOM selected {selection.Tiles.Count}/{selection.DownloadCount} tile(s) from {selection.FeedCount} feed(s); downloaded {downloaded.Count - cachedCount}, reused {cachedCount} cached archive(s). Tiles: {string.Join(", ", downloaded.Select(tile => Path.GetFileName(tile.Tile.Url.LocalPath)))}. Cache: {Lod2AtomClient.DefaultCacheDirectory}. {result.Status}"
             };
+        }
+
+        private SolveResults ComputeDownloadedBuildings(RequestData requestData, IReadOnlyList<Lod2AtomCachedTile> downloads)
+        {
+            var sources = new Dictionary<(bool Json, Lod2SourceKind Kind), List<string>>();
+            foreach (var download in downloads)
+            {
+                var kind = Path.GetExtension(download.FilePath).Equals(".zip", StringComparison.OrdinalIgnoreCase) ? Lod2SourceKind.Zip : Lod2SourceKind.File;
+                if (EnumerateLocalSourceFiles(download.FilePath, kind).Any(file =>
+                    { using var stream = file.OpenRead(); return Lod2GmlReader.IsCityGmlDocument(stream); })) Add(false);
+                if (EnumerateLocalCityJsonSourceFiles(download.FilePath, kind).Any(file => IsCityJsonDocument(file.ReadText()))) Add(true);
+                void Add(bool json)
+                {
+                    if (!sources.TryGetValue((json, kind), out var files)) sources[(json, kind)] = files = new List<string>();
+                    files.Add(download.FilePath);
+                }
+            }
+            var groups = new List<SolveResults>();
+            foreach (var group in sources)
+            {
+                var local = new RequestData { Source = group.Value[0], SourceKind = group.Key.Kind,
+                    LocalSourcePaths = group.Value, SpatialContext = requestData.SpatialContext, LayerName = requestData.LayerName };
+                var result = group.Key.Json ? ComputeLocalCityJsonSource(local) : ComputeLocalCityGmlSource(local);
+                if (result.MessageLevel == GH_RuntimeMessageLevel.Error) throw new InvalidDataException(result.Status);
+                groups.Add(result);
+            }
+            if (groups.Count == 0) throw new InvalidDataException("Downloaded source contained no CityGML or CityJSON building documents.");
+            if (groups.Count == 1) return groups[0];
+            var tree = new GH_Structure<GH_Brep>();
+            for (var group = 0; group < groups.Count; group++)
+                for (var branch = 0; branch < groups[group].BrepTree.PathCount; branch++)
+                    tree.AppendRange(groups[group].BrepTree.Branches[branch],
+                        new GH_Path(new[] { group }.Concat(groups[group].BrepTree.Paths[branch].Indices).ToArray()));
+            return new SolveResults { BrepTree = tree, BuildingCount = groups.Sum(g => g.BuildingCount),
+                Status = string.Join(" ", groups.Select(g => g.Status)), MessageLevel = GH_RuntimeMessageLevel.Remark };
+        }
+
+        private static bool IsCityJsonDocument(string text)
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(text);
+            return document.RootElement.TryGetProperty("type", out var type) && type.GetString() == "CityJSON";
         }
 
         private SolveResults ComputeLocalCityGmlSource(RequestData requestData)
@@ -516,7 +558,9 @@ namespace RhinoSpatial
 
         private SolveResults ComputeLocalCityJsonSource(RequestData requestData)
         {
-            var sourceFiles = EnumerateLocalCityJsonSourceFiles(requestData.Source, requestData.SourceKind).ToList();
+            var sourceFiles = (requestData.LocalSourcePaths ?? new[] { requestData.Source })
+                .SelectMany(source => EnumerateLocalCityJsonSourceFiles(source, requestData.SourceKind))
+                .Where(file => requestData.LocalSourcePaths is null || IsCityJsonDocument(file.ReadText())).ToList();
             if (sourceFiles.Count == 0)
             {
                 return new SolveResults
@@ -538,7 +582,7 @@ namespace RhinoSpatial
                     var jsonText = sourceFile.ReadText();
                     metadata = CityJsonReader.ReadSourceMetadata(jsonText);
                 }
-                catch
+                catch when (requestData.LocalSourcePaths is null)
                 {
                     if (failedFileNames.Count < 5)
                     {
@@ -548,6 +592,9 @@ namespace RhinoSpatial
                     continue;
                 }
 
+                if (requestData.LocalSourcePaths is not null && (string.IsNullOrWhiteSpace(metadata.SrsName) ||
+                    !SpatialReferenceTransform.TryTransformXY(metadata.SrsName, requestData.SpatialContext.ResolvedSrs, 0, 0, out _, out _)))
+                    throw new InvalidDataException("Downloaded CityJSON has missing or unsupported source CRS metadata.");
                 var candidateSrs = ResolveLocalCityGmlSrs(metadata.SrsName, requestData.SpatialContext);
 
                 if (metadata.BoundingBox is not null &&

@@ -43,6 +43,16 @@ The current release already provides:
 
 These are the starting conditions for future work, not unfinished roadmap promises.
 
+## Unreleased compatibility batch
+
+The [research backlog](COMPATIBILITY_RESEARCH.md) is recorded and priorities 1–5
+are implemented on the source-compatibility branch: bounded feature paging, API-root
+collection discovery, direct vector/building downloads, terrain ATOM and reference
+metadata. [The implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records
+validation and remaining work; [example recipes](../examples/COMPATIBILITY_WORKFLOWS.md)
+save tested URLs and bounds. Interactive Rhino/Windows checks remain before release.
+Priorities 6–10 remain follow-on work.
+
 ## Now: real-use stabilization
 
 The most useful next improvements should come from real project use rather than speculative expansion.

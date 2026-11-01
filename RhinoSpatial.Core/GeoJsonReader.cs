@@ -52,6 +52,9 @@ namespace RhinoSpatial.Core
             using var document = JsonDocument.Parse(geoJson);
             var root = document.RootElement;
 
+            if (root.TryGetProperty("type", out var rootType) && rootType.GetString() == "Feature")
+                return new List<WfsFeature> { ReadFeature(root, sourceLayerName) };
+
             if (!root.TryGetProperty("features", out var featuresElement) || featuresElement.ValueKind != JsonValueKind.Array)
             {
                 throw new InvalidOperationException("The GeoJSON response does not contain a valid features array.");
