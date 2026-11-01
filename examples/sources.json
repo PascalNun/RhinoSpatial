@@ -15,6 +15,20 @@
   },
   "sources": [
     {
+      "id": "lod2-berlin-atom",
+      "type": "LoD2 ATOM",
+      "purpose": "Automatic official Berlin CityGML tile selection and cached downloads",
+      "url": "https://gdi.berlin.de/data/a_lod2/atom/",
+      "notes": [
+        "Connect directly to Load LoD2 Buildings; leave Layer empty and select a small Berlin Spatial Context",
+        "Museum Island EPSG:25833 bounds 391300,5820100,391700,5820500 selected one tile and parsed 133 buildings",
+        "Boundary bounds 391300,5819900,391700,5820200 selected two tiles",
+        "Tile selection uses the published 1x1 Km grid, EPSG:25833 category, enclosing extent and UTM kilometre filenames",
+        "Archives contain AdV ETRS89_UTM33 with DHHN2016 heights; source heights are retained",
+        "Downloads and parsing verified; visual Rhino alignment remains a manual validation step"
+      ]
+    },
+    {
       "id": "terrain-global-skadi-fallback",
       "type": "Terrain",
       "purpose": "Built-in quick global terrain fallback",

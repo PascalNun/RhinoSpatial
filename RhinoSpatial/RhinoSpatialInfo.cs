@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using Grasshopper.Kernel;
 
@@ -18,6 +18,6 @@ namespace RhinoSpatial
 
         public override string AuthorContact => "https://pascalnun.eu/tools/rhinospatial/";
 
-        public override string AssemblyVersion => GetType().Assembly.GetName().Version?.ToString() ?? "0.3.3";
+        public override string AssemblyVersion => GetType().Assembly.GetName().Version?.ToString(3) ?? "0.4.0";
     }
 }

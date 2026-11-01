@@ -1,6 +1,6 @@
 # RhinoSpatial Installation
 
-This package is currently an alpha release of RhinoSpatial for Rhino 8.
+This package contains RhinoSpatial 0.4.0 for Rhino 8 on macOS and Windows.
 
 ## Package Manager Installation
 
@@ -8,10 +8,9 @@ The easiest way to install RhinoSpatial is through Rhino's Package Manager.
 
 1. Open Rhino 8.
 2. Run `PackageManager`.
-3. Enable **Include pre-releases** while RhinoSpatial remains in alpha.
-4. Search for `RhinoSpatial`.
-5. Install the package.
-6. Restart Rhino / Grasshopper if needed.
+3. Search for `RhinoSpatial`.
+4. Install the package.
+5. Restart Rhino / Grasshopper if needed.
 
 You can also open the [RhinoSpatial page on Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
 The [RhinoSpatial website](https://pascalnun.eu/tools/rhinospatial/) provides the user guide and example workflows.
@@ -70,11 +69,11 @@ Good first components to try are:
 
 ## Notes
 
-- RhinoSpatial is currently still in an alpha stage.
+- Version 0.4.0 installs without enabling pre-releases.
 - The plugin has been exercised against a growing international set of public services and local formats, but provider-specific services and unusual project data can still expose edge cases.
 - Leave imagery, terrain, or OSM source inputs empty only when you want RhinoSpatial's broad fallback behavior for quick context. The terrain fallback is intentionally limited to small study areas and short request times. For project work, prefer your own official or project-specific data sources.
 - `Load WFS` accepts WFS URLs, OGC API Features URLs, local `.shp` files, and local `.geojson` / GeoJSON `.json` files for vector context.
-- `Load LoD2 Buildings` accepts a LoD2 WFS URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive through one `LoD2 Source` input. Large local files may still take time because they have to be inspected before out-of-context buildings can be skipped.
+- `Load LoD2 Buildings` accepts a LoD2 WFS or ATOM URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive through one `LoD2 Source` input. Large local files may still take time because they have to be inspected before out-of-context buildings can be skipped.
 - The Google 3D Tiles component is a viewer/reference workflow that requires the user's own Google Maps API key and should not be treated as an editable project data source, cache, bake, or export workflow.
 - Behavior may still vary depending on the provider, geometry type, SRS, version, response format, API access, or local file metadata.
 - Release packages also include a small number of third-party libraries. See `THIRD-PARTY-NOTICES.md` for bundled dependency notices.

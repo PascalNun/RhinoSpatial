@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURATION="${1:-Release}"
+PLATFORM="${2:-any}"
 FRAMEWORK="net7.0"
 YAK_BIN="/Applications/Rhino 8.app/Contents/Resources/bin/yak"
 PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoSpatial/bin/$CONFIGURATION/$FRAMEWORK"
@@ -32,7 +33,7 @@ find "$PLUGIN_BUILD_DIR" -maxdepth 1 -type f \
 
 (
   cd "$STAGING_DIR"
-  "$YAK_BIN" build --platform mac
+  "$YAK_BIN" build --platform "$PLATFORM"
 )
 
 echo

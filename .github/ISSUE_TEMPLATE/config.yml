@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: User guide and examples
+    url: https://pascalnun.eu/tools/rhinospatial/
+    about: Installation and the shared Spatial Context workflow.
+  - name: Component and source reference
+    url: https://github.com/PascalNun/RhinoSpatial/blob/main/docs/COMPONENT_REFERENCE.md
+    about: Supported formats, inputs, coordinate behavior and diagnostic messages.

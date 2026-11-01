@@ -25,7 +25,7 @@ The guiding product idea remains:
 
 ## Current baseline
 
-The current alpha line already provides:
+The current release already provides:
 
 - one shared `Spatial Context` with saved area selection;
 - optional map orientation from WFS, WMS, WCS, and supported local sources;
@@ -34,7 +34,7 @@ The current alpha line already provides:
 - vector loading from WFS, OGC API Features, Shapefile, and GeoJSON;
 - WMS imagery with an ordered orientation fallback;
 - terrain from WCS, GeoTIFF DEM, Esri ASCII Grid, XYZ/CSV grids, and a bounded global fallback;
-- LoD2 buildings from WFS, CityGML/GML/XML, CityJSON, folders, and ZIP archives;
+- LoD2 buildings from WFS, ATOM download feeds, CityGML/GML/XML, CityJSON, folders, and ZIP archives;
 - GeoTIFF raster placement;
 - curated OSM buildings, roads, water, green areas, and rail;
 - bounded Google Photorealistic 3D Tiles reference viewing;
@@ -64,6 +64,7 @@ The most useful next improvements should come from real project use rather than 
 
 ### LoD2 reliability
 
+- validate the new ATOM tile-download/cache workflow in Rhino, including Berlin and other spatially indexed INSPIRE feeds;
 - distinguish provider coverage gaps from filtering or conversion failures;
 - retain the small internal WFS request buffer for BBOX edge cases;
 - keep folder and ZIP loading bounded by file/building metadata where available;

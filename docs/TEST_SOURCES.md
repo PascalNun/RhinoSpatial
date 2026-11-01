@@ -34,6 +34,46 @@ Use these together with:
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- reference-source-check`
 - WFS/WMS request-axis check:
   `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogc-request-check`
+- Local GeoJSON and terrain-reader checks:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- source-reader-check`
+- Terrain placement, NoData, and downsampling checks:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- terrain-mesh-check`
+- ATOM metadata, tile selection, download validation and persistent-cache checks:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2-atom-check`
+- ATOM discovery without archive downloads:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom <feed-url> <srs> <minX,minY,maxX,maxY>`
+  Add `download` to download/reuse selected archives and parse buildings through the existing CityGML reader.
+
+## Deterministic correctness regressions
+
+The source-reader checks generate temporary, non-private fixtures for ASCII corner/center origins, reference extents, optional NoData, wrapped/truncated/excess cell values, invalid headers, sparse and irregular XYZ grids, non-finite positions, GeoJSON null attributes, empty geometries, malformed points, and versioned EPSG names. They cover format behavior documented by [Esri](https://help.arcgis.com/en/arcgisdesktop/10.0/help/009t/009t0000000z000000.htm) and [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html).
+
+The terrain-mesh checks exercise the same Core builder used by the Grasshopper component: projected and geographic source transforms, localization, absolute elevations, NoData holes (including holes between retained downsampled vertices), unsupported CRS errors, and preservation of raster edges. These do not validate Rhino materials, viewport rendering, or saved Grasshopper definitions; use the manual checklist for those surfaces.
+
+The ATOM checks use an in-process HTTP fixture and temporary ZIPs/cache directories, without external network requests. They cover subfeeds/pagination/cycles, relative URLs and `xml:base`, GeoRSS and GML axis order, native/projected tile selection, explicitly declared kilometre grids, missing spatial metadata, unsupported CRS/AdV aliases, WFS routing, limits/timeouts, archive parsing, concurrent cache writers, revision changes, corrupt/truncated downloads, invalid ZIP/CityGML and cancellation. Parsing follows [Atom RFC 4287](https://datatracker.ietf.org/doc/html/rfc4287) and the supported spatial subset of the [OGC GeoRSS standard](https://docs.ogc.org/cs/17-002r1/17-002r1.html). AdV horizontal naming is documented in the [official reference-system overview](https://www.ldbv.bayern.de/mam/ldbv/dateien/referenzsysteme.pdf). Source heights are preserved; these aliases do not convert vertical datums.
+
+### Berlin ATOM integration validation (2026-11-01)
+
+The [official service feed](https://gdi.berlin.de/data/a_lod2/atom/) links one dataset feed containing 925 ZIP links (`rel="section"`, `application/x-gmz`). There are no per-ZIP GeoRSS extents. The service entry supplies the enclosing geographic polygon and EPSG:25833 category; the dataset links a [1 km UTM tile index](https://gdi.berlin.de/data/a_lod2/atom/1X1_EPSG_25833.pdf). The index was inspected to verify the supported southwest-corner kilometre naming convention. The implementation uses this declared-grid pattern without a Berlin hostname special case, and refuses missing/ambiguous metadata.
+
+Verified console workflows:
+
+```bash
+# Museum Island: selects only LoD2_391_5820.zip (6,731,543 compressed bytes).
+dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom 'https://gdi.berlin.de/data/a_lod2/atom/' EPSG:25833 '391300,5820100,391700,5820500' download
+
+# Crosses the 5820000 tile boundary: selects LoD2_391_5819.zip and LoD2_391_5820.zip.
+dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom 'https://gdi.berlin.de/data/a_lod2/atom/' EPSG:25833 '391300,5819900,391700,5820200' download
+```
+
+Museum Island parsed 133 buildings / 8,642 surfaces before the component's additional surface filter. The boundary request parsed 5 buildings / 740 surfaces from the southern tile and 29 / 2,695 from the northern tile. Repeated runs reused persisted downloads. CityGML declares `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH`; its XY resolves explicitly to EPSG:25833 while its height reference remains unchanged.
+
+Bounded comparison requests for the same Museum Island EPSG:25833 bounds also returned 100 building features (explicit limit) from Berlin ALKIS WFS and a 512 × 512 PNG (90,597 bytes) from ALKIS building WMS:
+
+- WFS: `https://gdi.berlin.de/services/wfs/alkis?SERVICE=WFS&REQUEST=GetCapabilities`, layer `alkis:gebaeudeflaechen`
+- WMS: `https://gdi.berlin.de/services/wms/alkis_gebaeude?SERVICE=WMS&REQUEST=GetCapabilities`, layer `gebaeude`
+
+These confirm bounded source loading and compatible native coordinate metadata. They do **not** prove visual alignment, Brep quality, progress display or saved-definition compatibility in Rhino. Complete the ATOM entries in `examples/VALIDATION.md` before release. ATOM reference-map preloading remains deferred; use the map helper or another supported reference source.
 
 ## Current Tested Sources
 
@@ -115,6 +155,7 @@ Use these together with:
 
 | ID | Region | Source | URL | Current Use |
 | --- | --- | --- | --- | --- |
+| `lod2-berlin-atom` | Germany / Berlin | Official LoD2 ATOM download service | `https://gdi.berlin.de/data/a_lod2/atom/` | Live single- and two-tile discovery, ZIP download, persistent cache reuse and bounded CityGML parsing verified. Declared 1 km EPSG:25833 grid and AdV compound CRS. Visual Rhino validation pending; see the integration notes above. |
 | `lod2-hessen-buildings` | Germany / Hessen | Hessen LoD2 WFS | `https://www.geoportal.hessen.de/mapbender/php/wfs.php?FEATURETYPE_ID=5589&INSPIRE=1&REQUEST=GetCapabilities&SERVICE=WFS&VERSION=2.0.0` | Existing LoD2 WFS baseline. Good for terrain/building alignment. |
 | `lod2-sachsen-anhalt` | Germany / Sachsen-Anhalt | Sachsen-Anhalt LoD2 WFS | `https://www.geodatenportal.sachsen-anhalt.de/wss/service/ST_LVermGeo_LoD2_WFS/guest?request=GetCapabilities&service=WFS&version=2.0.0` | Bounded `ALKIS_LOD2_BU:BU.Building` request parsed successfully. Validates EPSG:4258 WFS axis order and inherited `srsDimension="3"` on enclosing GML geometry. |
 | `citygml-ogc-building-lod2` | Format sample | OGC CityGML 2.0 LoD2 building sample | `https://schemas.opengis.net/citygml/examples/2.0/building/Building_LOD2-EPSG25832.gml` | Downloaded and parsed successfully with `lod2file`; 1 building / 7 surfaces. |

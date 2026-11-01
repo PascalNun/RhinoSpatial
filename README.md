@@ -39,15 +39,18 @@ The easiest installation path is Rhino 8's Package Manager:
 
 1. Open Rhino 8.
 2. Run `PackageManager`.
-3. Enable **Include pre-releases** while RhinoSpatial remains in alpha.
-4. Search for `RhinoSpatial`.
-5. Install the package and restart Rhino or Grasshopper if requested.
+3. Search for `RhinoSpatial`.
+4. Install the package and restart Rhino or Grasshopper if requested.
 
 You can also find RhinoSpatial on [Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
 
-For manual installation, open [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases), choose the current release, and download its `RhinoSpatial-…-alpha.zip` asset. See the [manual installation guide](package/food4rhino/INSTALL.md) for the Grasshopper Libraries locations on macOS and Windows.
+For manual installation, open [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases), choose the current release, and download its `RhinoSpatial-0.4.0.zip` asset. See the [manual installation guide](package/food4rhino/INSTALL.md) for the Grasshopper Libraries locations on macOS and Windows.
 
 Release packages include a small number of third-party libraries for raster handling, topology operations, coordinate transforms, and 3D tile decoding. Their licenses are documented in [Third-Party Notices](THIRD-PARTY-NOTICES.md).
+
+## New in 0.4.0
+
+Connect a supported ATOM download service directly to `Load LoD2 Buildings`: RhinoSpatial selects the required CityGML tiles for your study area and reuses completed downloads. This release also adds AdV UTM CRS names and corrects terrain placement, NoData handling and local vector parsing. See the [changelog](CHANGELOG.md) for details.
 
 ## Your first RhinoSpatial workflow
 
@@ -77,7 +80,7 @@ For a visual walkthrough, open the [RhinoSpatial workflow guide](docs/SHOWCASE.m
 | Maps, aerial imagery, orthophotos, or raster overlays | `Load WMS` | WMS imagery placed as an aligned image mesh and material |
 | Local georeferenced imagery | `Load GeoTIFF` | A local `.tif` or `.tiff` placed in the same study space |
 | Ground and elevation context | `Load Terrain` | WCS, GeoTIFF DEM, Esri ASCII Grid, XYZ/CSV grid, or a small-area fallback; aligned terrain meshes |
-| Official 3D building and roof geometry | `Load LoD2 Buildings` | WFS, CityGML/GML/XML, CityJSON, folder, or ZIP archive; building Breps |
+| Official 3D building and roof geometry | `Load LoD2 Buildings` | WFS, ATOM download feeds, CityGML/GML/XML, CityJSON, folder, or ZIP archive; building Breps |
 | Fast urban and landscape context | `Load OSM` | OpenStreetMap buildings, roads, water, green areas, and rail |
 | Photogrammetric visual reference | `3D Tiles Viewer (Google)` | Temporary preview meshes and materials using your own Google Maps API key |
 
@@ -89,9 +92,9 @@ See the [Component and Source Reference](docs/COMPONENT_REFERENCE.md) for suppor
 
 ## Current status
 
-RhinoSpatial is in active alpha development. The current `v0.3.3-alpha` line contains the complete planned source set: Spatial Context, vector data, imagery, terrain, LoD2 buildings, GeoTIFF, OSM, and the optional Google 3D Tiles reference viewer.
+**0.4.0 is the recommended public release**, available as GitHub Latest and through Rhino’s Package Manager without enabling pre-releases. RhinoSpatial contains the complete planned source set: Spatial Context, vector data, imagery, terrain, LoD2 buildings, GeoTIFF, OSM, and the optional Google 3D Tiles reference viewer.
 
-The toolkit has been exercised against a growing international set of public services and local formats. Individual providers, coordinate systems, geometry types, service versions, API access rules, and file metadata can still expose edge cases. For project work, prefer official or project-specific sources and keep an older working definition when testing a new alpha release.
+The toolkit has been exercised against a growing international set of public services and local formats. Individual providers, coordinate systems, geometry types, service versions, API access rules, and file metadata can still expose edge cases. For project work, prefer official or project-specific sources and keep an older working definition when upgrading.
 
 The [changelog](CHANGELOG.md) records release changes. The [test source catalogue](docs/TEST_SOURCES.md) documents the current compatibility set and known provider limitations.
 

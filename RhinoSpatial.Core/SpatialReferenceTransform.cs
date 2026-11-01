@@ -99,7 +99,7 @@ namespace RhinoSpatial.Core
             };
         }
 
-        private static string NormalizeSrs(string? srs)
+        public static string NormalizeSrs(string? srs)
         {
             if (string.IsNullOrWhiteSpace(srs))
             {
@@ -107,6 +107,14 @@ namespace RhinoSpatial.Core
             }
 
             var trimmed = srs.Trim();
+
+            // AdV CityGML names combine a horizontal CRS with a height reference.
+            // Only normalize XY; source heights remain in their published datum.
+            var horizontalName = trimmed.Split('*')[0];
+            if (horizontalName.Equals("urn:adv:crs:ETRS89_UTM32", System.StringComparison.OrdinalIgnoreCase))
+                return "EPSG:25832";
+            if (horizontalName.Equals("urn:adv:crs:ETRS89_UTM33", System.StringComparison.OrdinalIgnoreCase))
+                return "EPSG:25833";
 
             if (trimmed.Contains("4326", System.StringComparison.OrdinalIgnoreCase))
             {

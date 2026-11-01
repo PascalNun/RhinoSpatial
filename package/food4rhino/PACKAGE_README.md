@@ -10,11 +10,14 @@ The recommended installation method is Rhino 8's Package Manager:
 
 1. Open Rhino 8.
 2. Run `PackageManager`.
-3. Enable **Include pre-releases** while RhinoSpatial remains in alpha.
-4. Search for `RhinoSpatial`.
-5. Install the package and restart Rhino or Grasshopper if requested.
+3. Search for `RhinoSpatial`.
+4. Install the package and restart Rhino or Grasshopper if requested.
 
 For manual installation from this package, read [INSTALL.md](INSTALL.md).
+
+## New in 0.4.0
+
+`Load LoD2 Buildings` now accepts supported ATOM download services, selects the CityGML tiles for your study area and caches completed downloads. AdV UTM CRS names, terrain placement and NoData handling, and local vector parsing are improved. See [CHANGELOG.md](CHANGELOG.md).
 
 ## First workflow
 
@@ -43,6 +46,6 @@ By default, RhinoSpatial localizes data near Rhino's origin so aligned geometry 
 - [Releases](https://github.com/PascalNun/RhinoSpatial/releases)
 - [Issues and support](https://github.com/PascalNun/RhinoSpatial/issues)
 
-RhinoSpatial is in active alpha development. Provider-specific services, coordinate systems, geometry types, API access, and local-file metadata can still expose edge cases. For project work, prefer official or project-specific data sources.
+RhinoSpatial 0.4.0 is the recommended public release. Provider-specific services, coordinate systems, geometry types, API access, and local-file metadata can still expose edge cases. For project work, prefer official or project-specific data sources.
 
 RhinoSpatial is released under the [MIT License](https://github.com/PascalNun/RhinoSpatial/blob/main/LICENSE). Bundled dependency licenses are documented in the [Third-Party Notices](https://github.com/PascalNun/RhinoSpatial/blob/main/THIRD-PARTY-NOTICES.md). Both files are also included beside this README in the release package.

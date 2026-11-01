@@ -12,6 +12,7 @@ It is intentionally small and practical. The point is to confirm that the core d
 - sandbox probes from `docs/TEST_SOURCES.md` still run for at least one bounded WFS GetFeature, WMS GetMap, WCS GetCoverage, one CityGML file, one CityJSON file, one Shapefile, and one GeoTIFF file; capabilities-only checks do not count as full source validation
 - the sandbox `tiles-selection-check` passes before manual Google 3D Tiles validation
 - the sandbox `ogc-request-check` and `reference-source-check` pass before service and local-reference validation
+- the sandbox `source-reader-check` and `terrain-mesh-check` pass before local vector and terrain validation
 - component grouping still reads as `Context / Layers / Sources / Viewers`
 - icons load correctly for all components
 - `Spatial Context` still acts as the shared starting point
@@ -56,6 +57,15 @@ It is intentionally small and practical. The point is to confirm that the core d
 
 ## LoD2 Buildings
 
+- run `lod2-atom-check` before live ATOM validation
+- connect `https://gdi.berlin.de/data/a_lod2/atom/` directly to `LoD2 Source`, leave `Layer` empty, and select Museum Island in an EPSG:25833 Spatial Context
+- confirm selected tiles, cache/download counts and building/conversion diagnostics appear in `Status`, and tile progress appears on the component
+- on macOS, trigger an ATOM load both normally and from the Grasshopper recompute menu; confirm progress callbacks do not deadlock the UI while Grasshopper waits for the worker task
+- repeat a solution and restart Rhino; confirm completed archives are reused
+- select an area crossing northing 5820000 and confirm both intersecting tiles load
+- compare ATOM building geometry against Berlin ALKIS building WFS and WMS using one context; repeat with a different supported context CRS and absolute coordinates
+- confirm missing tile metadata, unsupported archives, unavailable services and interrupted downloads return clear errors without a misleading partial model
+- confirm existing saved LoD2 definitions still open with the same component GUID and three inputs/two outputs
 - connect a LoD2 WFS source
 - load buildings through `Load LoD2 Buildings`
 - test a local CityGML/GML/XML building file through the same `LoD2 Source` input when available
@@ -83,6 +93,10 @@ It is intentionally small and practical. The point is to confirm that the core d
 - confirm ordinary single-part GeoTIFF responses (NRW/PDOK) and multipart GeoTIFF responses (USGS 3DEP) both produce readable terrain rasters
 - use a WCS whose capabilities omit WGS84 bounds and confirm `DescribeCoverage` native bounds still preload the Spatial Context map
 - connect a local `.tif` / `.tiff` DEM path to `Load Terrain` and confirm it produces an aligned terrain mesh or a clear non-overlap warning
+- compare equivalent corner-origin and center-origin ASCII grids; their terrain vertices should coincide at cell centers and the reference map should fit the full raster footprint
+- combine terrain in EPSG:25832 or EPSG:28992 with a different supported Spatial Context CRS and confirm imagery/vector alignment in both localized and absolute modes
+- load terrain containing NoData holes and confirm no artificial flat patches or invalid OSM building heights appear; repeat at a resolution requiring downsampling and confirm the last row and column remain included
+- confirm incomplete ASCII grids, irregular XYZ spacing, and terrain with no usable surface return clear status messages
 
 ## GeoTIFF
 
