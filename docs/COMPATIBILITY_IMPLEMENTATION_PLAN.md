@@ -50,5 +50,5 @@ The [research audit](COMPATIBILITY_RESEARCH.md) records the full backlog.
 - Live results and exact reproduction inputs are saved in [the example guide](../examples/COMPATIBILITY_WORKFLOWS.md): API-root discovery, five-page capped loading, single- and two-tile DGM1 meshes, direct GeoJSON/Shapefile ZIPs and a declared-CRS CityJSON source.
 - The Delft-hosted older sample failed TLS on this machine; the cjio maintainer fixture provided a successful alternative. Certificate validation was retained.
 - New Rhino/Grasshopper visual checks and Windows runtime checks remain on [the manual checklist](../examples/VALIDATION.md#unreleased-source-compatibility), including progress/cancellation, saved definitions and cross-layer XY/Z alignment.
-- Priorities 6–10 remain backlog items. No multi-LoD selection, CityJSON sequence/template, affine/world-file, WMTS, COG or GeoPackage implementation is claimed.
+- This first batch did not implement priorities 6–10. The subsequent [medium-priority plan](MEDIUM_COMPATIBILITY_PLAN.md) covers 6–8; COG and GeoPackage remain later work.
 - Public release 0.4.0 and the installed plugin were not changed.

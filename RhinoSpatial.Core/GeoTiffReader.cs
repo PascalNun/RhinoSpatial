@@ -10,98 +10,55 @@ namespace RhinoSpatial.Core
         private const ushort GeographicTypeGeoKey = 2048;
         private const ushort ProjectedCSTypeGeoKey = 3072;
 
-        public static GeoReferencedRasterInfo ReadImageInfo(string filePath)
+        public static GeoReferencedRasterInfo ReadImageInfo(string filePath) => ReadImageInfo(filePath,null);
+
+        public static GeoReferencedRasterInfo ReadImageInfo(string filePath,string? declaredFallbackSrs)
         {
+            if (new[] { ".png", ".jpg", ".jpeg" }.Contains(Path.GetExtension(filePath), StringComparer.OrdinalIgnoreCase))
+            {
+                using var stream=File.OpenRead(filePath);
+                var info=StbImageNext.ImageInfo.FromStream(stream);
+                if(info.Width<=0 || info.Height<=0)throw new InvalidDataException("Invalid raster image dimensions.");
+                var sidecar=RasterSidecars.Read(filePath);
+                return new GeoReferencedRasterInfo(filePath,sidecar.Srs,info.Width,info.Height,sidecar.Transform.Bounds(info.Width,info.Height),new FileInfo(filePath).Length) { GeoTransform=sidecar.Transform };
+            }
             TiffWarningSuppression.EnsureInstalled();
-            using var tiff = Tiff.Open(filePath, "r");
-            if (tiff is null)
-            {
-                throw new InvalidOperationException($"Failed to open GeoTIFF: {filePath}");
-            }
-
-            var width = tiff.GetField(TiffTag.IMAGEWIDTH)?[0].ToInt() ?? 0;
-            var height = tiff.GetField(TiffTag.IMAGELENGTH)?[0].ToInt() ?? 0;
-            if (width <= 0 || height <= 0)
-            {
-                throw new InvalidOperationException("The GeoTIFF image dimensions could not be read.");
-            }
-
-            var srsName = ReadSrsName(tiff);
-            if (string.IsNullOrWhiteSpace(srsName))
-            {
-                throw new InvalidOperationException("The GeoTIFF does not contain a readable EPSG code yet. The current RhinoSpatial GeoTIFF loader supports GeoTIFF files with embedded EPSG georeferencing.");
-            }
-
-            var boundingBox = ReadBoundingBox(tiff, width, height);
-            var fileSizeBytes = new FileInfo(filePath).Length;
-            return new GeoReferencedRasterInfo(
-                filePath,
-                srsName,
-                width,
-                height,
-                boundingBox,
-                fileSizeBytes);
+            using var tiff=Tiff.Open(filePath,"r");
+            if(tiff is null) throw new InvalidOperationException("Failed to open raster: "+filePath);
+            var width=tiff.GetField(TiffTag.IMAGEWIDTH)?[0].ToInt()??0;
+            var height=tiff.GetField(TiffTag.IMAGELENGTH)?[0].ToInt()??0;
+            if(width<=0 || height<=0) throw new InvalidDataException("Invalid raster dimensions.");
+            var srs=ReadSrsName(tiff);
+            var transform=ReadTransform(tiff);
+            transform ??= RasterSidecars.ReadTransform(filePath);
+            if(string.IsNullOrWhiteSpace(srs))srs=string.IsNullOrWhiteSpace(declaredFallbackSrs)?RasterSidecars.ReadSrs(filePath):declaredFallbackSrs;
+            transform.Validate();
+            return new GeoReferencedRasterInfo(filePath,srs,width,height,transform.Bounds(width,height),new FileInfo(filePath).Length) { GeoTransform=transform };
         }
 
-        private static BoundingBox2D ReadBoundingBox(Tiff tiff, int width, int height)
+        private static RasterGeoTransform? ReadTransform(Tiff tiff)
         {
-            var pixelScale = TryReadDoubleArray(tiff, TiffTag.GEOTIFF_MODELPIXELSCALETAG);
-            var tiePoints = TryReadDoubleArray(tiff, TiffTag.GEOTIFF_MODELTIEPOINTTAG);
-
-            if (pixelScale is { Length: >= 2 } && tiePoints is { Length: >= 6 })
+            RasterGeoTransform? g=null;
+            var matrix=TryReadDoubleArray(tiff,TiffTag.GEOTIFF_MODELTRANSFORMATIONTAG);
+            if(matrix is { Length: >=16 })
             {
-                var scaleX = Math.Abs(pixelScale[0]);
-                var scaleY = Math.Abs(pixelScale[1]);
-                if (scaleX <= 0.0 || scaleY <= 0.0)
-                {
-                    throw new InvalidOperationException("The GeoTIFF pixel scale is invalid.");
-                }
-
-                var rasterX = tiePoints[0];
-                var rasterY = tiePoints[1];
-                var modelX = tiePoints[3];
-                var modelY = tiePoints[4];
-
-                var minX = modelX - rasterX * scaleX;
-                var maxY = modelY + rasterY * scaleY;
-                var maxX = minX + width * scaleX;
-                var minY = maxY - height * scaleY;
-                return new BoundingBox2D(minX, minY, maxX, maxY);
+                if(matrix.Any(v=>!double.IsFinite(v)) || matrix[12]!=0 || matrix[13]!=0 || matrix[15]!=1)
+                    throw new InvalidDataException("Unsupported GeoTIFF projective transformation.");
+                g=new(matrix[0],matrix[1],matrix[3],matrix[4],matrix[5],matrix[7]);
             }
-
-            var transform = TryReadDoubleArray(tiff, TiffTag.GEOTIFF_MODELTRANSFORMATIONTAG);
-            if (transform is { Length: >= 16 })
+            else
             {
-                var scaleX = transform[0];
-                var shearX = transform[1];
-                var shearY = transform[4];
-                var scaleY = transform[5];
-                var translateX = transform[3];
-                var translateY = transform[7];
-
-                if (Math.Abs(shearX) > 1e-9 || Math.Abs(shearY) > 1e-9)
-                {
-                    throw new InvalidOperationException("The GeoTIFF uses rotated or sheared georeferencing, which the current RhinoSpatial GeoTIFF loader does not support yet.");
-                }
-
-                if (Math.Abs(scaleX) <= 1e-9 || Math.Abs(scaleY) <= 1e-9)
-                {
-                    throw new InvalidOperationException("The GeoTIFF transformation matrix is invalid.");
-                }
-
-                var minX = translateX;
-                var maxY = translateY;
-                var maxX = minX + width * scaleX;
-                var minY = maxY + height * scaleY;
-
-                return new BoundingBox2D(
-                    Math.Min(minX, maxX),
-                    Math.Min(minY, maxY),
-                    Math.Max(minX, maxX),
-                    Math.Max(minY, maxY));
+                var scale=TryReadDoubleArray(tiff,TiffTag.GEOTIFF_MODELPIXELSCALETAG);
+                var tie=TryReadDoubleArray(tiff,TiffTag.GEOTIFF_MODELTIEPOINTTAG);
+                if(scale is {Length:>=2} && tie is {Length:>=6}) g=new(scale[0],0,tie[3]-tie[0]*scale[0],0,-scale[1],tie[4]+tie[1]*scale[1]);
             }
-
-            throw new InvalidOperationException("The GeoTIFF does not expose supported georeferencing tags. The current RhinoSpatial GeoTIFF loader supports north-up GeoTIFF files with ModelTiepoint/ModelPixelScale or simple affine transform tags.");
+            if(g is null) return null;
+            var keys=TryReadUShortArray(tiff,TiffTag.GEOTIFF_GEOKEYDIRECTORYTAG);
+            if(keys is not null)
+                for(var i=4;i+3<Math.Min(keys.Length,4+keys[3]*4);i+=4)
+                    if(keys[i]==1025 && keys[i+1]==0 && keys[i+3]==2)
+                        g=g with { C=g.C-(g.A+g.B)/2,F=g.F-(g.D+g.E)/2 };
+            g.Validate(); return g;
         }
 
         private static string ReadSrsName(Tiff tiff)
@@ -112,31 +69,10 @@ namespace RhinoSpatial.Core
                 return string.Empty;
             }
 
-            var keyCount = geoKeys[3];
-            for (var keyIndex = 0; keyIndex < keyCount; keyIndex++)
-            {
-                var entryOffset = 4 + (keyIndex * 4);
-                if (entryOffset + 3 >= geoKeys.Length)
-                {
-                    break;
-                }
-
-                var keyId = geoKeys[entryOffset];
-                var tagLocation = geoKeys[entryOffset + 1];
-                var valueOffset = geoKeys[entryOffset + 3];
-
-                if (tagLocation != 0)
-                {
-                    continue;
-                }
-
-                if (keyId == ProjectedCSTypeGeoKey || keyId == GeographicTypeGeoKey)
-                {
-                    var normalizedSrs = $"EPSG:{valueOffset}";
-                    return normalizedSrs;
-                }
-            }
-
+            foreach(var requested in new[]{ProjectedCSTypeGeoKey,GeographicTypeGeoKey})
+                for(var offset=4;offset+3<Math.Min(geoKeys.Length,4+geoKeys[3]*4);offset+=4)
+                    if(geoKeys[offset]==requested && geoKeys[offset+1]==0 && geoKeys[offset+2]==1 && geoKeys[offset+3]>0 && geoKeys[offset+3]!=32767)
+                        return "EPSG:"+geoKeys[offset+3];
             return string.Empty;
         }
 

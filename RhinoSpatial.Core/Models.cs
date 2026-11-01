@@ -125,7 +125,7 @@ namespace RhinoSpatial.Core
         Coordinate2D OffsetVectorY,
         double? NoDataValue,
         float[] Elevations
-    );
+    ) { public RasterGeoTransform? GeoTransform { get; init; } }
 
     public record WcsCoverageResult(
         string RequestUrl,
@@ -142,7 +142,7 @@ namespace RhinoSpatial.Core
         int Height,
         BoundingBox2D BoundingBox,
         long FileSizeBytes
-    );
+    ) { public RasterGeoTransform? GeoTransform { get; init; } }
 
     public record OsmAreaFeature(
         long Id,

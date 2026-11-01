@@ -4,6 +4,11 @@ RhinoSpatial improves its established source categories through real project use
 
 ## Unreleased
 
+- Select one suitable CityJSON LoD per object, retaining parts at that level; support streamed CityJSONSeq and affine geometry templates through existing local/archive/download paths. Reject malformed indices or ambiguous LoDs instead of returning partial rings.
+- Support embedded affine GeoTIFF georeferencing and local world-file TIFF/PNG/JPEG with declared CRS, preserving rotated footprints, UV clipping, pixel centers and terrain sampling. Sidecar edits invalidate caches; projected CRS keys take priority over geographic keys.
+- Support WMTS layer discovery, reference metadata, bounded native tile selection and PNG/JPEG mosaics through existing WMS components. Honor axis order, matrix limits, dimensions and advertised REST/KVP endpoints; validate completed caches and fail required tile errors explicitly.
+- Add the managed `StbImageNext` 1.0.0 decoder (no native or further package dependencies), update third-party notices, and save [medium-priority recipes and synthetic examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md). New native Rhino/Windows checks remain pending.
+
 - Follow OGC API next links and supported WFS paging with explicit user caps, deduplication, repeated-page protection and completeness diagnostics. Preserve raw GML for the building loader.
 - Discover feature collections from OGC API landing pages, collection lists and advertised links using the existing layer-list/vector components. Layer selection is optional for a single collection and direct files.
 - Load bounded, validated direct GeoJSON and Shapefile ZIP downloads, plus remote CityJSON/CityGML building files. Check companion files, CRS metadata, archive paths and expanded sizes; reuse validated downloads.

@@ -49,8 +49,9 @@ namespace RhinoSpatial.Core
                         continue;
                     }
 
-                    var sourceX = sampleBounds.MinX + xs[col] * stepX;
-                    var sourceY = sampleBounds.MaxY - ys[row] * stepY;
+                    var sourcePoint = raster.GeoTransform?.At(xs[col]+0.5,ys[row]+0.5);
+                    var sourceX = sourcePoint?.X ?? sampleBounds.MinX + xs[col] * stepX;
+                    var sourceY = sourcePoint?.Y ?? sampleBounds.MaxY - ys[row] * stepY;
                     if (!SpatialReferenceTransform.TryTransformXY(
                             raster.SrsName, context.ResolvedSrs, sourceX, sourceY, out var x, out var y) ||
                         !double.IsFinite(x) || !double.IsFinite(y))

@@ -61,6 +61,8 @@ collection choices, bounds and observed results for API-root discovery, paging,
 Berlin DGM1 ATOM terrain, direct GeoJSON/Shapefile ZIPs and CityJSON downloads.
 These require the development build; the public 0.4.0 package is unchanged.
 
+The [medium-priority examples](MEDIUM_COMPATIBILITY_WORKFLOWS.md) add declared-CRS CityJSON/sequence/template files, a rotated world-file raster, and a verified public WMTS URL with native test bounds. These also require the development build.
+
 ## Source and testing references
 
 - [Curated example source list](sources.json)

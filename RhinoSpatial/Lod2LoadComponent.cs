@@ -241,7 +241,7 @@ namespace RhinoSpatial
                 return ComputeLocalCityGmlSource(requestData);
             }
 
-            if (new[] { ".zip", ".gmz", ".cityjson", ".json", ".gml", ".citygml", ".xml" }
+            if (new[] { ".zip", ".gmz", ".cityjson", ".json", ".jsonl", ".gml", ".citygml", ".xml" }
                 .Contains(Path.GetExtension(new Uri(requestData.Source).AbsolutePath), StringComparer.OrdinalIgnoreCase) &&
                 !System.Text.RegularExpressions.Regex.IsMatch(requestData.Source, @"[?&]service=wfs(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             {
@@ -378,7 +378,7 @@ namespace RhinoSpatial
                 var kind = Path.GetExtension(download.FilePath).Equals(".zip", StringComparison.OrdinalIgnoreCase) ? Lod2SourceKind.Zip : Lod2SourceKind.File;
                 if (EnumerateLocalSourceFiles(download.FilePath, kind).Any(file =>
                     { using var stream = file.OpenRead(); return Lod2GmlReader.IsCityGmlDocument(stream); })) Add(false);
-                if (EnumerateLocalCityJsonSourceFiles(download.FilePath, kind).Any(file => IsCityJsonDocument(file.ReadText()))) Add(true);
+                if (EnumerateLocalCityJsonSourceFiles(download.FilePath, kind).Any(file => IsCityJsonSourceFile(file))) Add(true);
                 void Add(bool json)
                 {
                     if (!sources.TryGetValue((json, kind), out var files)) sources[(json, kind)] = files = new List<string>();
@@ -405,10 +405,10 @@ namespace RhinoSpatial
                 Status = string.Join(" ", groups.Select(g => g.Status)), MessageLevel = GH_RuntimeMessageLevel.Remark };
         }
 
-        private static bool IsCityJsonDocument(string text)
+        private static bool IsCityJsonSourceFile(LocalCityGmlSourceFile file)
         {
-            using var document = System.Text.Json.JsonDocument.Parse(text);
-            return document.RootElement.TryGetProperty("type", out var type) && type.GetString() == "CityJSON";
+            using var stream = file.OpenRead();
+            return CityJsonReader.IsCityJson(stream);
         }
 
         private SolveResults ComputeLocalCityGmlSource(RequestData requestData)
@@ -560,7 +560,7 @@ namespace RhinoSpatial
         {
             var sourceFiles = (requestData.LocalSourcePaths ?? new[] { requestData.Source })
                 .SelectMany(source => EnumerateLocalCityJsonSourceFiles(source, requestData.SourceKind))
-                .Where(file => requestData.LocalSourcePaths is null || IsCityJsonDocument(file.ReadText())).ToList();
+                .Where(file => requestData.LocalSourcePaths is null || IsCityJsonSourceFile(file)).ToList();
             if (sourceFiles.Count == 0)
             {
                 return new SolveResults
@@ -579,8 +579,8 @@ namespace RhinoSpatial
                 CityJsonSourceMetadata metadata;
                 try
                 {
-                    var jsonText = sourceFile.ReadText();
-                    metadata = CityJsonReader.ReadSourceMetadata(jsonText);
+                    using var sourceStream = sourceFile.OpenRead();
+                    metadata = CityJsonReader.ReadSourceMetadata(sourceStream);
                 }
                 catch when (requestData.LocalSourcePaths is null)
                 {
@@ -660,15 +660,15 @@ namespace RhinoSpatial
             {
                 try
                 {
-                    var jsonText = candidate.File.ReadText();
+                    using var cityStream = candidate.File.OpenRead();
                     var displayName = string.IsNullOrWhiteSpace(requestData.LayerName)
                         ? candidate.File.DisplayName
                         : requestData.LayerName;
-                    returnedBuildings.AddRange(CityJsonReader.ReadBuildings(jsonText, displayName, requestBoundingBox));
+                    returnedBuildings.AddRange(CityJsonReader.ReadBuildings(cityStream, displayName, requestBoundingBox));
                     parsedFileCount++;
                     totalByteCount += candidate.File.ByteLength > 0
                         ? candidate.File.ByteLength
-                        : Encoding.UTF8.GetByteCount(jsonText);
+                        : 0;
                 }
                 catch
                 {
@@ -1160,7 +1160,8 @@ namespace RhinoSpatial
         {
             var extension = Path.GetExtension(fileName);
             return extension.Equals(".json", StringComparison.OrdinalIgnoreCase) ||
-                   extension.Equals(".cityjson", StringComparison.OrdinalIgnoreCase);
+                   extension.Equals(".cityjson", StringComparison.OrdinalIgnoreCase) ||
+                   extension.Equals(".jsonl", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool LocalSourceContainsCityJson(string source, Lod2SourceKind sourceKind)

@@ -15,6 +15,10 @@ namespace RhinoSpatial.Sandbox
                 catch (Exception ex) { Console.Error.WriteLine(ex.Message); Environment.ExitCode = 1; }
                 return;
             }
+            if (args.Length > 0 && args[0].Equals("medium-probe", StringComparison.OrdinalIgnoreCase))
+            { await MediumCompatibilityProbe.RunAsync(args); return; }
+            if (args.Length > 0 && args[0].Equals("medium-compatibility-check", StringComparison.OrdinalIgnoreCase))
+            { await MediumCompatibilityChecks.RunAsync(); return; }
             if (args.Length > 0 && args[0].Equals("source-compatibility-check", StringComparison.OrdinalIgnoreCase))
             {
                 await SourceCompatibilityChecks.RunAsync();

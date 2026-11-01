@@ -2,7 +2,7 @@
 
 Reviewed RhinoSpatial 0.4.0 at `2bd239ee409fdb06f2aa49aa81c2cffbcc1d2be5` against official provider and format documentation. This is a code/documentation audit, not a live reproduction of every provider failure. Priorities are recommendations; no runtime behavior was changed.
 
-Implementation of priorities 1–5 is tracked in the [implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) and [example guide](../examples/COMPATIBILITY_WORKFLOWS.md). The evidence below describes the audited 0.4.0 baseline, before those changes.
+Implementation of priorities 1–5 is tracked in the [implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) and [example guide](../examples/COMPATIBILITY_WORKFLOWS.md). Priorities 6–8 are implemented in the [medium-priority follow-up](MEDIUM_COMPATIBILITY_PLAN.md), with [saved examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md). Priorities 9–10 remain later work. The evidence below describes the audited 0.4.0 baseline, before those changes.
 
 ## Highest-value improvements
 

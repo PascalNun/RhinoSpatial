@@ -6,7 +6,7 @@ namespace RhinoSpatial.Core
 {
     public static class GeoTiffInfoCache
     {
-        private readonly record struct CacheKey(long FileSizeBytes, long LastWriteUtcTicks);
+        private readonly record struct CacheKey(long FileSizeBytes, long LastWriteUtcTicks, string Sidecars);
 
         private readonly record struct CacheEntry(CacheKey Key, GeoReferencedRasterInfo RasterInfo);
 
@@ -15,7 +15,7 @@ namespace RhinoSpatial.Core
         public static GeoReferencedRasterInfo GetOrRead(string filePath)
         {
             var fileInfo = new FileInfo(filePath);
-            var key = new CacheKey(fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks);
+            var key = new CacheKey(fileInfo.Length, fileInfo.LastWriteTimeUtc.Ticks, RasterSidecars.Signature(filePath));
 
             if (EntriesByPath.TryGetValue(filePath, out var cachedEntry) && cachedEntry.Key.Equals(key))
             {

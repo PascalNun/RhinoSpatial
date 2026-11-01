@@ -19,7 +19,7 @@ namespace RhinoSpatial.Core
         private const int MaximumDirectoryFileCount = 256;
         private static readonly string[] SupportedFileExtensions =
         {
-            ".tif", ".tiff", ".shp", ".geojson", ".json", ".cityjson",
+            ".tif", ".tiff", ".shp", ".geojson", ".json", ".cityjson", ".jsonl", ".png", ".jpg", ".jpeg",
             ".gml", ".xml", ".asc", ".xyz", ".csv", ".zip"
         };
 
@@ -118,15 +118,23 @@ namespace RhinoSpatial.Core
             var extension = Path.GetExtension(filePath).ToLowerInvariant();
             return extension switch
             {
-                ".tif" or ".tiff" => ReadGeoTiff(filePath),
+                ".tif" or ".tiff" or ".png" or ".jpg" or ".jpeg" => ReadGeoTiff(filePath),
                 ".shp" => ReadShapefile(filePath, fallbackSrs),
                 ".geojson" => ReadJson(File.ReadAllText(filePath), "GeoJSON", fallbackSrs),
+                ".jsonl" => ReadCityJsonSequence(filePath, fallbackSrs),
                 ".json" or ".cityjson" => ReadJson(File.ReadAllText(filePath), "JSON", fallbackSrs),
                 ".gml" or ".xml" => ReadGml(filePath, fallbackSrs),
                 ".asc" or ".xyz" or ".csv" => ReadTerrainText(filePath, fallbackSrs),
                 ".zip" => ReadZip(filePath, fallbackSrs),
                 _ => throw new InvalidOperationException($"Unsupported reference source file type: {extension}")
             };
+        }
+
+        private static ReferenceSourceMetadata ReadCityJsonSequence(string filePath, string fallbackSrs)
+        {
+            using var stream = File.OpenRead(filePath);
+            var metadata = CityJsonReader.ReadSourceMetadata(stream);
+            return Create("CityJSONSeq", string.IsNullOrWhiteSpace(metadata.SrsName) ? fallbackSrs : metadata.SrsName, metadata.BoundingBox, 1);
         }
 
         private static ReferenceSourceMetadata ReadGeoTiff(string filePath)
@@ -218,6 +226,7 @@ namespace RhinoSpatial.Core
                            extension.Equals(".xml", StringComparison.OrdinalIgnoreCase) ||
                            extension.Equals(".json", StringComparison.OrdinalIgnoreCase) ||
                            extension.Equals(".cityjson", StringComparison.OrdinalIgnoreCase) ||
+                           extension.Equals(".jsonl", StringComparison.OrdinalIgnoreCase) ||
                            extension.Equals(".geojson", StringComparison.OrdinalIgnoreCase);
                 })
                 .Take(MaximumDirectoryFileCount)
@@ -243,6 +252,8 @@ namespace RhinoSpatial.Core
                         continue;
                     }
 
+                    if(extension.Equals(".jsonl",StringComparison.OrdinalIgnoreCase))
+                    { var m=CityJsonReader.ReadSourceMetadata(stream);metadata.Add(Create("CityJSONSeq",string.IsNullOrWhiteSpace(m.SrsName)?fallbackSrs:m.SrsName,m.BoundingBox,1));continue; }
                     using var reader = new StreamReader(stream);
                     metadata.Add(ReadJson(reader.ReadToEnd(), "JSON", fallbackSrs));
                 }

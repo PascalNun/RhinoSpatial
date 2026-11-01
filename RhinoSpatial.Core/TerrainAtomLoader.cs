@@ -80,7 +80,9 @@ public static class TerrainRasterMosaic
             throw new InvalidDataException("Terrain window has fewer than 2x2 or more than four million samples; adjust the selected area.");
         var samples = new float[width * height];
         for (var row = 0; row < height; row++) Array.Copy(raster.Elevations, (row + y0) * raster.Width + x0, samples, row * width, width);
-        return raster with { Width = width, Height = height, Origin = new Coordinate2D(raster.Origin.X + x0 * raster.OffsetVectorX.X, raster.Origin.Y + y0 * raster.OffsetVectorY.Y), Elevations = samples };
+        var geo = raster.GeoTransform;
+        if (geo is not null) { var corner=geo.At(x0,y0); geo=geo with {C=corner.X,F=corner.Y}; }
+        return raster with { GeoTransform=geo, Width = width, Height = height, Origin = new Coordinate2D(raster.Origin.X + x0 * raster.OffsetVectorX.X, raster.Origin.Y + y0 * raster.OffsetVectorY.Y), Elevations = samples };
     }
 
     public static TerrainRasterData Merge(IReadOnlyList<TerrainRasterData> rasters, CancellationToken cancellationToken = default)

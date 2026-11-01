@@ -83,7 +83,7 @@ public static class Lod2AtomFeedReader
         var type = ((string?)link.Attribute("type") ?? "").ToLowerInvariant();
         var href = ((string?)link.Attribute("href") ?? "").Split('?', '#')[0];
         return (relation == "enclosure" && !type.Contains("atom+xml")) || type.Contains("zip") || type.Contains("gmz") || type.Contains("7z") ||
-               new[] { ".zip", ".gmz", ".7z", ".gz", ".tar", ".rar", ".cityjson", ".json", ".geojson", ".gml", ".citygml", ".asc", ".xyz", ".csv", ".tif", ".tiff" }.Any(extension => href.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
+               new[] { ".zip", ".gmz", ".7z", ".gz", ".tar", ".rar", ".cityjson", ".jsonl", ".json", ".geojson", ".gml", ".citygml", ".asc", ".xyz", ".csv", ".tif", ".tiff" }.Any(extension => href.EndsWith(extension, StringComparison.OrdinalIgnoreCase));
     }
 
     public static Uri ResolveUrl(XElement link, Uri source)

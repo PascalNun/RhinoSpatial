@@ -22,7 +22,7 @@ namespace RhinoSpatial
             double elevationBase)
         {
             var key = RhinoSpatialContextTools.CreateSpatialContextKey(spatialContext);
-            EntriesByContext[key] = new Entry(terrainSrs, boundingBox, raster, elevationBase);
+            EntriesByContext[key] = new Entry(raster.GeoTransform is null ? terrainSrs : raster.SrsName, raster.GeoTransform?.Bounds(raster.Width,raster.Height) ?? boundingBox, raster, elevationBase);
         }
 
         public static bool TrySamplePlacedElevation(
@@ -81,6 +81,12 @@ namespace RhinoSpatial
 
             var gridX = (x - entry.BoundingBox.MinX) / spanX * (raster.Width - 1);
             var gridY = (entry.BoundingBox.MaxY - y) / spanY * (raster.Height - 1);
+
+            if (raster.GeoTransform is { } geo)
+            {
+                var pixel=geo.Pixel(x,y); gridX=pixel.X-0.5; gridY=pixel.Y-0.5;
+                if(gridX<0 || gridY<0 || gridX>raster.Width-1 || gridY>raster.Height-1) return false;
+            }
 
             var x0 = Math.Clamp((int)Math.Floor(gridX), 0, raster.Width - 1);
             var y0 = Math.Clamp((int)Math.Floor(gridY), 0, raster.Height - 1);

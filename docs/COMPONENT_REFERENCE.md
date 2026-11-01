@@ -65,8 +65,8 @@ The component returns one `Spatial Context` output for all aligned source and vi
 Supported reference metadata includes:
 
 - WFS, WMS, and WCS service URLs
-- OGC API Features landing/collection metadata and ATOM feed coverage (Unreleased)
-- GeoTIFF
+- OGC API Features landing/collection metadata, ATOM feed coverage and WMTS capabilities (Unreleased)
+- GeoTIFF and supported world-file TIFF/PNG/JPEG imagery
 - Shapefile
 - GeoJSON
 - CityJSON
@@ -105,7 +105,7 @@ Public interface:
 
 ### List WMS Layers
 
-Connect a WMS service URL to inspect its requestable map layers. Use `List Item` to choose the layer needed by `Load WMS`.
+Connect a WMS service URL or WMTS capabilities URL to inspect its imagery layers. Use `List Item` to choose the layer needed by `Load WMS`.
 
 Public interface:
 
@@ -173,7 +173,9 @@ Use `Load WMS` for orthophotos, aerial imagery, map layers, and raster overlays 
 3. Define the area with `Spatial Context`.
 4. Connect the WMS URL, layer, format, and context to `Load WMS`.
 
-One component requests one WMS layer. Use several components when multiple image layers should remain explicit.
+WMTS is also accepted through these existing components. Use a WMTS capabilities URL with `List WMS Layers` and `Load WMS`; the selected layer uses advertised matrix sets, styles, dimensions and PNG/JPEG formats. `GetMap URL` returns the tile request URLs in WMTS mode. Runtime status reports the selected matrix, resolution, native CRS and tile count.
+
+One component requests one WMS/WMTS layer. Use several components when multiple image layers should remain explicit.
 
 Public inputs:
 
@@ -195,11 +197,13 @@ When a layer does not support the context's primary SRS but advertises another c
 
 WMS 1.3 geographic requests use the authority axis order required by the standard.
 
+WMTS supports KVP GetTile and advertised REST templates. It chooses a resolution near a 1024-pixel study view within 64 tiles and 4,194,304 mosaic pixels (8192 per axis). Limits are 4 MiB per tile, 64 MiB per batch and two minutes per mosaic. Matrix limits and geographic axis order are respected; unsupported CRS, ambiguous dimensions and failed required tiles return explicit errors. Dimension defaults are used; an explicit source-URL query value can select a dimension without a new component parameter. Completed PNG mosaics persist under `RhinoSpatial/WmtsCache`, expire after one day, and are checked against SHA-256 before reuse. Delete the cache while idle to reclaim space. No partial mosaic is published after a required tile failure.
+
 ## Load GeoTIFF: local georeferenced rasters
 
 Use `Load GeoTIFF` for a local georeferenced image such as an orthophoto, map export, satellite image, or other raster that should align with the selected study area.
 
-Connect a `.tif` or `.tiff` path and the shared `Spatial Context`.
+Connect a `.tif`/`.tiff`, `.png`, `.jpg` or `.jpeg` path and the shared `Spatial Context`. PNG/JPEG and ordinary TIFF need a matching world file (`.pgw`, `.jgw`, `.tfw`, long-extension variants or `.wld`) and a resolvable `.prj` unless usable geospatial metadata is embedded.
 
 Public inputs:
 
@@ -214,6 +218,8 @@ Outputs include:
 - a status message.
 
 The file must contain readable geospatial metadata. If RhinoSpatial cannot determine the coordinate system or the raster does not overlap the selected context, it returns a clear warning rather than guessing a placement.
+
+Embedded TIFF georeferencing takes priority. The reader supports finite invertible affine transforms, including rotation, shear and reflection. World-file coefficients refer to pixel centers; GeoTIFF PixelIsArea/PixelIsPoint conventions are honored. Reference extents use all four footprint corners. A bounded mesh grid projects the actual footprint through the shared context, clips it with interpolated UVs, and localizes it without stretching the image over its bounding rectangle. Sidecar changes invalidate cached metadata and component results. A world file without a resolvable CRS fails explicitly.
 
 ## Load Terrain: elevation and ground surfaces
 
@@ -237,6 +243,8 @@ Public inputs:
 Outputs are the aligned `Terrain` mesh list and a `Status` message.
 
 `Coverage` identifies a WCS coverage where required. For local text grids it can also provide an EPSG override such as `EPSG:25832`; otherwise RhinoSpatial uses the current context SRS.
+
+GeoTIFF terrain vertices use the same affine pixel centers as imagery, and cached elevation sampling inverts that transform. Rotated local DEMs are supported; terrain ATOM mosaics still require compatible north-up grids and reject other grids explicitly.
 
 Terrain coordinates are transformed from the source SRS into the shared context before localization, including when the source uses a different projected CRS. Unsupported transformations and non-overlapping WCS coverage return explicit errors. Missing elevation samples leave holes in the surface, including during downsampling; RhinoSpatial does not replace them with zero-height terrain. A raster without connected usable cells returns an error.
 
@@ -282,7 +290,7 @@ Tile selection supports GeoRSS Simple boxes/polygons and GeoRSS GML envelopes, i
 
 Some feeds, including Berlin's, publish a single dataset extent and many download links. These require additional tile information. The supported grid convention is a declared square grid size, an EPSG:25832 or EPSG:25833 category, an enclosing geographic extent, and filenames ending in `_EEE_NNNN` with southwest UTM coordinates in kilometres. Berlin buildings explicitly link a `1x1 Km` tile index; terrain uses a declared `2x2 Km` index. Coarse enclosing coverage allows a one-declared-tile margin for edge/buffer tiles; distant contradictory grids are rejected. This rule depends on metadata and the supported naming convention, not the service hostname. Arbitrary numeric filenames or whole-dataset bounds are never sufficient on their own. A feed with missing, ambiguous or unsupported spatial metadata returns a limitation before downloading building archives. Start from the service feed so its enclosing extent remains available.
 
-ATOM and direct building download URLs support CityGML (`.gml`, `.citygml`, `.xml`) and CityJSON (`.json`, `.cityjson`), including ZIP/GMZ containers. Downloaded CityJSON must declare `metadata.referenceSystem`; sequences and geometry templates are not added by this batch. Local CityJSON/file/folder/ZIP workflows remain supported. Downloaded CityGML must declare a source CRS that can transform into the context; no guessed CRS or approximate bounding-box placement is used. Standard AdV names such as `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH` resolve to UTM XY; published heights are retained without a vertical-datum conversion.
+ATOM and direct building download URLs support CityGML (`.gml`, `.citygml`, `.xml`) and CityJSON (`.json`, `.cityjson`), including ZIP/GMZ containers. Downloaded CityJSON/CityJSONSeq must declare the header `metadata.referenceSystem`. Standard CityJSONSeq (`.city.jsonl` / `.jsonl`) and affine row-major GeometryInstance templates are supported. Local CityJSON/file/folder/ZIP workflows remain supported. Downloaded CityGML must declare a source CRS that can transform into the context; no guessed CRS or approximate bounding-box placement is used. Standard AdV names such as `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH` resolve to UTM XY; published heights are retained without a vertical-datum conversion.
 
 Use a building dataset, not a terrain feed: Berlin's `/data/a_lod2/atom/` supplies LoD2 buildings, while `/data/dgm1/atom/` supplies CSV terrain grids. Explicit CSV/raster download MIME types are rejected before grid selection with a source-format explanation. Use the DGM1 feed directly with `Load Terrain`; its terrain-specific parser and mosaic path are separate from the building reader.
 
@@ -291,6 +299,12 @@ Completed ZIPs persist in the user's local application-data folder under `RhinoS
 The component displays tile/download progress while working. `Status` reports selected tile filenames, downloaded and cached counts, cache location, parsed buildings, source CRS and conversion diagnostics. A failed required download or CityGML parse returns an error rather than presenting a partial area as complete.
 
 Limits are 64 feeds, 8 subfeed levels, 50,000 download entries and 32 selected tiles per solution; 512 MiB compressed per archive, 256 MiB per expanded file and 1 GiB total expanded per archive. Feed requests time out after 30 seconds, discovery after two minutes, individual downloads after three minutes and the download batch after five minutes. Reduce the study area or use a more specific spatially indexed feed if a limit is reached. ATOM feed coverage and native CRS are supported by `Spatial Context → Reference Source`. Use a service feed containing coverage; a dataset feed lacking coverage reports that limitation. Reference processing reads feed metadata without downloading archives. Saved map selections retain priority.
+
+### CityJSON detail, templates and sequences
+
+For each CityObject, import all geometry parts at one selected numeric LoD: the highest at or below 2.2, or the lowest higher value if none is available below that threshold. Geometry without any LoD retains legacy behavior; mixing declared and unspecified levels fails because a complete representation cannot be chosen safely. Hierarchy-wide LoD selection and material/texture import are not added.
+
+CityJSONSeq records are streamed with independent vertex indices and shared header transform, CRS and templates. GeometryInstance vertices use the declared matrix followed by the transformed reference-point anchor; template vertices are not quantized a second time. Invalid indices, duplicate building ids, malformed later records and unsupported selected primitives fail explicitly. Limits are 64 × 1024² characters per record, 512 × 1024² stream characters, 100,000 returned building objects and four million selected source surface points. Local/ZIP/direct downloads use the same reader. Reference metadata can stop at a declared header extent without constructing geometry. See the [medium-priority examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md).
 
 ### Filtering and performance
 

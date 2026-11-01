@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
 using RhinoSpatial.Core;
@@ -26,7 +27,7 @@ namespace RhinoSpatial
 
         public WmsListLayersComponent()
             : base("List WMS Layers", "WMS Layers",
-                "List available layers from a WMS GetCapabilities response.",
+                "List WMS layers or WMTS imagery layers from capabilities.",
                 "RhinoSpatial", "Layers")
         {
         }
@@ -35,7 +36,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WMS Service URL", "WMS URL", "Base URL of the WMS service.", GH_ParamAccess.item);
+            pManager.AddTextParameter("WMS Service URL", "WMS URL", "WMS service URL or WMTS capabilities URL.", GH_ParamAccess.item);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -115,7 +116,9 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var layers = _wmsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult();
+            var wmts=new WmtsClient().TryLoadCapabilitiesAsync(requestData.BaseUrl,CancelToken).GetAwaiter().GetResult();
+            var layers=wmts is null ? _wmsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult()
+                : wmts.Layers.Select(l=>new WmsLayerInfo(l.Id,l.Title,l.Links.Where(link=>wmts.Sets.ContainsKey(link.Set)).Select(link=>wmts.Sets[link.Set].Srs).ToList(),l.Wgs84Bounds)).ToList();
 
             return new SolveResults
             {

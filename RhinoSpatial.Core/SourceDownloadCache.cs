@@ -37,7 +37,7 @@ internal sealed class LimitedReadStream : Stream
 public sealed class SourceDownloadCache
 {
     private static readonly HttpClient SharedHttp = new() { Timeout = Timeout.InfiniteTimeSpan };
-    private static readonly string[] Extensions = { ".zip", ".geojson", ".cityjson", ".gml", ".tif", ".asc", ".csv" };
+    private static readonly string[] Extensions = { ".zip", ".geojson", ".cityjson", ".jsonl", ".gml", ".tif", ".asc", ".csv" };
     private readonly HttpClient _http;
     private readonly string _directory;
     private readonly AtomDownloadKind _kind;
@@ -141,7 +141,7 @@ public sealed class SourceDownloadCache
                 }
                 var candidate = kind switch
                 {
-                    AtomDownloadKind.Buildings => extension is ".gml" or ".citygml" or ".xml" or ".json" or ".cityjson" or ".geojson",
+                    AtomDownloadKind.Buildings => extension is ".gml" or ".citygml" or ".xml" or ".json" or ".cityjson" or ".jsonl" or ".geojson",
                     AtomDownloadKind.Terrain => extension is ".tif" or ".tiff" or ".asc" or ".xyz" or ".csv",
                     _ => extension is ".json" or ".geojson"
                 };
@@ -149,7 +149,7 @@ public sealed class SourceDownloadCache
                 await using var stream = new LimitedReadStream(entry.Open(), entry.Length);
                 if (kind == AtomDownloadKind.Buildings && extension is ".gml" or ".citygml" or ".xml")
                 { if (await IsBuildingXmlAsync(stream, token).ConfigureAwait(false)) supported++; }
-                else if (extension is ".json" or ".geojson" or ".cityjson")
+                else if (extension is ".json" or ".geojson" or ".cityjson" or ".jsonl")
                 { if (await IsSupportedJsonAsync(stream, kind, token).ConfigureAwait(false)) supported++; }
                 else
                 {
@@ -190,15 +190,10 @@ public sealed class SourceDownloadCache
 
     private static async Task<bool> IsSupportedJsonAsync(Stream input, AtomDownloadKind kind, CancellationToken token)
     {
+        if (kind == AtomDownloadKind.Buildings) return CityJsonReader.Validate(input, requireCrs: true, cancellationToken: token);
         using var document = await JsonDocument.ParseAsync(input, cancellationToken: token).ConfigureAwait(false);
         var root = document.RootElement;
         if (!root.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String) return false;
-        if (kind == AtomDownloadKind.Buildings && type.GetString() == "CityJSON")
-        {
-            if (!root.TryGetProperty("metadata", out var meta) || !meta.TryGetProperty("referenceSystem", out _))
-                throw new InvalidDataException("Downloaded CityJSON must declare its source CRS in metadata.referenceSystem.");
-            return root.TryGetProperty("CityObjects", out _) && root.TryGetProperty("vertices", out _);
-        }
         return kind == AtomDownloadKind.Vector && type.GetString() is "FeatureCollection" or "Feature";
     }
     private static async Task<bool> IsBuildingXmlAsync(Stream input, CancellationToken token)

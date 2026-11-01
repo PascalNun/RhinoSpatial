@@ -975,6 +975,100 @@
           447750.636
         ]
       }
+    },
+    {
+      "id": "wmts-pdok-ortho25",
+      "type": "WMTS",
+      "purpose": "Projected native WMTS selection, JPEG decoding, mosaic and shared image placement",
+      "url": "https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0?SERVICE=WMTS&REQUEST=GetCapabilities",
+      "layer": "2025_ortho25",
+      "matrix_set": "EPSG:28992",
+      "matrix": "13",
+      "context": {
+        "srs": "EPSG:28992",
+        "bbox": [
+          84600,
+          447400,
+          85200,
+          447900
+        ]
+      },
+      "notes": [
+        "Live: 19 layers and six supported matrix sets; 36 JPEG tiles at 0.42 m/pixel, 1536 x 1536 PNG mosaic, clipped Core mesh 512 triangles.",
+        "Use List WMS Layers / Load WMS with the same capabilities URL. Map-helper users can select Delft in EPSG:3857.",
+        "Mosaic continuity inspected; Rhino textures/alignment and Windows runtime pending."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "cityjson-cjio-multi-lod",
+      "type": "CityJSON parser fixture",
+      "purpose": "Public multi-LoD selection reference",
+      "url": "https://raw.githubusercontent.com/cityjson/cjio/master/tests/data/multi_lod.json",
+      "notes": [
+        "Parsed 10 buildings and 348 selected surfaces at LoD 2.2.",
+        "No declared CRS: parser-only evidence, not verified placement; direct downloader correctly requires CRS metadata."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "cityjson-medium-local-examples",
+      "type": "CityJSON / CityJSONSeq",
+      "purpose": "Self-contained declared-CRS LoD, template and sequence examples",
+      "url": null,
+      "paths": [
+        "fixtures/medium/building-lods.city.json",
+        "fixtures/medium/building-sequence.city.jsonl",
+        "fixtures/medium/building-template.city.json"
+      ],
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          391296,
+          5820096,
+          391314,
+          5820110
+        ]
+      },
+      "notes": [
+        "Synthetic Berlin-coordinate examples, not real project buildings. Each parses as one building / six surfaces at LoD 2.2.",
+        "Connect directly to Load LoD2 Buildings, Layer empty. A local path can also orient Reference Source."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "raster-medium-affine-local",
+      "type": "World-file raster",
+      "purpose": "Rotated/sheared image footprint, pixel-center and UV example",
+      "url": null,
+      "path": "fixtures/medium/rotated-raster.png",
+      "sidecars": [
+        "fixtures/medium/rotated-raster.pgw",
+        "fixtures/medium/rotated-raster.prj"
+      ],
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          391296,
+          5820096,
+          391314,
+          5820110
+        ]
+      },
+      "notes": [
+        "Synthetic 4 x 4 colored PNG; keep both sidecars alongside it.",
+        "Pixel (0,0) center 391300,5820106; column vector (2,0.5), row vector (1,-2).",
+        "Connect to existing Load GeoTIFF. Core mesh produced 512 triangles; native Rhino validation pending."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
     }
   ]
 }

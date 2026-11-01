@@ -38,21 +38,24 @@ namespace RhinoSpatial.Core
                 ReadScanlineRaster(tiff, width, height, bitsPerSample, sampleFormat, elevations);
             }
 
-            var origin = new Coordinate2D(0, 0);
-            var offsetX = new Coordinate2D(1, 0);
-            var offsetY = new Coordinate2D(0, -1);
+            GeoReferencedRasterInfo? geo=null;
+            try { geo=GeoTiffReader.ReadImageInfo(filePath,srsName); }
+            catch (InvalidDataException) when (tiff.GetField(TiffTag.GEOTIFF_MODELPIXELSCALETAG) is null && tiff.GetField(TiffTag.GEOTIFF_MODELTRANSFORMATIONTAG) is null) { }
+            var origin = geo?.GeoTransform?.At(0.5,0.5) ?? new Coordinate2D(0, 0);
+            var offsetX = geo?.GeoTransform is { } gx ? new Coordinate2D(gx.A,gx.D) : new Coordinate2D(1,0);
+            var offsetY = geo?.GeoTransform is { } gy ? new Coordinate2D(gy.B,gy.E) : new Coordinate2D(0,-1);
             var noData = ReadNoDataValue(tiff);
 
             return new TerrainRasterData(
                 coverageId,
-                srsName,
+                geo?.SrsName ?? srsName,
                 width,
                 height,
                 origin,
                 offsetX,
                 offsetY,
                 noData,
-                elevations);
+                elevations) { GeoTransform=geo?.GeoTransform };
         }
 
         private static void ReadScanlineRaster(

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using GH_IO.Serialization;
 using Grasshopper.Kernel;
@@ -55,7 +56,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("GeoTIFF File", "GeoTIFF", "Path to a georeferenced GeoTIFF raster file.", GH_ParamAccess.item);
+            pManager.AddTextParameter("GeoTIFF File", "GeoTIFF", "Path to a GeoTIFF or TIFF/PNG/JPEG with a world file and resolvable .prj CRS.", GH_ParamAccess.item);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
         }
 
@@ -165,8 +166,8 @@ namespace RhinoSpatial
             {
                 return new SolveResults
                 {
-                    Status = $"The GeoTIFF could not be aligned from '{rasterInfo.SrsName}' into the current Spatial Context SRS '{requestData.SpatialContext.ResolvedSrs}'.",
-                    MessageLevel = GH_RuntimeMessageLevel.Error
+                    Status = "The raster footprint does not overlap the selected Spatial Context.",
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
                 };
             }
 
@@ -272,112 +273,20 @@ namespace RhinoSpatial
             dataAccess.SetData(3, result.Status);
         }
 
-        private static bool TryCreateImageMesh(
-            GeoReferencedRasterInfo rasterInfo,
-            SpatialContext2D spatialContext,
-            out Mesh imageMesh,
-            out BoundingBox2D transformedBoundingBox,
-            out bool clippedToSpatialContext,
-            out double overlapRatio)
+        internal static bool TryCreateImageMesh(
+            GeoReferencedRasterInfo rasterInfo, SpatialContext2D spatialContext,
+            out Mesh imageMesh, out BoundingBox2D transformedBoundingBox,
+            out bool clippedToSpatialContext, out double overlapRatio)
         {
-            imageMesh = new Mesh();
-            transformedBoundingBox = new BoundingBox2D(0.0, 0.0, 0.0, 0.0);
-            clippedToSpatialContext = false;
-            overlapRatio = 0.0;
-
-            var corners = new[]
-            {
-                new Coordinate2D(rasterInfo.BoundingBox.MinX, rasterInfo.BoundingBox.MinY),
-                new Coordinate2D(rasterInfo.BoundingBox.MaxX, rasterInfo.BoundingBox.MinY),
-                new Coordinate2D(rasterInfo.BoundingBox.MaxX, rasterInfo.BoundingBox.MaxY),
-                new Coordinate2D(rasterInfo.BoundingBox.MinX, rasterInfo.BoundingBox.MaxY)
-            };
-
-            var transformedCorners = new Point3d[4];
-            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
-            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
-
-            for (var index = 0; index < corners.Length; index++)
-            {
-                var sourceCorner = corners[index];
-                if (!SpatialReferenceTransform.TryTransformXY(
-                        rasterInfo.SrsName,
-                        spatialContext.ResolvedSrs,
-                        sourceCorner.X,
-                        sourceCorner.Y,
-                        out var x,
-                        out var y))
-                {
-                    return false;
-                }
-
-                transformedCorners[index] = new Point3d(x - offsetX, y - offsetY, 0.0);
-            }
-
-            transformedBoundingBox = BoundingBox2DFromPoints(transformedCorners);
-
-            var placedSpatialContextBoundingBox = RhinoSpatialContextTools.CreatePlacedBoundingBox(
-                spatialContext.PlacementBoundingBox,
-                spatialContext.PlacementOrigin,
-                spatialContext.UseAbsoluteCoordinates);
-
-            var fullArea = RhinoSpatialContextTools.CalculateBoundingBoxArea(transformedBoundingBox);
-            if (fullArea > 0.0 &&
-                RhinoSpatialContextTools.TryIntersectBoundingBoxes(
-                    transformedBoundingBox,
-                    placedSpatialContextBoundingBox,
-                    out var intersectionBoundingBox))
-            {
-                overlapRatio = RhinoSpatialContextTools.CalculateBoundingBoxArea(intersectionBoundingBox) / fullArea;
-                if (overlapRatio > 0.0 && overlapRatio < 0.999)
-                {
-                    clippedToSpatialContext = true;
-
-                    var minU = (float)((intersectionBoundingBox.MinX - transformedBoundingBox.MinX) / (transformedBoundingBox.MaxX - transformedBoundingBox.MinX));
-                    var maxU = (float)((intersectionBoundingBox.MaxX - transformedBoundingBox.MinX) / (transformedBoundingBox.MaxX - transformedBoundingBox.MinX));
-                    var minV = (float)((intersectionBoundingBox.MinY - transformedBoundingBox.MinY) / (transformedBoundingBox.MaxY - transformedBoundingBox.MinY));
-                    var maxV = (float)((intersectionBoundingBox.MaxY - transformedBoundingBox.MinY) / (transformedBoundingBox.MaxY - transformedBoundingBox.MinY));
-
-                    imageMesh = RhinoSpatialContextTools.CreateTexturedBoundingBoxMesh(
-                        intersectionBoundingBox,
-                        new Coordinate2D(0.0, 0.0),
-                        true,
-                        minU,
-                        minV,
-                        maxU,
-                        maxV);
-
-                    return true;
-                }
-            }
-
-            imageMesh = RhinoSpatialContextTools.CreateTexturedBoundingBoxMesh(
-                transformedBoundingBox,
-                new Coordinate2D(0.0, 0.0),
-                true,
-                0.0f,
-                0.0f,
-                1.0f,
-                1.0f);
-            return true;
-        }
-
-        private static BoundingBox2D BoundingBox2DFromPoints(IEnumerable<Point3d> points)
-        {
-            var minX = double.PositiveInfinity;
-            var minY = double.PositiveInfinity;
-            var maxX = double.NegativeInfinity;
-            var maxY = double.NegativeInfinity;
-
-            foreach (var point in points)
-            {
-                minX = Math.Min(minX, point.X);
-                minY = Math.Min(minY, point.Y);
-                maxX = Math.Max(maxX, point.X);
-                maxY = Math.Max(maxY, point.Y);
-            }
-
-            return new BoundingBox2D(minX, minY, maxX, maxY);
+            var data=RasterImageMeshBuilder.Build(rasterInfo,spatialContext);
+            imageMesh=new Mesh();
+            foreach(var p in data.Vertices) {imageMesh.Vertices.Add(p.X,p.Y,0);imageMesh.TextureCoordinates.Add((float)p.U,(float)p.V);}
+            foreach(var f in data.Faces) imageMesh.Faces.AddFace(f.A,f.B,f.C);
+            imageMesh.Normals.ComputeNormals();imageMesh.Compact();
+            transformedBoundingBox=data.Vertices.Count==0 ? new BoundingBox2D(0,0,0,0) :
+                new BoundingBox2D(data.Vertices.Min(p=>p.X),data.Vertices.Min(p=>p.Y),data.Vertices.Max(p=>p.X),data.Vertices.Max(p=>p.Y));
+            clippedToSpatialContext=data.CoverageRatio<0.999; overlapRatio=data.CoverageRatio;
+            return data.Faces.Count>0;
         }
 
         private static string BuildLargeRasterNote(GeoReferencedRasterInfo rasterInfo)
@@ -502,7 +411,7 @@ namespace RhinoSpatial
 
             return string.Create(
                 CultureInfo.InvariantCulture,
-                $"{fileInfo.FullName}|{fileInfo.Length}|{fileInfo.LastWriteTimeUtc.Ticks}|" +
+                $"{fileInfo.FullName}|{fileInfo.Length}|{fileInfo.LastWriteTimeUtc.Ticks}|{RasterSidecars.Signature(filePath)}|" +
                 $"{spatialContext.ResolvedSrs}|{spatialContext.UseAbsoluteCoordinates}|" +
                 $"{FormatBoundingBox(spatialContext.PlacementBoundingBox)}|" +
                 $"{FormatCoordinate(spatialContext.PlacementOrigin)}");

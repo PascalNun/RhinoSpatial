@@ -19,6 +19,7 @@ namespace RhinoSpatial
     public class WmsLoadComponent : GH_TaskCapableComponent<WmsLoadComponent.SolveResults>
     {
         private readonly WmsClient _wmsClient = new();
+        private readonly WmtsClient _wmtsClient = new();
         private Mesh? _previewMesh;
         private DisplayMaterial? _previewMaterial;
         private string? _previewImageFilePath;
@@ -51,8 +52,8 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WMS Service URL", "WMS URL", "Base URL of the WMS service. Leave empty to use the built-in fallback map/imagery source sequence.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Layer", "Layer", "Optional WMS layer name to request. Leave empty to let RhinoSpatial choose a usable requestable layer automatically.", GH_ParamAccess.item, string.Empty);
+            pManager.AddTextParameter("WMS Service URL", "WMS URL", "WMS service URL or WMTS capabilities URL. Leave empty to use the built-in fallback map/imagery source sequence.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Layer", "Layer", "Optional WMS or WMTS layer name to request. Leave empty to let RhinoSpatial choose a usable requestable layer automatically.", GH_ParamAccess.item, string.Empty);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component. No WFS inputs are required for the WMS workflow.", GH_ParamAccess.item);
             pManager.AddTextParameter("Format", "Format", "Requested image format.", GH_ParamAccess.item, "image/png");
 
@@ -329,6 +330,16 @@ namespace RhinoSpatial
 
         private SolveResults ComputeForSource(ResolvedImagerySource source, SpatialContext2D spatialContext, string format)
         {
+            var wmts=_wmtsClient.TryLoadCapabilitiesAsync(source.BaseUrl,CancelToken).GetAwaiter().GetResult();
+            if(wmts is not null)
+            {
+                var plan=WmtsClient.Plan(wmts,source.PreferredLayerName,spatialContext,format);
+                var image=_wmtsClient.DownloadAsync(plan,CancelToken).GetAwaiter().GetResult();
+                if(!LoadGeoTiffComponent.TryCreateImageMesh(image.Raster,spatialContext,out var mesh,out _,out _,out _))
+                    throw new InvalidOperationException("WMTS imagery does not overlap the selected Spatial Context.");
+                return new SolveResults { ImageFilePath=image.LocalFilePath, ImageMesh=mesh,
+                    GetMapUrl=string.Join(System.Environment.NewLine,plan.Tiles.Select(t=>t.Url)),Status=image.Status,MessageLevel=GH_RuntimeMessageLevel.Remark };
+            }
             var capabilities = _wmsClient.LoadCapabilitiesAsync(source.BaseUrl).GetAwaiter().GetResult();
             var resolvedLayer = ResolveLayerName(capabilities, source.PreferredLayerName);
             if (string.IsNullOrWhiteSpace(resolvedLayer.LayerName))

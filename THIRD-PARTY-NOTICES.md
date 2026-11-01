@@ -57,6 +57,22 @@ RhinoSpatial uses NetTopologySuite.IO.Esri.Shapefile to read local `.shp` vector
 
 RhinoSpatial uses SharpGLTF.Core to decode glTF/GLB tile content for the optional Google 3D Tiles reference viewer.
 
+### StbImageNext
+
+- Package: `StbImageNext`
+- Version: `1.0.0`
+- Project URL: [StbImageNext](https://github.com/StbSharp/StbImageNext)
+- Package metadata: [NuGet 1.0.0](https://www.nuget.org/packages/StbImageNext/1.0.0)
+- Declared license: Unlicense OR MIT
+- License texts: [Unlicense](https://licenses.nuget.org/Unlicense) or [MIT](https://licenses.nuget.org/MIT)
+- Package authors: StbImageSharpTeam; based on the stb image libraries
+
+RhinoSpatial uses the managed .NET Standard assembly for bounded PNG/JPEG tile
+decoding and local image-header metadata. It adds no native binaries or further
+package dependencies. Encoded WMTS mosaics preserve their source pixel colors
+and alpha; Google 3D Tiles are unaffected. The dependency is included in package
+inspection for this unreleased batch.
+
 ### ProjNET
 
 - Package: `ProjNET`

@@ -137,7 +137,7 @@ namespace RhinoSpatial.Core
                 ? throw new InvalidOperationException("The Shapefile .prj contains an unsupported CRS; no context-CRS assumption was used.") : normalized;
         }
 
-        private static string NormalizeKnownProjection(string projectionText)
+        public static string NormalizeKnownProjection(string projectionText)
         {
             var text = projectionText ?? string.Empty;
             try

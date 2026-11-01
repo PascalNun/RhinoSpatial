@@ -49,6 +49,9 @@ jobs:
       - name: Check source compatibility
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- source-compatibility-check
 
+      - name: Check medium-priority compatibility
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- medium-compatibility-check
+
       - name: Check 3D Tiles selection
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- tiles-selection-check
 

@@ -66,6 +66,12 @@ Core-placement checks; new interactive Rhino/Grasshopper and Windows validation
 remains pending. The older Delft-hosted CityJSON URL failed TLS in this batch;
 historical local-file results below remain historical results.
 
+## Unreleased medium-priority validation (2026-11-02)
+
+[The plan](MEDIUM_COMPATIBILITY_PLAN.md) and [example guide](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) record priorities 6–8 and exact inputs. `medium-compatibility-check` tests LoD selection, sequence headers/records/cancellation, instance matrices, invalid geometry, world files/CRS/cache invalidation, embedded affine/PixelIsPoint GeoTIFFs, image UV clipping/reprojection, terrain centers, projected/geographic WMTS, matrix limits, tile ordering/alpha, corruption, failures and metadata-only references. The suite uses temporary fixtures and no network.
+
+Live PDOK capabilities exposed 19 layers/six supported sets; bounded native EPSG:28992 imagery loaded 36 JPEG tiles at 0.42 m/pixel, yielding a 1536 × 1536 PNG and a 512-triangle clipped Core mesh. The mosaic was visually inspected for continuity, not in Rhino. The cjio multi-LoD fixture parsed ten buildings/348 selected surfaces at LoD 2.2; it lacks CRS metadata, so it is parser-only evidence. Bundled declared-CRS synthetic models/sequence/template each parsed one building/six surfaces, and the rotated PNG generated 512 Core triangles. New Rhino/Windows checks remain pending.
+
 ## Deterministic correctness regressions
 
 The source-reader checks generate temporary, non-private fixtures for ASCII corner/center origins, reference extents, optional NoData, wrapped/truncated/excess cell values, invalid headers, sparse and irregular XYZ grids, non-finite positions, GeoJSON null attributes, empty geometries, malformed points, and versioned EPSG names. They cover format behavior documented by [Esri](https://help.arcgis.com/en/arcgisdesktop/10.0/help/009t/009t0000000z000000.htm) and [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html).

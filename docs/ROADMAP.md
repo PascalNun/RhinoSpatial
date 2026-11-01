@@ -51,7 +51,7 @@ collection discovery, direct vector/building downloads, terrain ATOM and referen
 metadata. [The implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records
 validation and remaining work; [example recipes](../examples/COMPATIBILITY_WORKFLOWS.md)
 save tested URLs and bounds. Interactive Rhino/Windows checks remain before release.
-Priorities 6–10 remain follow-on work.
+The [medium-priority follow-up](MEDIUM_COMPATIBILITY_PLAN.md) implements priorities 6–8: CityJSON detail/sequence/templates, affine/world-file rasters and WMTS. Its [saved examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) include synthetic declared-CRS data and live PDOK imagery. Native Rhino/Windows validation remains; priorities 9–10 (remote COG and GeoPackage) remain later work.
 
 ## Now: real-use stabilization
 

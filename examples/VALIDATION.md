@@ -161,3 +161,17 @@ version/platform and actual results. These checks are pending for this batch:
 - [ ] ATOM/API references orient a fresh map without geometry downloads, while saved selections retain priority.
 - [ ] Direct GeoJSON, Shapefile ZIP and CityJSON URLs load; invalid CRS/companions return clear messages.
 - [ ] Repeat the relevant checks on Windows before a public release.
+
+
+## Unreleased medium-priority compatibility
+
+Use [MEDIUM_COMPATIBILITY_WORKFLOWS.md](MEDIUM_COMPATIBILITY_WORKFLOWS.md). These native checks remain pending:
+
+- [ ] Open existing definitions with unchanged GUIDs and parameter layouts on macOS and Windows.
+- [ ] Load each bundled CityJSON/sequence/template example: one six-surface building at the expected coordinates, with no alternate-LoD overlay.
+- [ ] Load the rotated PNG with both sidecars, compare its footprint to matching vectors, clip the study area, and verify UV orientation, alpha, preview and baking.
+- [ ] Edit a world file while keeping the raster unchanged; recompute and confirm both placement and reference extent update.
+- [ ] Verify embedded rotated/PixelIsPoint DEM alignment and cached OSM/building height sampling in localized and absolute modes.
+- [ ] List and load PDOK WMTS through existing WMS components, check the selected layer/matrix diagnostics and compare imagery to buildings/vectors in one context.
+- [ ] Confirm WMTS Reference Source reads capabilities without tile downloads and saved selections retain priority.
+- [ ] Cancel a tile batch and retry; confirm no partial image is presented and cached results remain usable.
