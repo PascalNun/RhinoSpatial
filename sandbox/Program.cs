@@ -9,6 +9,35 @@ namespace RhinoSpatial.Sandbox
     {
         static async Task Main(string[] args)
         {
+            if (args.Length > 0 && string.Equals(args[0], "lod2-atom-check", StringComparison.OrdinalIgnoreCase))
+            {
+                await Lod2AtomChecks.RunAsync();
+                return;
+            }
+
+            if (args.Length > 0 && string.Equals(args[0], "lod2atom", StringComparison.OrdinalIgnoreCase))
+            {
+                try { await Lod2AtomChecks.ProbeAsync(args); }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine(ex.Message);
+                    Environment.ExitCode = 1;
+                }
+                return;
+            }
+
+            if (args.Length > 0 && string.Equals(args[0], "source-reader-check", StringComparison.OrdinalIgnoreCase))
+            {
+                SourceReaderChecks.Run();
+                return;
+            }
+
+            if (args.Length > 0 && string.Equals(args[0], "terrain-mesh-check", StringComparison.OrdinalIgnoreCase))
+            {
+                TerrainMeshChecks.Run();
+                return;
+            }
+
             if (args.Length > 0 && string.Equals(args[0], "probe", StringComparison.OrdinalIgnoreCase))
             {
                 await RunProbeAsync(args);

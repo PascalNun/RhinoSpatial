@@ -28,7 +28,7 @@ RhinoSpatial can work with:
 - local Shapefile and GeoJSON project data
 - maps, orthophotos, and imagery from WMS or GeoTIFF
 - terrain from WCS, GeoTIFF DEM, Esri ASCII Grid, or XYZ/CSV grids
-- LoD2 buildings from WFS, CityGML, CityJSON, folders, or ZIP archives
+- LoD2 buildings from WFS, ATOM download feeds, CityGML, CityJSON, folders, or ZIP archives
 - lightweight OpenStreetMap context for buildings, roads, water, green areas, and rail
 - Google Photorealistic 3D Tiles as an optional visual reference layer
 
@@ -38,9 +38,9 @@ Public fallback sources make it easier to get oriented and try the workflow, whi
 
 The Google 3D Tiles component is an optional reference viewer. It requires your own Google Maps Platform API key and billing setup. It is intended for visual context—not as an editable, bakeable, exportable, or offline project-data source.
 
-## Early Stage Note
+## Current Release
 
-RhinoSpatial is still in active alpha development. Version `0.3.3-alpha` improves layer alignment, Google 3D Tiles behavior, Spatial Context reference sources, and compatibility across WFS, WMS, WCS, LoD2, and local files.
+Version **0.4.0** adds automatic LoD2 tile imports from supported ATOM feeds, including Berlin, with persistent download caching. It also recognizes AdV UTM32/UTM33 CRS names and corrects terrain placement, NoData handling, and local vector parsing. The macOS progress-update freeze encountered during testing is fixed.
 
 The complete planned source set is now present, but individual providers, coordinate systems, geometry types, and file metadata can still expose edge cases.
 
@@ -78,11 +78,11 @@ Food4Rhino listing:
 
 Rhino Package Manager:
 
-- Open Rhino 8, run `PackageManager`, enable **Include pre-releases**, search for `RhinoSpatial`, and install the package.
+- Open Rhino 8, run `PackageManager`, search for `RhinoSpatial`, and install the package.
 
 Current release package:
 
-- `RhinoSpatial-0.3.3-alpha.zip`
+- `RhinoSpatial-0.4.0.zip`
 
 ## Repository
 

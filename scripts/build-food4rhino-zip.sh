@@ -8,7 +8,7 @@ FRAMEWORK="net7.0"
 PLUGIN_BUILD_DIR="$ROOT_DIR/RhinoSpatial/bin/$CONFIGURATION/$FRAMEWORK"
 STAGING_DIR="$ROOT_DIR/package/staging/food4rhino"
 PROJECT_VERSION="$(sed -nE 's:.*<Version>([^<]+)</Version>.*:\1:p' "$ROOT_DIR/RhinoSpatial/RhinoSpatial.csproj" | head -n 1)"
-VERSION="${PROJECT_VERSION}-alpha"
+VERSION="$PROJECT_VERSION"
 ZIP_NAME="RhinoSpatial-${VERSION}.zip"
 
 dotnet build "$ROOT_DIR/RhinoSpatial.sln" -c "$CONFIGURATION"

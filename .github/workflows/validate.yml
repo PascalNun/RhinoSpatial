@@ -37,6 +37,15 @@ jobs:
       - name: Check reference sources
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- reference-source-check
 
+      - name: Check source readers
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- source-reader-check
+
+      - name: Check terrain meshes
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- terrain-mesh-check
+
+      - name: Check ATOM downloads and cache
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- lod2-atom-check
+
       - name: Check 3D Tiles selection
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- tiles-selection-check
 

@@ -115,7 +115,7 @@ namespace RhinoSpatial
             }
 
             var elevation = raster.Elevations[index];
-            if (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3)
+            if (TerrainMeshBuilder.IsNoData(raster, elevation))
             {
                 return null;
             }

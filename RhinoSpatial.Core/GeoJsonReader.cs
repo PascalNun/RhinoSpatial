@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 
 namespace RhinoSpatial.Core
@@ -34,22 +35,12 @@ namespace RhinoSpatial.Core
             var epsgIndex = name.LastIndexOf("EPSG", StringComparison.OrdinalIgnoreCase);
             if (epsgIndex >= 0)
             {
-                var digits = string.Empty;
-                for (var index = epsgIndex + 4; index < name.Length; index++)
+                var code = name[(epsgIndex + 4)..].Trim()
+                    .Split(new[] { ':', '/', '#' }, StringSplitOptions.RemoveEmptyEntries)
+                    .LastOrDefault();
+                if (!string.IsNullOrEmpty(code) && code.All(char.IsAsciiDigit))
                 {
-                    if (char.IsDigit(name[index]))
-                    {
-                        digits += name[index];
-                    }
-                    else if (digits.Length > 0)
-                    {
-                        break;
-                    }
-                }
-
-                if (!string.IsNullOrWhiteSpace(digits))
-                {
-                    return $"EPSG:{digits}";
+                    return $"EPSG:{code}";
                 }
             }
 
@@ -100,6 +91,10 @@ namespace RhinoSpatial.Core
         private static Dictionary<string, string?> ReadAttributes(JsonElement propertiesElement)
         {
             var attributes = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+            if (propertiesElement.ValueKind == JsonValueKind.Null)
+            {
+                return attributes;
+            }
 
             foreach (var property in propertiesElement.EnumerateObject())
             {
@@ -128,6 +123,10 @@ namespace RhinoSpatial.Core
             }
 
             var geometryType = geometryElement.GetProperty("type").GetString() ?? "Unknown";
+            if (coordinatesElement.ValueKind == JsonValueKind.Array && coordinatesElement.GetArrayLength() == 0)
+            {
+                return new WfsGeometry { Type = geometryType };
+            }
 
             return geometryType switch
             {
@@ -248,7 +247,7 @@ namespace RhinoSpatial.Core
         {
             if (pointElement.GetArrayLength() < 2)
             {
-                return new Coordinate2D(0, 0);
+                throw new InvalidOperationException("A GeoJSON point must contain at least two coordinates.");
             }
 
             return new Coordinate2D(pointElement[0].GetDouble(), pointElement[1].GetDouble());

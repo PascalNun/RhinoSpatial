@@ -1,0 +1,28 @@
+name: Bug report
+description: Report a loading, alignment, geometry or interface problem.
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versions and component
+      description: RhinoSpatial version, Rhino version, operating system and affected component.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps and source
+      description: How can we reproduce this? Include a public source URL or a small non-private file, study area and SRS where possible. Do not share API keys or private project data.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Status output and screenshots
+      description: Paste the component's full Status message and relevant screenshots, with secrets removed.

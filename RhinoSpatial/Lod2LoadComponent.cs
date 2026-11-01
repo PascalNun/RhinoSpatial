@@ -6,6 +6,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using GH_IO.Serialization;
 using Grasshopper.Kernel;
@@ -20,6 +21,7 @@ namespace RhinoSpatial
     {
         private const double DefaultRequestBufferMeters = 25.0;
         private readonly WfsClient _wfsClient = new();
+        private readonly Lod2AtomClient _atomClient = new();
 
         public class SolveResults
         {
@@ -41,6 +43,8 @@ namespace RhinoSpatial
             public SpatialContext2D SpatialContext { get; init; } = null!;
 
             public Lod2SourceKind SourceKind { get; init; }
+
+            public IReadOnlyList<string>? LocalSourcePaths { get; init; }
         }
 
         private sealed record LocalCityGmlCandidate(
@@ -103,9 +107,9 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("LoD2 Source", "LoD2 Source", "LoD2 source URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Layer", "Layer", "Optional LoD2 building layer name for WFS sources, or local layer label for file/folder/ZIP sources.", GH_ParamAccess.item, string.Empty);
-            pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. LoD2 requests use EPSG:7423/4326 internally, so any Spatial Context created from the map helper will align correctly.", GH_ParamAccess.item);
+            pManager.AddTextParameter("LoD2 Source", "LoD2 Source", "LoD2 WFS or ATOM service URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Layer", "Layer", "Optional LoD2 building layer name for WFS sources, or output label for ATOM/local sources.", GH_ParamAccess.item, string.Empty);
+            pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial study area used to select, filter and align LoD2 buildings.", GH_ParamAccess.item);
 
             pManager[0].Optional = true;
             pManager[1].Optional = true;
@@ -141,15 +145,18 @@ namespace RhinoSpatial
 
                 if (InPreSolve)
                 {
-                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData), CancelToken);
+                    var cancellationToken = CancelToken;
+                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData, cancellationToken), cancellationToken);
                     TaskList.Add(task);
                     return;
                 }
 
                 if (!GetSolveResults(dataAccess, out SolveResults result))
                 {
-                    result = ComputeSafe(requestData);
+                    result = ComputeSafe(requestData, CancelToken);
                 }
+
+                Message = null;
 
                 if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
                 {
@@ -192,7 +199,7 @@ namespace RhinoSpatial
 
             if (string.IsNullOrWhiteSpace(source))
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "LoD2 Source is required. Connect a LoD2 WFS URL, local CityGML/GML/XML file, folder, ZIP archive, or a layer input that carries a service URL.");
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, "LoD2 Source is required. Connect a LoD2 WFS or ATOM URL, local CityGML/GML/XML file, folder, ZIP archive, or a layer input that carries a service URL.");
                 return false;
             }
 
@@ -222,7 +229,7 @@ namespace RhinoSpatial
             return true;
         }
 
-        private SolveResults Compute(RequestData requestData)
+        private SolveResults Compute(RequestData requestData, CancellationToken cancellationToken)
         {
             if (requestData.SourceKind != Lod2SourceKind.Url)
             {
@@ -232,6 +239,14 @@ namespace RhinoSpatial
                 }
 
                 return ComputeLocalCityGmlSource(requestData);
+            }
+
+            // Explicit WFS URLs retain their existing request path without an extra discovery GET.
+            if (!System.Text.RegularExpressions.Regex.IsMatch(requestData.Source, @"[?&]service=wfs(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                var selection = _atomClient.TrySelectAsync(requestData.Source, requestData.SpatialContext, cancellationToken).GetAwaiter().GetResult();
+                if (selection is not null)
+                    return ComputeAtomSource(requestData, selection, cancellationToken);
             }
 
             var capabilities = _wfsClient.LoadCapabilitiesAsync(requestData.Source).GetAwaiter().GetResult();
@@ -300,6 +315,57 @@ namespace RhinoSpatial
                     : string.IsNullOrWhiteSpace(response.StatusNote)
                         ? null
                         : GH_RuntimeMessageLevel.Remark
+            };
+        }
+
+        private SolveResults ComputeAtomSource(RequestData requestData, Lod2AtomSelection selection, CancellationToken cancellationToken)
+        {
+            if (selection.Tiles.Count == 0)
+                return new SolveResults
+                {
+                    Status = $"No ATOM building tiles intersect the Spatial Context. Inspected {selection.FeedCount} feed(s) and {selection.DownloadCount} download entries; no archives downloaded.",
+                    MessageLevel = GH_RuntimeMessageLevel.Warning
+                };
+
+            var progressActive = 1;
+            IReadOnlyList<Lod2AtomCachedTile> downloaded;
+            try
+            {
+                downloaded = _atomClient.DownloadAsync(selection, progress =>
+                {
+                    // Grasshopper can wait for this task on the UI thread. Queue the
+                    // repaint without waiting for that thread to become available.
+                    Eto.Forms.Application.Instance.AsyncInvoke(() =>
+                    {
+                        if (Volatile.Read(ref progressActive) != 0 && !cancellationToken.IsCancellationRequested && OnPingDocument() is not null)
+                        {
+                            Message = progress;
+                            OnDisplayExpired(false);
+                        }
+                    });
+                }, cancellationToken).GetAwaiter().GetResult();
+            }
+            finally
+            {
+                Volatile.Write(ref progressActive, 0);
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var localRequest = new RequestData
+            {
+                Source = downloaded[0].FilePath,
+                SourceKind = Lod2SourceKind.Zip,
+                LocalSourcePaths = downloaded.Select(tile => tile.FilePath).ToList(),
+                SpatialContext = requestData.SpatialContext,
+                LayerName = requestData.LayerName
+            };
+            var result = ComputeLocalCityGmlSource(localRequest);
+            var cachedCount = downloaded.Count(tile => tile.UsedCache);
+            return new SolveResults
+            {
+                BrepTree = result.BrepTree,
+                BuildingCount = result.BuildingCount,
+                MessageLevel = result.MessageLevel,
+                Status = $"ATOM selected {selection.Tiles.Count}/{selection.DownloadCount} tile(s) from {selection.FeedCount} feed(s); downloaded {downloaded.Count - cachedCount}, reused {cachedCount} cached archive(s). Tiles: {string.Join(", ", downloaded.Select(tile => Path.GetFileName(tile.Tile.Url.LocalPath)))}. Cache: {Lod2AtomClient.DefaultCacheDirectory}. {result.Status}"
             };
         }
 
@@ -381,6 +447,9 @@ namespace RhinoSpatial
             }
             timings.ParseAndBuildingFilter = stopwatch.Elapsed;
 
+            if (requestData.LocalSourcePaths is not null && failedFileCount > 0)
+                throw new InvalidOperationException($"Failed to parse {failedFileCount} downloaded ATOM CityGML file(s): {string.Join(", ", failedFileNames)}. No partial building result was returned.");
+
             stopwatch.Restart();
             var buildings = FilterBuildingSurfacesToRequestBounds(returnedBuildings, requestBoundingBox);
             timings.SurfaceFilter = stopwatch.Elapsed;
@@ -429,11 +498,11 @@ namespace RhinoSpatial
             };
         }
 
-        private SolveResults ComputeSafe(RequestData requestData)
+        private SolveResults ComputeSafe(RequestData requestData, CancellationToken cancellationToken)
         {
             try
             {
-                return Compute(requestData);
+                return Compute(requestData, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -830,7 +899,7 @@ namespace RhinoSpatial
 
         private static string ResolveLocalCityGmlSrs(string fileSrs, SpatialContext2D spatialContext)
         {
-            var normalizedFileSrs = RhinoSpatialContextTools.NormalizeSrsKey(fileSrs);
+            var normalizedFileSrs = RhinoSpatialContextTools.NormalizeSrsKey(SpatialReferenceTransform.NormalizeSrs(fileSrs));
 
             return string.IsNullOrWhiteSpace(normalizedFileSrs)
                 ? RhinoSpatialContextTools.NormalizeSrsKey(spatialContext.ResolvedSrs)
@@ -847,9 +916,16 @@ namespace RhinoSpatial
             skippedByBoundsCount = 0;
             var candidates = new List<LocalCityGmlCandidate>();
 
-            foreach (var sourceFile in EnumerateLocalSourceFiles(requestData.Source, sourceKind))
+            foreach (var sourceFile in (requestData.LocalSourcePaths ?? new[] { requestData.Source })
+                         .SelectMany(source => EnumerateLocalSourceFiles(source, sourceKind)))
             {
                 scannedFileCount++;
+
+                if (requestData.LocalSourcePaths is not null)
+                {
+                    using var documentStream = sourceFile.OpenRead();
+                    if (!Lod2GmlReader.IsCityGmlDocument(documentStream)) continue;
+                }
 
                 CityGmlSourceMetadata sourceMetadata;
                 using (var sourceStream = sourceFile.OpenRead())
@@ -858,6 +934,10 @@ namespace RhinoSpatial
                 }
 
                 var sourceSrs = ResolveLocalCityGmlSrs(sourceMetadata.SrsName, requestData.SpatialContext);
+                if (requestData.LocalSourcePaths is not null &&
+                    (string.IsNullOrWhiteSpace(sourceMetadata.SrsName) ||
+                     !SpatialReferenceTransform.TryTransformXY(sourceSrs, requestData.SpatialContext.ResolvedSrs, 0, 0, out _, out _)))
+                    throw new InvalidOperationException($"Downloaded ATOM file '{sourceFile.DisplayName}' has missing or unsupported source CRS metadata. No approximate placement was used.");
                 var sourceBoundingBox = sourceMetadata.BoundingBox;
 
                 if (sourceBoundingBox is not null &&
@@ -1281,7 +1361,7 @@ namespace RhinoSpatial
                     Params.Input[0],
                     "LoD2 Source",
                     "LoD2 Source",
-                    "LoD2 source URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.");
+                    "LoD2 WFS or ATOM service URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive. If left empty, RhinoSpatial will try to inherit a WFS URL from the connected Layer input.");
                 Params.Input[0].Optional = true;
             }
 
@@ -1291,7 +1371,7 @@ namespace RhinoSpatial
                     Params.Input[1],
                     "Layer",
                     "Layer",
-                    "Optional LoD2 building layer name for WFS sources, or local layer label for file/folder/ZIP sources.");
+                    "Optional LoD2 building layer name for WFS sources, or output label for ATOM/local sources.");
                 Params.Input[1].Optional = true;
             }
 
@@ -1301,7 +1381,7 @@ namespace RhinoSpatial
                     Params.Input[2],
                     "Spatial Context",
                     "Spatial Context",
-                    "Shared RhinoSpatial spatial context. LoD2 requests use EPSG:7423/4326 internally, so any Spatial Context created from the map helper will align correctly.");
+                    "Shared RhinoSpatial study area used to select, filter and align LoD2 buildings.");
             }
 
             while (Params.Input.Count > 3)

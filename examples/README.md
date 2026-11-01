@@ -28,7 +28,7 @@ A local raster and terrain workflow. The GeoTIFF input is intentionally a placeh
 
 [Download `03-lod2-buildings.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/03-lod2-buildings.gh)
 
-Official 3D building and roof context from a LoD2 WFS service or supported CityGML/CityJSON source.
+Official 3D building and roof context from a LoD2 WFS service, ATOM download service, or supported local CityGML/CityJSON source. For automatic Berlin tiles, connect `https://gdi.berlin.de/data/a_lod2/atom/` to `LoD2 Source` and select a small Berlin area with `Spatial Context`; leave `Layer` empty.
 
 ### OSM context
 
@@ -44,7 +44,7 @@ Optional Google Photorealistic 3D Tiles visual context. The example does not con
 
 ## How to use the examples
 
-1. Install the current RhinoSpatial alpha through Package Manager and enable **Include pre-releases**.
+1. Install the current RhinoSpatial release through Package Manager.
 2. Download and open the chosen `.gh` definition.
 3. Replace example URLs, layer names, local files, or API-key placeholders with sources suitable for your project.
 4. Open `Spatial Context` and select a reasonably small study area.

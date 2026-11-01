@@ -12,6 +12,13 @@ namespace RhinoSpatial.Core
 
     public static class Lod2GmlReader
     {
+        public static bool IsCityGmlDocument(Stream stream)
+        {
+            using var reader = XmlReader.Create(stream, new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });
+            reader.MoveToContent();
+            return reader.LocalName == "CityModel" && reader.NamespaceURI.StartsWith("http://www.opengis.net/citygml", StringComparison.Ordinal);
+        }
+
         public static List<Lod2Building> ReadBuildings(string gmlText, string sourceLayerName)
         {
             return ReadBuildings(gmlText, sourceLayerName, null);

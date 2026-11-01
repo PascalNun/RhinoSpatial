@@ -193,7 +193,7 @@ namespace RhinoSpatial
 
                 var description = await _wcsClient.LoadCoverageDescriptionAsync(options);
 
-                var requestBoundingBox = ResolveRequestedBoundingBox(spatialContext, description, out var placementOrigin);
+                var requestBoundingBox = ResolveRequestedBoundingBox(spatialContext, description);
 
                 options.SrsName = description.NativeSrs;
                 options.AxisXLabel = description.AxisXLabel;
@@ -202,28 +202,23 @@ namespace RhinoSpatial
 
                 var coverage = await _wcsClient.DownloadCoverageAsync(options);
 
-                var elevationBase = spatialContext.UseAbsoluteCoordinates
-                    ? 0.0
-                    : SpatialElevationBaselineCache.ResolveOrStore(
-                        spatialContext,
-                        ResolveElevationBase(coverage.Raster));
+                var mesh = BuildTerrainMesh(
+                    coverage.Raster,
+                    requestBoundingBox,
+                    spatialContext,
+                    out var elevationBase);
                 SpatialTerrainCache.Store(
                     spatialContext,
                     description.NativeSrs,
                     requestBoundingBox,
                     coverage.Raster,
                     elevationBase);
-                var mesh = BuildTerrainMesh(
-                    coverage.Raster,
-                    requestBoundingBox,
-                    placementOrigin,
-                    spatialContext.UseAbsoluteCoordinates,
-                    elevationBase);
-                var status = BuildStatusMessage(coverageId, spatialContext.UseAbsoluteCoordinates, coverage.UsedCachedFile);
+                var status = BuildStatusMessage(coverageId, spatialContext.UseAbsoluteCoordinates, coverage.UsedCachedFile)
+                    + BuildMissingElevationNote(coverage.Raster);
 
                 return new SolveResults
                 {
-                    TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
+                    TerrainMeshes = new List<Mesh> { mesh },
                     Status = $"{source.CreateStatusPrefix()}{status}"
                 };
             }
@@ -263,37 +258,7 @@ namespace RhinoSpatial
                 };
             }
 
-            var elevationBase = spatialContext.UseAbsoluteCoordinates
-                ? 0.0
-                : SpatialElevationBaselineCache.ResolveOrStore(
-                    spatialContext,
-                    ResolveElevationBase(raster));
-
-            Mesh? mesh;
-            if (RhinoSpatialContextTools.NormalizeSrsKey(rasterInfo.SrsName) == "EPSG:4326")
-            {
-                mesh = BuildProjectedTerrainMesh(
-                    raster,
-                    rasterInfo.BoundingBox,
-                    spatialContext,
-                    elevationBase);
-            }
-            else
-            {
-                var placementOrigin = RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
-                    spatialContext,
-                    rasterInfo.SrsName,
-                    out _,
-                    out var resolvedPlacementOrigin)
-                    ? resolvedPlacementOrigin
-                    : spatialContext.PlacementOrigin;
-                mesh = BuildTerrainMesh(
-                    raster,
-                    rasterInfo.BoundingBox,
-                    placementOrigin,
-                    spatialContext.UseAbsoluteCoordinates,
-                    elevationBase);
-            }
+            var mesh = BuildTerrainMesh(raster, rasterInfo.BoundingBox, spatialContext, out var elevationBase);
 
             SpatialTerrainCache.Store(
                 spatialContext,
@@ -304,8 +269,8 @@ namespace RhinoSpatial
 
             return new SolveResults
             {
-                TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
-                Status = $"{source.CreateStatusPrefix()}Loaded local terrain GeoTIFF '{Path.GetFileName(source.BaseUrl)}' ({rasterInfo.Width}x{rasterInfo.Height}, {rasterInfo.SrsName}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}",
+                TerrainMeshes = new List<Mesh> { mesh },
+                Status = $"{source.CreateStatusPrefix()}Loaded local terrain GeoTIFF '{Path.GetFileName(source.BaseUrl)}' ({rasterInfo.Width}x{rasterInfo.Height}, {rasterInfo.SrsName}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}{BuildMissingElevationNote(raster)}",
                 MessageLevel = GH_RuntimeMessageLevel.Remark
             };
         }
@@ -344,36 +309,7 @@ namespace RhinoSpatial
                 };
             }
 
-            var elevationBase = spatialContext.UseAbsoluteCoordinates
-                ? 0.0
-                : SpatialElevationBaselineCache.ResolveOrStore(
-                    spatialContext,
-                    ResolveElevationBase(readResult.Raster));
-            Mesh? mesh;
-            if (RhinoSpatialContextTools.NormalizeSrsKey(readResult.SourceSrs) == "EPSG:4326")
-            {
-                mesh = BuildProjectedTerrainMesh(
-                    readResult.Raster,
-                    readResult.BoundingBox,
-                    spatialContext,
-                    elevationBase);
-            }
-            else
-            {
-                var placementOrigin = RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
-                    spatialContext,
-                    readResult.SourceSrs,
-                    out _,
-                    out var resolvedPlacementOrigin)
-                    ? resolvedPlacementOrigin
-                    : spatialContext.PlacementOrigin;
-                mesh = BuildTerrainMesh(
-                    readResult.Raster,
-                    readResult.BoundingBox,
-                    placementOrigin,
-                    spatialContext.UseAbsoluteCoordinates,
-                    elevationBase);
-            }
+            var mesh = BuildTerrainMesh(readResult.Raster, readResult.BoundingBox, spatialContext, out var elevationBase);
 
             SpatialTerrainCache.Store(
                 spatialContext,
@@ -384,8 +320,8 @@ namespace RhinoSpatial
 
             return new SolveResults
             {
-                TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
-                Status = $"{source.CreateStatusPrefix()}Loaded local terrain {readResult.FormatLabel} '{Path.GetFileName(source.BaseUrl)}' ({readResult.Raster.Width}x{readResult.Raster.Height}, {readResult.SourceSrs}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}",
+                TerrainMeshes = new List<Mesh> { mesh },
+                Status = $"{source.CreateStatusPrefix()}Loaded local terrain {readResult.FormatLabel} '{Path.GetFileName(source.BaseUrl)}' ({readResult.Raster.Width}x{readResult.Raster.Height}, {readResult.SourceSrs}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}{BuildMissingElevationNote(readResult.Raster)}",
                 MessageLevel = GH_RuntimeMessageLevel.Remark
             };
         }
@@ -426,30 +362,24 @@ namespace RhinoSpatial
                     + "Connect an explicit terrain source for this area.");
             }
 
-            var elevationBase = spatialContext.UseAbsoluteCoordinates
-                ? 0.0
-                : SpatialElevationBaselineCache.ResolveOrStore(
-                    spatialContext,
-                    ResolveElevationBase(raster));
-
+            var mesh = BuildTerrainMesh(
+                raster,
+                spatialContext.Wgs84BoundingBox,
+                spatialContext,
+                out var elevationBase);
             SpatialTerrainCache.Store(
                 spatialContext,
                 raster.SrsName,
                 spatialContext.Wgs84BoundingBox,
                 raster,
                 elevationBase);
-
-            var mesh = BuildProjectedTerrainMesh(
-                raster,
-                spatialContext.Wgs84BoundingBox,
-                spatialContext,
-                elevationBase);
             var status = BuildStatusMessage(raster.CoverageId, spatialContext.UseAbsoluteCoordinates, false)
+                + BuildMissingElevationNote(raster)
                 + " The built-in fallback is intended for quick context; use explicit terrain for project-grade elevation.";
 
             return new SolveResults
             {
-                TerrainMeshes = mesh is null ? new List<Mesh>() : new List<Mesh> { mesh },
+                TerrainMeshes = new List<Mesh> { mesh },
                 Status = $"{source.CreateStatusPrefix()}{status}"
             };
         }
@@ -474,18 +404,24 @@ namespace RhinoSpatial
                 : "aligned to the shared local terrain/building elevation baseline.";
         }
 
+        private static string BuildMissingElevationNote(TerrainRasterData raster)
+        {
+            var missing = raster.Elevations.Length - CountValidElevations(raster);
+            return missing == 0
+                ? string.Empty
+                : $" The source contains {missing} missing elevation sample(s); affected areas are left open in the terrain surface.";
+        }
+
         private static BoundingBox2D ResolveRequestedBoundingBox(
             SpatialContext2D spatialContext,
-            WcsCoverageDescription description,
-            out Coordinate2D placementOrigin)
+            WcsCoverageDescription description)
         {
-            if (RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(spatialContext, description.NativeSrs, out var bbox, out placementOrigin))
+            if (RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(spatialContext, description.NativeSrs, out var bbox, out _))
             {
                 return ClampBoundingBox(bbox, description.NativeBoundingBox);
             }
 
-            placementOrigin = spatialContext.PlacementOrigin;
-            return ClampBoundingBox(spatialContext.RequestBoundingBox, description.NativeBoundingBox);
+            throw new InvalidOperationException($"Cannot resolve the selected area in terrain coordinate system '{description.NativeSrs}'.");
         }
 
         private static BoundingBox2D ClampBoundingBox(BoundingBox2D requested, BoundingBox2D nativeBounds)
@@ -497,148 +433,41 @@ namespace RhinoSpatial
 
             if (maxX <= minX || maxY <= minY)
             {
-                return requested;
+                throw new InvalidOperationException("The terrain coverage does not overlap the selected Spatial Context area.");
             }
 
             return new BoundingBox2D(minX, minY, maxX, maxY);
         }
 
-        private static Mesh? BuildTerrainMesh(
+        private static Mesh BuildTerrainMesh(
             TerrainRasterData raster,
-            BoundingBox2D requestBoundingBox,
-            Coordinate2D placementOrigin,
-            bool useAbsoluteCoordinates,
-            double elevationBase)
-        {
-            var width = raster.Width;
-            var height = raster.Height;
-            if (width <= 1 || height <= 1)
-            {
-                return null;
-            }
-
-            var safeMaxGrid = Math.Clamp(InternalGridSize, 64, DefaultMaxGridSizeLimit);
-            var strideX = Math.Max(1, (int)Math.Ceiling(width / (double)safeMaxGrid));
-            var strideY = Math.Max(1, (int)Math.Ceiling(height / (double)safeMaxGrid));
-
-            var sampleWidth = (int)Math.Ceiling(width / (double)strideX);
-            var sampleHeight = (int)Math.Ceiling(height / (double)strideY);
-
-            var spanX = requestBoundingBox.MaxX - requestBoundingBox.MinX;
-            var spanY = requestBoundingBox.MaxY - requestBoundingBox.MinY;
-            var cellSizeX = spanX / (width - 1);
-            var cellSizeY = spanY / (height - 1);
-
-            var offsetX = useAbsoluteCoordinates ? 0.0 : placementOrigin.X;
-            var offsetY = useAbsoluteCoordinates ? 0.0 : placementOrigin.Y;
-            var mesh = new Mesh();
-
-            for (var y = 0; y < sampleHeight; y++)
-            {
-                var sourceY = Math.Min(height - 1, y * strideY);
-                var worldY = requestBoundingBox.MaxY - sourceY * cellSizeY - offsetY;
-
-                for (var x = 0; x < sampleWidth; x++)
-                {
-                    var sourceX = Math.Min(width - 1, x * strideX);
-                    var worldX = requestBoundingBox.MinX + sourceX * cellSizeX - offsetX;
-                    var elevation = raster.Elevations[sourceY * width + sourceX];
-
-                    if (IsNoDataElevation(raster, elevation))
-                    {
-                        elevation = (float)elevationBase;
-                    }
-
-                    mesh.Vertices.Add(worldX, worldY, elevation - elevationBase);
-                }
-            }
-
-            for (var y = 0; y < sampleHeight - 1; y++)
-            {
-                for (var x = 0; x < sampleWidth - 1; x++)
-                {
-                    var index0 = y * sampleWidth + x;
-                    var index1 = index0 + 1;
-                    var index2 = index0 + sampleWidth + 1;
-                    var index3 = index0 + sampleWidth;
-                    mesh.Faces.AddFace(index0, index1, index2, index3);
-                }
-            }
-
-            mesh.Normals.ComputeNormals();
-            mesh.Compact();
-            return mesh;
-        }
-
-        private static Mesh? BuildProjectedTerrainMesh(
-            TerrainRasterData raster,
-            BoundingBox2D rasterBoundingBox4326,
+            BoundingBox2D sampleBounds,
             SpatialContext2D spatialContext,
-            double elevationBase)
+            out double elevationBase)
         {
-            var width = raster.Width;
-            var height = raster.Height;
-            if (width <= 1 || height <= 1)
-            {
-                return null;
-            }
-
-            var safeMaxGrid = Math.Clamp(InternalGridSize, 64, DefaultMaxGridSizeLimit);
-            var strideX = Math.Max(1, (int)Math.Ceiling(width / (double)safeMaxGrid));
-            var strideY = Math.Max(1, (int)Math.Ceiling(height / (double)safeMaxGrid));
-
-            var sampleWidth = (int)Math.Ceiling(width / (double)strideX);
-            var sampleHeight = (int)Math.Ceiling(height / (double)strideY);
-            var spanX = rasterBoundingBox4326.MaxX - rasterBoundingBox4326.MinX;
-            var spanY = rasterBoundingBox4326.MaxY - rasterBoundingBox4326.MinY;
-            var cellSizeX = spanX / (width - 1);
-            var cellSizeY = spanY / (height - 1);
-            var offsetX = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.X;
-            var offsetY = spatialContext.UseAbsoluteCoordinates ? 0.0 : spatialContext.PlacementOrigin.Y;
+            var candidateBase = spatialContext.UseAbsoluteCoordinates ? 0.0 : ResolveElevationBase(raster);
+            var data = TerrainMeshBuilder.Build(
+                raster,
+                sampleBounds,
+                spatialContext,
+                Math.Clamp(InternalGridSize, 64, DefaultMaxGridSizeLimit),
+                candidateBase);
+            elevationBase = spatialContext.UseAbsoluteCoordinates
+                ? 0.0
+                : SpatialElevationBaselineCache.ResolveOrStore(spatialContext, candidateBase);
+            var elevationAdjustment = candidateBase - elevationBase;
             var mesh = new Mesh();
-
-            for (var y = 0; y < sampleHeight; y++)
+            foreach (var vertex in data.Vertices)
             {
-                var sourceY = Math.Min(height - 1, y * strideY);
-                var latitude = rasterBoundingBox4326.MaxY - sourceY * cellSizeY;
-
-                for (var x = 0; x < sampleWidth; x++)
-                {
-                    var sourceX = Math.Min(width - 1, x * strideX);
-                    var longitude = rasterBoundingBox4326.MinX + sourceX * cellSizeX;
-                    if (!SpatialReferenceTransform.TryTransformXY(
-                            "EPSG:4326",
-                            spatialContext.ResolvedSrs,
-                            longitude,
-                            latitude,
-                            out var worldX,
-                            out var worldY))
-                    {
-                        return null;
-                    }
-
-                    var elevation = raster.Elevations[sourceY * width + sourceX];
-                    if (IsNoDataElevation(raster, elevation))
-                    {
-                        elevation = (float)elevationBase;
-                    }
-
-                    mesh.Vertices.Add(worldX - offsetX, worldY - offsetY, elevation - elevationBase);
-                }
+                mesh.Vertices.Add(vertex.X, vertex.Y, vertex.Z + elevationAdjustment);
             }
 
-            for (var y = 0; y < sampleHeight - 1; y++)
+            foreach (var face in data.Faces)
             {
-                for (var x = 0; x < sampleWidth - 1; x++)
-                {
-                    var index0 = y * sampleWidth + x;
-                    var index1 = index0 + 1;
-                    var index2 = index0 + sampleWidth + 1;
-                    var index3 = index0 + sampleWidth;
-                    mesh.Faces.AddFace(index0, index1, index2, index3);
-                }
+                mesh.Faces.AddFace(face.A, face.B, face.C, face.D);
             }
 
+            mesh.Vertices.CullUnused();
             mesh.Normals.ComputeNormals();
             mesh.Compact();
             return mesh;
@@ -650,7 +479,7 @@ namespace RhinoSpatial
 
             foreach (var elevation in raster.Elevations)
             {
-                if (IsNoDataElevation(raster, elevation))
+                if (TerrainMeshBuilder.IsNoData(raster, elevation))
                 {
                     continue;
                 }
@@ -661,7 +490,12 @@ namespace RhinoSpatial
                 }
             }
 
-            return double.IsInfinity(minZ) ? 0.0 : minZ;
+            if (double.IsInfinity(minZ))
+            {
+                throw new InvalidOperationException("The terrain raster contains no usable elevation samples.");
+            }
+
+            return minZ;
         }
 
         private static int CountValidElevations(TerrainRasterData raster)
@@ -669,7 +503,7 @@ namespace RhinoSpatial
             var validCount = 0;
             foreach (var elevation in raster.Elevations)
             {
-                if (IsNoDataElevation(raster, elevation))
+                if (TerrainMeshBuilder.IsNoData(raster, elevation))
                 {
                     continue;
                 }
@@ -678,19 +512,6 @@ namespace RhinoSpatial
             }
 
             return validCount;
-        }
-
-        private static bool IsNoDataElevation(TerrainRasterData raster, float elevation)
-        {
-            if (float.IsNaN(elevation) || float.IsInfinity(elevation))
-            {
-                return true;
-            }
-
-            return raster.NoDataValue.HasValue &&
-                   (double.IsNaN(raster.NoDataValue.Value)
-                       ? float.IsNaN(elevation)
-                       : Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3);
         }
 
         private record RequestData(IReadOnlyList<ResolvedTerrainSource> Sources, SpatialContext2D SpatialContext);
