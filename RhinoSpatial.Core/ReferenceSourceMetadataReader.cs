@@ -20,7 +20,7 @@ namespace RhinoSpatial.Core
         private static readonly string[] SupportedFileExtensions =
         {
             ".tif", ".tiff", ".shp", ".geojson", ".json", ".cityjson", ".jsonl", ".png", ".jpg", ".jpeg",
-            ".gml", ".xml", ".asc", ".xyz", ".csv", ".zip"
+            ".gml", ".xml", ".asc", ".xyz", ".csv", ".zip", ".gpkg"
         };
 
         public static bool IsLocalSource(string? source)
@@ -119,6 +119,7 @@ namespace RhinoSpatial.Core
             return extension switch
             {
                 ".tif" or ".tiff" or ".png" or ".jpg" or ".jpeg" => ReadGeoTiff(filePath),
+                ".gpkg" => ReadGeoPackage(filePath),
                 ".shp" => ReadShapefile(filePath, fallbackSrs),
                 ".geojson" => ReadJson(File.ReadAllText(filePath), "GeoJSON", fallbackSrs),
                 ".jsonl" => ReadCityJsonSequence(filePath, fallbackSrs),
@@ -141,6 +142,14 @@ namespace RhinoSpatial.Core
         {
             var raster = GeoTiffInfoCache.GetOrRead(filePath);
             return Create("GeoTIFF", raster.SrsName, raster.BoundingBox, 1);
+        }
+
+        private static ReferenceSourceMetadata ReadGeoPackage(string filePath)
+        {
+            var layers=GeoPackageReader.ReadLayers(filePath);
+            if(layers.Any(l=>string.IsNullOrWhiteSpace(l.SourceSrs)||l.Bounds is null||!TryTransformBoundsToWgs84(l.SourceSrs,l.Bounds,out _)))
+                throw new InvalidDataException("GeoPackage Reference Source requires transformable EPSG CRS and catalog extents for every feature layer; geometry is not scanned to infer missing metadata.");
+            return Combine(layers.Select(l=>Create("GeoPackage",l.SourceSrs,l.Bounds,1)),"GeoPackage");
         }
 
         private static ReferenceSourceMetadata ReadShapefile(

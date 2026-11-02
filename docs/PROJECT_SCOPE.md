@@ -41,7 +41,7 @@ The complete planned core source set is present:
 | WMS | Provides maps, orthophotos, aerial imagery, and raster overlays |
 | LoD2 Buildings | Provides official 3D building massing and roof geometry |
 | Terrain | Provides ground and elevation context |
-| GeoTIFF | Places local georeferenced raster data |
+| GeoTIFF | Places local georeferenced rasters; development also supports remote COG windows |
 | OSM | Provides lightweight buildings, roads, water, green areas, and rail |
 | Google 3D Tiles | Provides optional photogrammetric visual reference context |
 
@@ -128,9 +128,9 @@ Lightweight does not mean replacing mature TIFF, topology, CRS, Shapefile, or gl
 
 ### Vector data
 
-`Load WFS` retains its public name for compatibility with existing Grasshopper definitions, but its source category is broader than web-only WFS. It also supports OGC API Features, local Shapefiles, and local GeoJSON.
+`Load WFS` retains its public name for compatibility with existing Grasshopper definitions, but its source category is broader than web-only WFS. It also supports OGC API Features, local Shapefiles, and local GeoJSON. Unreleased development adds standard read-only GeoPackage feature layers with bounded spatial queries through the same components.
 
-These sources remain general vector context. Shapefile and GeoJSON are not treated as LoD2 building imports.
+These sources remain general vector context. Shapefile, GeoJSON and GeoPackage feature tables are not treated as LoD2 building imports. Their vector contract is XY curves/points; polygon holes remain boundary curves.
 
 ### LoD2 buildings
 

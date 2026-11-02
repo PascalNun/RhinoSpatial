@@ -243,7 +243,7 @@ These are not release blockers, but they are the most sensible future source-for
 - **CityJSON**
   Basic local CityJSON building import is now supported through `Load LoD2 Buildings`. More real CityJSON sources should be added to this test catalogue before calling it mature.
 - **GeoPackage**
-  Still a good candidate for local vector/project data because it can hold layers, CRS metadata, and mixed geometry more robustly than loose shapefiles. It remains unimplemented for now because robust GeoPackage support needs a deliberate SQLite/geometry-BLOB parser choice and should not be slipped in as a fragile partial reader.
+  Implemented in the unreleased low-priority batch: local read-only standard feature tables, catalog metadata, RTree/bounded queries and standard WKB with hole curves. Raster tables, curved/extended geometry and editing remain outside scope. See the low-priority how-to and fixtures.
 - **Shapefile**
   Local Shapefile is now supported as a vector source through `Load WFS`, using the existing shared Spatial Context and geometry tree output. It is not treated as LoD2 building import; many municipal Shapefiles are 2D footprints or thematic vector layers rather than true LoD2 geometry.
 - **Local GeoJSON**
@@ -251,4 +251,21 @@ These are not release blockers, but they are the most sensible future source-for
 - **OGC API Features**
   Basic GeoJSON OGC API Features item/collection URLs are now supported through the vector loader path. They are not treated as WFS internally; RhinoSpatial requests GeoJSON items with the Spatial Context WGS84 bbox and transforms them into the shared context.
 - **Cloud Optimized GeoTIFF**
-  Still unimplemented. COG support would be a remote-raster workflow, not just a local GeoTIFF variation, and should wait until range-request/cache behavior is designed.
+  Implemented in the unreleased low-priority batch using bounded HTTP ranges and selected classic-TIFF image/DEM windows. Stable representations, byte/time/allocation limits, usable overviews, masks, NoData and header-only references are tested; BigTIFF and unsupported layouts remain explicit limitations.
+
+## Unreleased low-priority validation (2026-11-02)
+
+[Plan](LOW_COMPATIBILITY_PLAN.md) · [how-to, URLs and exact bounds](../examples/LOW_COMPATIBILITY_WORKFLOWS.md).
+`low-compatibility-check` contains 43 network-independent cases: range refusal,
+invalid headers, truncation, mutation, validator/cache/budget/cancellation behavior,
+COG metadata/windows/overviews/masks/NoData/alpha/placement, decoder allocation
+limits, explicit WGS84 UTM transformations, and GeoPackage catalogs/quoted names/
+RTree/fallback/CRS/holes/attributes/endian/envelopes/collections/malformed geometry/
+limits/cancellation/source immutability. All eight prior suites also pass locally.
+CI now runs the build and all nine suites on macOS and Windows.
+
+Live probes: Sentinel TCI 11×12 pixels / 2,686,976 range bytes; Copernicus DSM
+4×4 samples / 3,080,192 bytes; GDAL public GeoPackage 10 features / 10 rings with
+RTree. Results are parser/core placement evidence; Rhino visual/Windows-host
+checks remain pending. External bytes are not committed; the saved fixtures are
+synthetic and reproducible with `low-probe examples`.

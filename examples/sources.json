@@ -1069,6 +1069,139 @@
       "last_verified": "2026-11-02",
       "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
       "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "cog-low-sentinel-berlin",
+      "type": "Remote COG imagery",
+      "purpose": "Range subset imagery with declared WGS84 UTM CRS",
+      "url": "https://sentinel-cogs.s3.us-west-2.amazonaws.com/sentinel-s2-l2a-cogs/32/U/QD/2024/6/S2A_32UQD_20240609_0_L2A/TCI.tif",
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          391000,
+          5819900,
+          391100,
+          5820000
+        ]
+      },
+      "notes": [
+        "Load GeoTIFF: verified 11x12 window, 41 requests, 2686976 bytes, 556 core mesh triangles; EPSG:32632 source.",
+        "Provider terms: https://registry.opendata.aws/sentinel-2-l2a-cogs/; image date/cloud conditions are source properties. Native Rhino validation pending."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "cog-low-copernicus-berlin",
+      "type": "Remote COG DEM",
+      "purpose": "One-band range subset elevation with native geographic CRS",
+      "url": "https://copernicus-dem-30m.s3.amazonaws.com/Copernicus_DSM_COG_10_N52_00_E013_00_DEM/Copernicus_DSM_COG_10_N52_00_E013_00_DEM.tif",
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          391000,
+          5819900,
+          391100,
+          5820000
+        ]
+      },
+      "notes": [
+        "Load Terrain: verified 4x4 window, 16 finite elevations, 47 requests, 3080192 bytes. EPSG:4326 source.",
+        "DSM includes vegetation/buildings, not bare-earth terrain. Source heights retained; no vertical datum conversion. Provider terms: https://registry.opendata.aws/copernicus-dem/"
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "geopackage-low-gdal-public",
+      "type": "Local GeoPackage download example",
+      "purpose": "Public standard GeoPackage metadata/RTree parser regression",
+      "url": "https://raw.githubusercontent.com/OSGeo/gdal/master/autotest/ogr/data/gpkg/poly_golden.gpkg",
+      "context": {
+        "srs": "EPSG:27700",
+        "bbox": [
+          478315,
+          4762880,
+          481646,
+          4765611
+        ]
+      },
+      "notes": [
+        "Download to a local .gpkg path; List WFS Layers / Load WFS; select poly.",
+        "106496-byte GDAL test fixture; 10 features / 10 rings, RTree query verified. Declared regression coordinates, not a real project-site recommendation."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "cog-low-local-imagery",
+      "type": "Synthetic COG imagery",
+      "purpose": "Repeatable mask/window/placement example",
+      "url": "http://127.0.0.1:8765/imagery-mask.cog.tif",
+      "path": "fixtures/low/imagery-mask.cog.tif",
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          392000,
+          5819968,
+          392032,
+          5820000
+        ]
+      },
+      "notes": [
+        "Start python3 examples/serve_range.py; Load GeoTIFF uses the HTTP URL. Synthetic RGB grid with an internal mask, not real imagery."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "cog-low-local-dem",
+      "type": "Synthetic COG DEM",
+      "purpose": "Repeatable source elevations/NoData/mask example",
+      "url": "http://127.0.0.1:8765/elevation-mask.cog.tif",
+      "path": "fixtures/low/elevation-mask.cog.tif",
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          392000,
+          5819968,
+          392032,
+          5820000
+        ]
+      },
+      "notes": [
+        "Start fixture range server; connect URL to Load Terrain. Shared affine grid, missing corner sample and internal mask hole."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+    },
+    {
+      "id": "geopackage-low-local",
+      "type": "Synthetic GeoPackage",
+      "purpose": "Layer discovery, polygon courtyard, attributes, quoted point-layer name",
+      "url": null,
+      "path": "fixtures/low/local-layers.gpkg",
+      "context": {
+        "srs": "EPSG:25833",
+        "bbox": [
+          392000,
+          5819968,
+          392032,
+          5820000
+        ]
+      },
+      "notes": [
+        "List WFS Layers / Load WFS: buildings returns one feature/two closed rings via RTree; survey \"points\" returns one point via bounded scan.",
+        "Reference Source reads both layers' catalog extents without feature geometry. No source mutation; native Rhino validation pending."
+      ],
+      "last_verified": "2026-11-02",
+      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
     }
   ]
 }

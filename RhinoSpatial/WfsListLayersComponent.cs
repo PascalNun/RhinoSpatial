@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
 using RhinoSpatial.Core;
@@ -26,7 +27,7 @@ namespace RhinoSpatial
 
         public WfsListLayersComponent()
             : base("List WFS Layers", "WFS Layers",
-                "List WFS layers or OGC API Features collections from a service root or metadata URL.",
+                "List WFS layers, OGC API Features collections, or local GeoPackage feature layers.",
                 "RhinoSpatial", "Layers")
         {
         }
@@ -35,7 +36,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WFS Service URL", "WFS URL", "Base URL of the WFS service.", GH_ParamAccess.item);
+            pManager.AddTextParameter("WFS Service URL", "WFS URL", "WFS/OGC API service URL or local GeoPackage path.", GH_ParamAccess.item);
         }
 
         protected override void RegisterOutputParams(GH_OutputParamManager pManager)
@@ -117,6 +118,12 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
+            if (VectorSourceResolver.Resolve(requestData.BaseUrl).Kind == VectorSourceKind.LocalGeoPackage)
+            {
+                var localLayers = GeoPackageReader.ReadLayers(requestData.BaseUrl,CancelToken);
+                return new SolveResults { Layers = localLayers.Select(l => new WfsLayerInfo(l.Name,l.Title,l.SourceSrs,new List<string>(),
+                    l.Bounds is not null && ReferenceSourceMetadataReader.TryTransformBoundsToWgs84(l.SourceSrs,l.Bounds,out var wgs)?wgs:null)).ToList() };
+            }
             var collections = new OgcApiFeaturesClient().TryDiscoverAsync(requestData.BaseUrl).GetAwaiter().GetResult();
             var layers = collections is null ? _wfsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult()
                 : System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(collections, c => new WfsLayerInfo(c.Id, c.Title, "EPSG:4326", new List<string>(), c.Wgs84Bounds)));

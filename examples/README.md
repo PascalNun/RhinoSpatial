@@ -86,3 +86,5 @@ The set intentionally favors complete design studies over isolated technical pro
 The source manifest combines broad fallback references, international compatibility sources, and deeper German/Hessen test data. Hessen remains useful for LoD2, terrain, cadastral, building, and parcel workflows, while international services help expose provider and coordinate-system differences.
 
 Local CityGML folders and ZIP archives can vary greatly in structure and size. Validation should record whether RhinoSpatial skipped files by metadata bounds, filtered buildings before conversion, or had to inspect a large single tile.
+
+The [low-priority how-to](LOW_COMPATIBILITY_WORKFLOWS.md) adds remote COG imagery/elevation, local GeoPackage layers, a loopback range server, synthetic fixtures and verified public URLs. These require the unreleased development build.

@@ -147,6 +147,17 @@ namespace RhinoSpatial
             SpatialContext2D spatialContext,
             CancellationToken cancellationToken)
         {
+            if(CogReader.LooksLike(source.BaseUrl))
+            {
+                var remote=await new CogReader().ReadTerrainAsync(source.BaseUrl,spatialContext,cancellationToken).ConfigureAwait(false);
+                var raster=remote.Raster;var bounds=raster.GeoTransform!.Bounds(raster.Width,raster.Height);
+                var mesh=BuildTerrainMesh(raster,bounds,spatialContext,out var baseline);
+                SpatialTerrainCache.Store(spatialContext,raster.SrsName,bounds,raster,baseline);
+                return new SolveResults { TerrainMeshes=new List<Mesh>{mesh},
+                    Status=$"Loaded remote COG DEM window {raster.Width}×{raster.Height} ({raster.SrsName}), {remote.RangeRequests} range request(s), {remote.TransferredBytes:N0} bytes transferred. "+BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)+BuildMissingElevationNote(raster),
+                    MessageLevel=GH_RuntimeMessageLevel.Remark };
+            }
+
             if (source.Kind == TerrainSourceKind.GlobalSkadiTiles)
             {
                 return await ComputeGlobalTerrainFallbackAsync(source, spatialContext, cancellationToken);

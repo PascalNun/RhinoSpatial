@@ -51,7 +51,7 @@ collection discovery, direct vector/building downloads, terrain ATOM and referen
 metadata. [The implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records
 validation and remaining work; [example recipes](../examples/COMPATIBILITY_WORKFLOWS.md)
 save tested URLs and bounds. Interactive Rhino/Windows checks remain before release.
-The [medium-priority follow-up](MEDIUM_COMPATIBILITY_PLAN.md) implements priorities 6–8: CityJSON detail/sequence/templates, affine/world-file rasters and WMTS. Its [saved examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) include synthetic declared-CRS data and live PDOK imagery. Native Rhino/Windows validation remains; priorities 9–10 (remote COG and GeoPackage) remain later work.
+The [medium-priority follow-up](MEDIUM_COMPATIBILITY_PLAN.md) implements priorities 6–8: CityJSON detail/sequence/templates, affine/world-file rasters and WMTS. Its [saved examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) include synthetic declared-CRS data and live PDOK imagery. Native Rhino/Windows validation remains. The [low-priority plan](LOW_COMPATIBILITY_PLAN.md) implements priorities 9–10: bounded remote COG windows and read-only local GeoPackage features, with [saved examples](../examples/LOW_COMPATIBILITY_WORKFLOWS.md), platform CI and explicit format limits.
 
 ## Now: real-use stabilization
 
@@ -133,9 +133,9 @@ Later work should still strengthen the existing source categories rather than wi
 
 Possible candidates include:
 
-- GeoPackage as an additional local vector/project-data format after a deliberate SQLite and geometry-parser decision;
+- additional GeoPackage extensions only when justified by representative projects; the unreleased standard vector reader is implemented;
 - stronger CityJSON coverage after more representative real sources are tested;
-- Cloud Optimized GeoTIFF only after remote range requests, caching, and policy behavior are designed;
+- additional remote COG arrangements/codecs such as BigTIFF after decoder support and allocation limits are verified; bounded classic-TIFF range access is implemented;
 - optional output refinements that clearly improve architectural site workflows.
 
 These are candidates, not commitments or release blockers.

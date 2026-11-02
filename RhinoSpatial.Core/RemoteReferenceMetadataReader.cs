@@ -10,13 +10,24 @@ public sealed class RemoteReferenceMetadataReader
     private readonly OgcApiFeaturesClient _ogc;
     private readonly bool _cache;
     private readonly WmtsClient _wmts;
+    private readonly CogReader _cog;
     public RemoteReferenceMetadataReader(HttpClient? http = null)
-    { _atom = new AtomDownloadClient(http); _ogc = new OgcApiFeaturesClient(http); _cache = http is null; _wmts=new WmtsClient(http); }
+    { _atom = new AtomDownloadClient(http); _ogc = new OgcApiFeaturesClient(http); _cache = http is null; _wmts=new WmtsClient(http); _cog=new CogReader(http); }
 
     public async Task<ReferenceSourceMetadata?> TryReadAsync(string source, string? layer = null, CancellationToken cancellationToken = default)
     {
         if (!Uri.TryCreate(source, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https")) return null;
         if (System.Text.RegularExpressions.Regex.IsMatch(source, @"[?&]service=(wfs|wms|wcs)(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) return null;
+        if(CogReader.LooksLike(source))
+        {
+            var cogKey="COG\n"+source;
+            if(_cache&&Cache.TryGetValue(cogKey,out var prior)&&prior.Expires>DateTime.UtcNow)return prior.Value;
+            var info=await _cog.ReadMetadataAsync(source,cancellationToken).ConfigureAwait(false);
+            var metadata=new ReferenceSourceMetadata("Remote COG",info.SrsName,info.BoundingBox,
+                ReferenceSourceMetadataReader.TryTransformBoundsToWgs84(info.SrsName,info.BoundingBox,out var wgs)?wgs:null,1);
+            if(_cache){if(Cache.Count>128)Cache.Clear();Cache[cogKey]=(DateTime.UtcNow.AddMinutes(5),metadata);}
+            return metadata;
+        }
         if (new[] { ".zip", ".geojson", ".cityjson", ".jsonl", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".asc", ".xyz", ".csv", ".gml", ".citygml" }
             .Contains(Path.GetExtension(uri.AbsolutePath), StringComparer.OrdinalIgnoreCase))
             throw new InvalidDataException("Use the provider's service/feed metadata URL as Reference Source, or a supported local file. Remote data files are not downloaded to orient the map.");

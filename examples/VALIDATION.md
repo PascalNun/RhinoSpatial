@@ -175,3 +175,23 @@ Use [MEDIUM_COMPATIBILITY_WORKFLOWS.md](MEDIUM_COMPATIBILITY_WORKFLOWS.md). Thes
 - [ ] List and load PDOK WMTS through existing WMS components, check the selected layer/matrix diagnostics and compare imagery to buildings/vectors in one context.
 - [ ] Confirm WMTS Reference Source reads capabilities without tile downloads and saved selections retain priority.
 - [ ] Cancel a tile batch and retry; confirm no partial image is presented and cached results remain usable.
+
+## Unreleased low-priority compatibility
+
+Local Release build and all nine sandbox suites pass, including 43 new cases.
+The low-priority [plan](../docs/LOW_COMPATIBILITY_PLAN.md) and
+[how-to](LOW_COMPATIBILITY_WORKFLOWS.md) record source URLs, test bounds, limits
+and three reproducible fixtures. Live Sentinel/Copernicus range subsets and the
+GDAL public GeoPackage were verified; these are not native Rhino screenshots.
+
+Before merge/release:
+
+- [ ] Open an existing definition in Rhino 8 on macOS and Windows; verify unchanged connections/GUIDs and responsive cancellation.
+- [ ] Use the fixture range server: compare imagery/terrain mask holes, correct pixel locations, shared baseline and reload behavior in local/absolute placement.
+- [ ] Test public Sentinel and Copernicus windows; inspect materials, clipping and bake from the selected PNG window.
+- [ ] List/select both GeoPackage layers, verify courtyard and attribute/feature grouping, sole-layer behavior and multi-layer output branches.
+- [ ] Use GeoPackage/COG Reference Source on a fresh map, then confirm saved selections retain priority and no geometry is imported.
+- [ ] Test installed-package assembly resolution in Rhino on both platforms. Windows platform-provider sandbox CI is useful but does not replace Rhino host validation.
+
+No installed plugin, public version, release assets or Food4Rhino listing are
+changed by this implementation batch.

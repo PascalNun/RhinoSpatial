@@ -9,6 +9,9 @@
   <ItemGroup>
     <PackageReference Include="BitMiracle.LibTiff.NET" Version="2.4.660" />
     <PackageReference Include="NetTopologySuite.IO.Esri.Shapefile" Version="1.2.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.32" />
+    <PackageReference Include="SQLitePCLRaw.provider.sqlite3" Version="2.1.11" />
+    <PackageReference Include="SQLitePCLRaw.provider.winsqlite3" Version="2.1.11" />
     <PackageReference Include="StbImageNext" Version="1.0.0" />
     <PackageReference Include="ProjNET" Version="2.1.0" />
   </ItemGroup>

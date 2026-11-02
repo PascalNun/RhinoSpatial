@@ -43,11 +43,12 @@ namespace RhinoSpatial
             public string FilePath { get; init; } = string.Empty;
             public SpatialContext2D SpatialContext { get; init; } = null!;
             public string RequestSignature { get; init; } = string.Empty;
+            public System.Threading.CancellationToken CancellationToken { get; init; }
         }
 
         public LoadGeoTiffComponent()
             : base("Load GeoTIFF", "Load GeoTIFF",
-                "Load a georeferenced GeoTIFF raster and align it to the shared RhinoSpatial spatial context.",
+                "Load local georeferenced imagery or a remote COG window and align it to the shared RhinoSpatial spatial context.",
                 "RhinoSpatial", "Sources")
         {
         }
@@ -56,7 +57,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("GeoTIFF File", "GeoTIFF", "Path to a GeoTIFF or TIFF/PNG/JPEG with a world file and resolvable .prj CRS.", GH_ParamAccess.item);
+            pManager.AddTextParameter("GeoTIFF File", "GeoTIFF", "Local GeoTIFF/world-file image path or HTTP(S) COG TIFF URL.", GH_ParamAccess.item);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context from the Spatial Context component.", GH_ParamAccess.item);
         }
 
@@ -64,7 +65,7 @@ namespace RhinoSpatial
         {
             pManager.AddMeshParameter("Image Mesh", "Image Mesh", "Aligned local mesh for the GeoTIFF image.", GH_ParamAccess.item);
             pManager.AddGenericParameter("Material", "Material", "Material with the GeoTIFF already attached.", GH_ParamAccess.item);
-            pManager.AddTextParameter("Image File", "Image File", "Local GeoTIFF file used for the aligned raster source.", GH_ParamAccess.item);
+            pManager.AddTextParameter("Image File", "Image File", "Local source image or selected remote COG PNG window used by the material.", GH_ParamAccess.item);
             pManager.AddTextParameter("Status", "Status", "Status or warning information from the GeoTIFF loader.", GH_ParamAccess.item);
         }
 
@@ -130,7 +131,7 @@ namespace RhinoSpatial
                 return false;
             }
 
-            if (!File.Exists(filePath))
+            if (!File.Exists(filePath.Trim()) && !CogReader.LooksLike(filePath.Trim()))
             {
                 AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"GeoTIFF file not found: {filePath}");
                 return false;
@@ -146,7 +147,8 @@ namespace RhinoSpatial
             {
                 FilePath = filePath.Trim(),
                 SpatialContext = spatialContext,
-                RequestSignature = BuildRequestSignature(filePath.Trim(), spatialContext)
+                RequestSignature = BuildRequestSignature(filePath.Trim(), spatialContext),
+                CancellationToken = CancelToken
             };
 
             return true;
@@ -154,7 +156,9 @@ namespace RhinoSpatial
 
         private SolveResults Compute(RequestData requestData)
         {
-            var rasterInfo = GeoTiffInfoCache.GetOrRead(requestData.FilePath);
+            var remote=CogReader.LooksLike(requestData.FilePath)
+                ?new CogReader().ReadImageAsync(requestData.FilePath,requestData.SpatialContext,requestData.CancellationToken).GetAwaiter().GetResult():null;
+            var rasterInfo = remote?.Image??GeoTiffInfoCache.GetOrRead(requestData.FilePath);
 
             if (!TryCreateImageMesh(
                     rasterInfo,
@@ -186,6 +190,12 @@ namespace RhinoSpatial
                 };
             }
 
+            if(remote is not null)return new SolveResults
+            {
+                ImageFilePath=rasterInfo.LocalFilePath,ImageMesh=imageMesh,
+                Status=$"Loaded remote COG window {rasterInfo.Width}×{rasterInfo.Height} ({rasterInfo.SrsName}) from {remote.OverviewWidth}-pixel overview, {remote.RangeRequests} range request(s), {FormatFileSize(remote.TransferredBytes)} transferred. Aligned to the shared Spatial Context.",
+                MessageLevel=GH_RuntimeMessageLevel.Remark
+            };
             var largeRasterNote = BuildLargeRasterNote(rasterInfo);
             if (clippedToSpatialContext)
             {
@@ -407,6 +417,7 @@ namespace RhinoSpatial
 
         private static string BuildRequestSignature(string filePath, SpatialContext2D spatialContext)
         {
+            if(CogReader.LooksLike(filePath))return string.Empty; // Revalidate the remote representation on a new solve.
             var fileInfo = new FileInfo(filePath);
 
             return string.Create(

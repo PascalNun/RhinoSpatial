@@ -11,7 +11,14 @@ permissions:
 
 jobs:
   build-and-check:
-    runs-on: macos-15
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-latest]
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 20
 
     steps:
@@ -24,6 +31,11 @@ jobs:
           dotnet-version: |
             7.0.x
             10.0.x
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
       - name: Restore
         run: dotnet restore RhinoSpatial.sln
@@ -52,8 +64,11 @@ jobs:
       - name: Check medium-priority compatibility
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- medium-compatibility-check
 
+      - name: Check low-priority compatibility
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- low-compatibility-check
+
       - name: Check 3D Tiles selection
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- tiles-selection-check
 
       - name: Validate source catalogue JSON
-        run: python3 -m json.tool examples/sources.json >/dev/null
+        run: python -m json.tool examples/sources.json >/dev/null

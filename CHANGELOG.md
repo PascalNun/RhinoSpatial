@@ -4,6 +4,11 @@ RhinoSpatial improves its established source categories through real project use
 
 ## Unreleased
 
+- Read remote classic-TIFF COG windows through bounded, validated HTTP byte ranges. Reuse LibTiff imagery/DEM codecs, usable overviews, masks and NoData; preserve affine placement, source elevations and the shared terrain baseline. Reject unsupported/range-refusing sources without whole-file fallback. Reference Source reads headers without decoding pixels.
+- Add read-only local GeoPackage feature-layer discovery, declared EPSG CRS, bounded RTree/fallback spatial queries, attributes and standard WKB geometry through existing vector components. Preserve polygon-hole curves and geometry grouping; reject malformed/extended geometry without repairs. Catalog references do not scan feature geometry.
+- Correct GDAL ASCII NoData tags that expose a count before their value. Add explicit WGS84 UTM north/south EPSG transformations needed by common COGs.
+- Add Microsoft.Data.Sqlite.Core/platform SQLitePCLRaw managed providers, license texts and package inspection; no new native binary. Add 43 low-priority regression cases, macOS/Windows CI, [how-to/URLs](examples/LOW_COMPATIBILITY_WORKFLOWS.md) and synthetic COG/GeoPackage fixtures. Installed/public 0.4.0 remains unchanged.
+
 - Select one suitable CityJSON LoD per object, retaining parts at that level; support streamed CityJSONSeq and affine geometry templates through existing local/archive/download paths. Reject malformed indices or ambiguous LoDs instead of returning partial rings.
 - Support embedded affine GeoTIFF georeferencing and local world-file TIFF/PNG/JPEG with declared CRS, preserving rotated footprints, UV clipping, pixel centers and terrain sampling. Sidecar edits invalidate caches; projected CRS keys take priority over geographic keys.
 - Support WMTS layer discovery, reference metadata, bounded native tile selection and PNG/JPEG mosaics through existing WMS components. Honor axis order, matrix limits, dimensions and advertised REST/KVP endpoints; validate completed caches and fail required tile errors explicitly.

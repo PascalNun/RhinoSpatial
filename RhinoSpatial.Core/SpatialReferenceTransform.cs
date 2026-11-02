@@ -82,6 +82,11 @@ namespace RhinoSpatial.Core
 
         private static CoordinateSystem? CreateCoordinateSystem(string normalizedSrs)
         {
+            if(normalizedSrs.StartsWith("EPSG:",StringComparison.Ordinal)&&int.TryParse(normalizedSrs.AsSpan(5),out var epsg))
+            {
+                if(epsg is >=32601 and <=32660)return ProjectedCoordinateSystem.WGS84_UTM(epsg-32600,true);
+                if(epsg is >=32701 and <=32760)return ProjectedCoordinateSystem.WGS84_UTM(epsg-32700,false);
+            }
             return normalizedSrs switch
             {
                 "EPSG:4326" => GeographicCoordinateSystem.WGS84,

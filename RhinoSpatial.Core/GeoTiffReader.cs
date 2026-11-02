@@ -25,15 +25,20 @@ namespace RhinoSpatial.Core
             TiffWarningSuppression.EnsureInstalled();
             using var tiff=Tiff.Open(filePath,"r");
             if(tiff is null) throw new InvalidOperationException("Failed to open raster: "+filePath);
+            return ReadImageInfo(tiff,filePath,new FileInfo(filePath).Length,declaredFallbackSrs,true);
+        }
+
+        internal static GeoReferencedRasterInfo ReadImageInfo(Tiff tiff,string name,long size,string? declaredFallbackSrs=null,bool sidecars=false)
+        {
             var width=tiff.GetField(TiffTag.IMAGEWIDTH)?[0].ToInt()??0;
             var height=tiff.GetField(TiffTag.IMAGELENGTH)?[0].ToInt()??0;
             if(width<=0 || height<=0) throw new InvalidDataException("Invalid raster dimensions.");
             var srs=ReadSrsName(tiff);
             var transform=ReadTransform(tiff);
-            transform ??= RasterSidecars.ReadTransform(filePath);
-            if(string.IsNullOrWhiteSpace(srs))srs=string.IsNullOrWhiteSpace(declaredFallbackSrs)?RasterSidecars.ReadSrs(filePath):declaredFallbackSrs;
+            transform ??= (sidecars?RasterSidecars.ReadTransform(name):throw new InvalidDataException("Remote TIFF requires embedded affine georeferencing."));
+            if(string.IsNullOrWhiteSpace(srs))srs=string.IsNullOrWhiteSpace(declaredFallbackSrs)?(sidecars?RasterSidecars.ReadSrs(name):throw new InvalidDataException("Remote TIFF requires an embedded CRS.")):declaredFallbackSrs;
             transform.Validate();
-            return new GeoReferencedRasterInfo(filePath,srs,width,height,transform.Bounds(width,height),new FileInfo(filePath).Length) { GeoTransform=transform };
+            return new GeoReferencedRasterInfo(name,srs,width,height,transform.Bounds(width,height),size) { GeoTransform=transform };
         }
 
         private static RasterGeoTransform? ReadTransform(Tiff tiff)

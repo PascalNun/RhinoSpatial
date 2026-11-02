@@ -129,11 +129,23 @@ The public component name is retained for Grasshopper compatibility, but the acc
 Public inputs:
 
 - `WFS URL` — service URL, OGC API Features URL, or local vector-file path
-- `Layer` — one or more WFS layer entries; optional for files and a single OGC API collection; choose explicitly when a root exposes multiple collections
+- `Layer` — one or more layer entries; optional for a single OGC API collection or sole GeoPackage feature layer and ordinary single files; choose explicitly for multiple collections/GeoPackage layers
 - `Max Features` — request limit; the default `0` requests all available features within the bounded query
 - `Spatial Context` — the shared selected area and placement context
 
 The `Geometry` output is a tree grouped by layer and feature.
+
+### Unreleased: local GeoPackage features
+
+Connect a local `.gpkg` path to List WFS Layers and Load WFS. Catalog names identify
+actual feature tables; select explicitly for multiple layers, or leave Layer
+empty for a sole feature layer. Read-only queries use a standard advertised RTree
+when available, otherwise a bounded scan. Declared EPSG organization codes govern
+the CRS; polygon exterior/hole rings remain feature-grouped closed curves, with
+points/lines/multi-geometries/collections and string attributes in the existing XY
+vector contract. Z/M are not a building/elevation import. Raster tables, editing,
+SQL, curved/extended geometry and automatic remote GeoPackage downloads are not
+supported. See [limits and saved examples](../examples/LOW_COMPATIBILITY_WORKFLOWS.md).
 
 ### Typical WFS workflow
 
@@ -142,7 +154,7 @@ The `Geometry` output is a tree grouped by layer and feature.
 3. Define the area with `Spatial Context`.
 4. Connect the service URL, chosen layer, and shared context to `Load WFS`.
 
-For local vector files, connect the file path directly to `WFS URL`. `Layer` can remain empty and is used only as a label when provided. OGC API Features URLs can also be connected directly; RhinoSpatial requests GeoJSON features for the context bounding box.
+For Shapefile/GeoJSON, connect the file path directly to `WFS URL`. `Layer` can remain empty and is used only as a label when provided. OGC API Features URLs can also be connected directly; RhinoSpatial requests GeoJSON features for the context bounding box.
 
 `Max Features` is a deliberate per-layer cap. `0` follows available pages within the bounded query. OGC API next links and WFS next links are supported; WFS 2 can also advance `STARTINDEX` by the actual returned count. Duplicate ids are removed. Identical records without stable ids remain separate, with a deduplication caveat; declared GeoJSON CRS changes between pages are rejected. Repeated pages, failed required pages and known incomplete responses fail explicitly instead of returning partial selections. Without a matching total, the status states that completeness cannot be independently verified. Legacy WFS without next links cannot be assumed pageable.
 
@@ -199,7 +211,7 @@ WMS 1.3 geographic requests use the authority axis order required by the standar
 
 WMTS supports KVP GetTile and advertised REST templates. It chooses a resolution near a 1024-pixel study view within 64 tiles and 4,194,304 mosaic pixels (8192 per axis). Limits are 4 MiB per tile, 64 MiB per batch and two minutes per mosaic. Matrix limits and geographic axis order are respected; unsupported CRS, ambiguous dimensions and failed required tiles return explicit errors. Dimension defaults are used; an explicit source-URL query value can select a dimension without a new component parameter. Completed PNG mosaics persist under `RhinoSpatial/WmtsCache`, expire after one day, and are checked against SHA-256 before reuse. Delete the cache while idle to reclaim space. No partial mosaic is published after a required tile failure.
 
-## Load GeoTIFF: local georeferenced rasters
+## Load GeoTIFF: georeferenced rasters
 
 Use `Load GeoTIFF` for a local georeferenced image such as an orthophoto, map export, satellite image, or other raster that should align with the selected study area.
 
@@ -221,6 +233,18 @@ The file must contain readable geospatial metadata. If RhinoSpatial cannot deter
 
 Embedded TIFF georeferencing takes priority. The reader supports finite invertible affine transforms, including rotation, shear and reflection. World-file coefficients refer to pixel centers; GeoTIFF PixelIsArea/PixelIsPoint conventions are honored. Reference extents use all four footprint corners. A bounded mesh grid projects the actual footprint through the shared context, clips it with interpolated UVs, and localizes it without stretching the image over its bounding rectangle. Sidecar changes invalidate cached metadata and component results. A world file without a resolvable CRS fails explicitly.
 
+### Unreleased: remote COG imagery
+
+The same GeoTIFF input accepts an HTTP(S) `.tif/.tiff` URL, including URL query
+parameters. The client validates byte ranges and a stable representation, selects
+usable overviews/intersecting tiles, preserves masks/NoData and writes only the
+selected PNG window. Status reports resolution, request count and transferred
+bytes. The existing mesh/material/image-path outputs retain affine placement,
+UV clipping and localization. Remote inputs revalidate on a new solve. Reference
+Source reads headers only; saved selections retain priority. BigTIFF, striped
+files, unsupported masks/codecs and range refusal return explicit errors. See
+[the complete budgets and recipes](../examples/LOW_COMPATIBILITY_WORKFLOWS.md).
+
 ## Load Terrain: elevation and ground surfaces
 
 Use `Load Terrain` to create ground geometry aligned with the same study area as imagery, vectors, and buildings.
@@ -230,13 +254,14 @@ Supported sources include:
 - WCS services
 - ATOM feeds containing supported GeoTIFF, ASC or regular XYZ/CSV terrain tiles
 - local GeoTIFF DEM (`.tif` or `.tiff`)
+- **unreleased:** remote single-band COG DEM via HTTP byte ranges
 - Esri ASCII Grid (`.asc`)
 - regular XYZ or CSV point grids with x, y, z columns
 - the built-in quick global land-elevation fallback
 
 Public inputs:
 
-- `Terrain URL` — WCS URL, terrain ATOM feed or local DEM/grid path; leave empty for the quick global fallback
+- `Terrain URL` — WCS URL, terrain ATOM feed, remote COG DEM (development) or local DEM/grid path; leave empty for the quick global fallback
 - `Coverage` — optional WCS coverage id or EPSG override for local text grids
 - `Spatial Context` — the shared selected area and placement context
 
@@ -410,3 +435,13 @@ RhinoSpatial generally prefers:
 Fallback data should not be presented as equivalent to richer official sources. It should remain bounded and responsive; when a fallback cannot serve the selected context cleanly, it should fail with useful status text instead of leaving Grasshopper apparently stuck.
 
 For representative providers, known limitations, and regression notes, see the [Test Source Catalogue](TEST_SOURCES.md). For release checks, see the [Validation Checklist](../examples/VALIDATION.md).
+
+### Unreleased reference metadata additions
+
+Local GeoPackage Reference Source uses all feature-layer catalog extents and
+transformable declared EPSG metadata without querying geometry. Missing extents
+fail rather than trigger a scan. Remote COG Reference Source reads geospatial TIFF
+headers through a tighter range budget without decoding/importing pixels. These
+follow the existing rule that saved selections take priority. Explicit WGS84 UTM
+north/south EPSG:32601–32660 / 32701–32760 are supported transformations; source
+heights are not vertically reinterpreted.

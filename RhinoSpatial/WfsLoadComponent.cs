@@ -66,7 +66,7 @@ namespace RhinoSpatial
 
         protected override void RegisterInputParams(GH_InputParamManager pManager)
         {
-            pManager.AddTextParameter("WFS Service URL", "WFS URL", "WFS service, OGC API Features root/collection/items URL, direct GeoJSON or vector ZIP URL, or local Shapefile/GeoJSON path. If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
+            pManager.AddTextParameter("WFS Service URL", "WFS URL", "WFS service, OGC API Features root/collection/items URL, direct GeoJSON or vector ZIP URL, or local Shapefile/GeoJSON/GeoPackage path. If left empty, RhinoSpatial will try to inherit it from the connected Layer input.", GH_ParamAccess.item);
             pManager.AddTextParameter("Layer", "Layer", "One or more layer names or layer entries. Use List Item to choose one layer, or merge explicit selections if you want to load several layers. Optional for files and a single OGC API collection; choose a collection explicitly when an API root exposes several.", GH_ParamAccess.list);
             pManager.AddIntegerParameter("Max Features", "Max Features", "Per-layer feature cap. Use 0 to follow available pages within the selected area and safety limits; read Status for completeness diagnostics.", GH_ParamAccess.item, 0);
             pManager.AddTextParameter("Spatial Context", "Spatial Context", "Shared RhinoSpatial spatial context. This is required so WFS, WMS, LoD2, terrain, GeoTIFF, and OSM outputs stay aligned.", GH_ParamAccess.item);
@@ -156,7 +156,7 @@ namespace RhinoSpatial
             var sourceInfo = VectorSourceResolver.Resolve(baseUrl);
             if (!sourceInfo.IsSupported)
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"WFS URL must be a WFS service URL, an OGC API Features URL, a supported vector download URL, or a local Shapefile/GeoJSON path. Source was not found or is unsupported: {baseUrl}");
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, $"WFS URL must be a WFS service URL, an OGC API Features URL, a supported vector download URL, or a local Shapefile/GeoJSON/GeoPackage path. Source was not found or is unsupported: {baseUrl}");
                 return false;
             }
 
@@ -212,6 +212,7 @@ namespace RhinoSpatial
         {
             return requestData.SourceKind switch
             {
+                VectorSourceKind.LocalGeoPackage => ComputeLocalGeoPackage(requestData),
                 VectorSourceKind.LocalShapefile => ComputeLocalShapefile(requestData),
                 VectorSourceKind.LocalGeoJson => ComputeLocalGeoJson(requestData),
                 VectorSourceKind.RemoteDownload => ComputeRemoteVector(requestData),
@@ -358,6 +359,71 @@ namespace RhinoSpatial
             return BuildSolveResults(output, features.Count,
                 $"Loaded {features.Count} feature(s) from a validated vector download ({(downloaded.UsedCache ? "cached" : "downloaded")}), {FormatCoordinateMode(requestData.SpatialContext)}. {string.Join(" ", notes)}",
                 features.Count == 0 || failed ? GH_RuntimeMessageLevel.Warning : GH_RuntimeMessageLevel.Remark);
+        }
+
+        private SolveResults ComputeLocalGeoPackage(RequestData requestData)
+        {
+            using var deadline = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(
+                requestData.CancellationToken
+            );
+            deadline.CancelAfter(TimeSpan.FromMinutes(2));
+            var names = requestData.RequestedLayerNames;
+            var layers = GeoPackageReader.ReadLayers(requestData.BaseUrl, deadline.Token);
+            if (names.Count == 0)
+            {
+                if (layers.Count != 1)
+                    throw new InvalidOperationException(
+                        "Select a GeoPackage feature layer using List WFS Layers."
+                    );
+                names = new List<string> { layers[0].Name };
+            }
+            var resolved = CopyRequest(
+                requestData,
+                requestData.BaseUrl,
+                VectorSourceKind.LocalGeoPackage,
+                names
+            );
+            var features = new List<WfsFeature>();
+            var notes = new List<string>();
+            long pointCount = 0,
+                attributeCharacters = 0;
+            foreach (var name in names)
+            {
+                var read = GeoPackageReader.ReadFeatures(
+                    requestData.BaseUrl,
+                    name,
+                    requestData.SpatialContext,
+                    requestData.MaxFeatures,
+                    deadline.Token
+                );
+                pointCount += read.Features.Sum(f =>
+                    (long)f.Geometry.Points.Count
+                    + f.Geometry.OuterRings.Sum(r => (long)r.Points.Count)
+                    + f.Geometry.LineStrings.Sum(l => (long)l.Points.Count)
+                );
+                attributeCharacters += read.Features.Sum(f =>
+                    f.Attributes.Values.Sum(v => (long)(v?.Length ?? 0))
+                );
+                if (
+                    features.Count + read.Features.Count > 100000
+                    || pointCount > 4000000
+                    || attributeCharacters > 8 * 1024 * 1024
+                )
+                    throw new InvalidOperationException(
+                        "GeoPackage selection exceeded its combined feature/coordinate/attribute budget; narrow the area or select fewer layers."
+                    );
+                features.AddRange(read.Features);
+                notes.Add(
+                    $"{name}: {read.Features.Count} feature(s), {read.ScannedCount} row(s), {(read.UsedSpatialIndex ? "RTree index" : "bounded scan")}{(read.ReachedFeatureLimit ? ", reached requested feature limit" : "")}."
+                );
+            }
+            var output = BuildVectorOutput(resolved, features);
+            return BuildSolveResults(
+                output,
+                features.Count,
+                $"Loaded read-only GeoPackage: {string.Join(" ", notes)} {FormatCoordinateMode(requestData.SpatialContext)}",
+                features.Count == 0 ? GH_RuntimeMessageLevel.Warning : GH_RuntimeMessageLevel.Remark
+            );
         }
 
         private SolveResults ComputeLocalShapefile(RequestData requestData)

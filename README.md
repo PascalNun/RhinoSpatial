@@ -96,6 +96,8 @@ See the [Component and Source Reference](docs/COMPONENT_REFERENCE.md) for suppor
 
 The toolkit has been exercised against a growing international set of public services and local formats. Individual providers, coordinate systems, geometry types, service versions, API access rules, and file metadata can still expose edge cases. For project work, prefer official or project-specific sources and keep an older working definition when upgrading.
 
+Unreleased development adds [remote COG imagery/elevation and local GeoPackage vectors](examples/LOW_COMPATIBILITY_WORKFLOWS.md), following the earlier source and medium-priority compatibility batches. These features are not in the public 0.4.0 package; native Rhino validation remains before release.
+
 The [changelog](CHANGELOG.md) records release changes. The [test source catalogue](docs/TEST_SOURCES.md) documents the current compatibility set and known provider limitations.
 
 ## Design principles

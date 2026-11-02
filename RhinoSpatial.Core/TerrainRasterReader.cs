@@ -123,7 +123,7 @@ namespace RhinoSpatial.Core
             }
         }
 
-        private static float ReadSample(byte[] buffer, int sampleIndex, int bitsPerSample, SampleFormat sampleFormat)
+        internal static float ReadSample(byte[] buffer, int sampleIndex, int bitsPerSample, SampleFormat sampleFormat)
         {
             if (bitsPerSample == 64 && sampleFormat == SampleFormat.IEEEFP)
             {
@@ -161,7 +161,7 @@ namespace RhinoSpatial.Core
             throw new InvalidOperationException($"Unsupported terrain raster sample format: {bitsPerSample}-bit {sampleFormat}.");
         }
 
-        private static double? ReadNoDataValue(Tiff tiff)
+        internal static double? ReadNoDataValue(Tiff tiff)
         {
             var noDataField = tiff.GetField(TiffTag.GDAL_NODATA);
             if (noDataField is null || noDataField.Length == 0)
@@ -169,13 +169,14 @@ namespace RhinoSpatial.Core
                 return null;
             }
 
-            var text = noDataField[0].ToString();
+            // Unknown ASCII TIFF tags expose a count followed by the value.
+            var text = noDataField[^1].ToString().TrimEnd('\0');
             if (double.TryParse(text, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var value))
             {
                 return value;
             }
 
-            return null;
+            throw new InvalidDataException("Invalid GeoTIFF NoData value.");
         }
     }
 }

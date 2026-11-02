@@ -11,7 +11,8 @@ namespace RhinoSpatial.Core
         OgcApiFeatures,
         LocalShapefile,
         LocalGeoJson,
-        RemoteDownload
+        RemoteDownload,
+        LocalGeoPackage
     }
 
     public record VectorSourceInfo(
@@ -34,6 +35,9 @@ namespace RhinoSpatial.Core
             {
                 return new VectorSourceInfo(string.Empty, VectorSourceKind.Unsupported, string.Empty);
             }
+
+            if (IsLocalFile(trimmed, ".gpkg"))
+                return new VectorSourceInfo(trimmed,VectorSourceKind.LocalGeoPackage,string.Empty);
 
             if (IsLocalFile(trimmed, ".shp"))
             {
