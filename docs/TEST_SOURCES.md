@@ -327,7 +327,7 @@ local raster reads and remote BigTIFF remain follow-up work.
 
 ## Service reliability validation (2026-11-02)
 
-The [service reliability reference](technical/SERVICE_RELIABILITY.md) describes request and cache behavior. [Reproduction guide](../examples/RELIABILITY_WORKFLOWS.md): 52 offline checks, a loopback WMS/WCS/OSM fixture server, exact public-service commands and measured limits. Run `reliability-check`; It runs in macOS/Windows CI.
+The [service reliability reference](technical/SERVICE_RELIABILITY.md) describes request and cache behavior. The [reproduction guide](../examples/RELIABILITY_WORKFLOWS.md) contains 52 offline checks, a loopback WMS/WCS/OSM fixture server, exact public-service commands and measured limits. Run `reliability-check` locally; it also runs in macOS/Windows CI.
 
 Live Core checks parsed GeoMet's 39,668,951-byte WMS catalogue (7,606 layers), NRW 100×100 terrain (1,907 bytes), and USGS native EPSG:3857 100×100 terrain (65,924-byte TIFF extracted from a 68,591-byte multipart response). A forced geographic USGS subset returned HTTP 404; the native request succeeded. Overpass returned HTTP 502, so new OSM evidence is offline. Native Rhino cancellation, preview, saved-definition and package checks remain pending.
 

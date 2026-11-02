@@ -37,7 +37,7 @@ package remains 0.4.0 until a separately validated release.
 ## Next engineering priorities
 
 The next engineering work concentrates on larger raster datasets within the
-existing terrain and imagery workflows. The [reliability plan](technical/SERVICE_RELIABILITY.md)
+existing terrain and imagery workflows. The [reliability design](technical/SERVICE_RELIABILITY.md)
 records acceptance checks and efficiency measurements.
 
 | Order | Work | Everyday benefit |
