@@ -12,13 +12,18 @@ results are in the [service guide](../../examples/RELIABILITY_WORKFLOWS.md).
 | WMS/WCS/OSM service loading | Implemented in development | Cancellable requests, response limits, completed metadata caches and validated file reuse |
 | Local terrain windows | Planned | Read selected TIFF samples without allocating a full elevation grid |
 | Remote BigTIFF | Planned | Bounded 64-bit metadata and offset handling, verified with remote image/elevation fixtures |
-| Native units and complete studies | Validation pending | Physical measurements, host/runtime details, material behavior and saved definitions |
+| Native units and complete studies | Issues reproduced on macOS | Metric WMS scale and cross-document selection need correction; Windows and full-study checks remain pending |
 
 ## Check units and the actual Rhino workflow
 
 Use a synthetic study with a known 100 m horizontal distance, a 10 m height difference, a courtyard and a terrain NoData gap. Combine imagery, vectors, terrain and buildings through one context. Repeat in metre, millimetre and foot documents, in localized and absolute modes, then save/reopen and check supported bake paths. Change connection order to check the shared elevation baseline.
 
-Record physical measurements as well as coordinate values. The absence of explicit document-unit conversion in the inspected placement code is an investigation finding, not yet a reproduced units bug. Any scaling correction needs a defined relationship between model units and absolute source coordinates. Shared placement, image meshes and height sampling must use the same policy.
+Record physical measurements as well as coordinate values. Native macOS testing
+reproduced a scale mismatch for a metric WMS mesh in millimetre and foot documents;
+see the [measured results](../../examples/VALIDATION.md#native-macos-results--2026-11-02).
+Any scaling correction needs a defined relationship between model units and
+absolute source coordinates. Shared placement, image meshes and height sampling
+must use the same policy.
 
 Record the Rhino build, operating system, active .NET runtime and loaded plugin/dependency versions. Use a separate test setup and copies of saved definitions. Verify packaged SQLite/image dependencies in the Rhino host on macOS and Windows. Windows console CI does not establish Windows Rhino compatibility. Assess Rhino 9 separately; do not retarget or drop Rhino 8 support solely because the Sandbox runs on .NET 10. See [McNeel's runtime guidance](https://developer.rhino3d.com/guides/rhinocommon/moving-to-dotnet-core/).
 

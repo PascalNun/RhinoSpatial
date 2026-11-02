@@ -339,3 +339,13 @@ Core's existing target at `c9d5e40`. All passed, including 52 correctness and 52
 reliability cases. This is standalone runtime compatibility evidence, not a
 Rhino/Grasshopper host test. See the [validation record](../examples/VALIDATION.md#recorded-runtime-check--2026-11-02)
 for the exact host installation and remaining interactive checks.
+
+## Native macOS validation (2026-11-02)
+
+[Native results](../examples/VALIDATION.md#native-macos-results--2026-11-02) record
+42 successful functional checks in Rhino 8.16/Grasshopper on arm64 .NET 7,
+including synthetic service transfers, saved connections, masks, materials and
+baking. Separate measurements reproduced document-unit scale and cross-document
+selection problems. These are development-build observations, not live-provider
+or Windows host validation. Full map-lifetime and combined-study checks remain
+on the checklist.

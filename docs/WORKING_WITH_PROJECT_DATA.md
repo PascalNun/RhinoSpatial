@@ -73,6 +73,13 @@ RhinoSpatial reads coordinate information where available and transforms support
 
 Keep localized placement for ordinary modeling near Rhino's origin. Use `Use Absolute Coordinates` when the project specifically needs original coordinates, and keep all layers on the same context.
 
+In the current development build, a metric WMS footprint was measured at the
+wrong physical scale in millimetre and foot documents. Use a metre Rhino document
+for a metric context such as `EPSG:25833` while this is being corrected. Separate
+open definitions can also share the live map selection; check the study area
+after switching definitions. The [native validation record](../examples/VALIDATION.md#native-macos-results--2026-11-02)
+describes both findings and the tested scope.
+
 Terrain and 3D buildings can have different height references or levels of accuracy. RhinoSpatial shares a placement baseline, but that does not make different datasets equivalent or convert every vertical datum. A surface model may include trees and buildings; a bare-earth terrain model aims to describe the ground. Check the source description before relying on its heights.
 
 ## Read the result

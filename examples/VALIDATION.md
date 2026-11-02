@@ -24,7 +24,46 @@ or errors. Project targets and the installed plugin were unchanged.
 This was standalone console execution using Rhino's bundled runtime. It did not
 run inside Rhino or Grasshopper, so it does not complete the interactive,
 installed-package, preview, material, baking, saved-definition or model-unit
-checks below. Those macOS checks and Windows host checks remain pending.
+checks below. The native results below provide additional macOS evidence;
+Windows host checks remain pending.
+
+## Native macOS results — 2026-11-02
+
+Tested the development code at `c9d5e40` in Rhino 8.16 (`8.16.25042.13002`),
+Grasshopper 1.0.0008 and .NET 7.0.0 on arm64 macOS. Checks used actual
+Grasshopper document solutions and serialization, with viewport and map-helper
+inspection. Service requests used small synthetic loopback fixtures; these
+results do not establish live-provider coverage or Windows host behavior.
+
+42 functional checks passed:
+
+| Area | Observed result |
+| --- | --- |
+| Components and saved examples | All ten component interfaces instantiated. All six example definitions opened without archive warnings, and their connections survived save/reopen. |
+| Sources | WMS, WMTS, single/multipart WCS, OSM roads, GeoPackage courtyard curves, rotated imagery, COG imagery/terrain and CityJSON model/sequence/template files produced valid geometry. A synthetic ATOM building archive downloaded and produced six surfaces. |
+| Interrupted loading | WMS/WCS/OSM body transfers stopped about 1.5 s after a scheduled cancellation and published no geometry. Normal-source retries completed in 0.01–0.19 s. Truncated and oversized transfers produced no geometry. |
+| Masks and materials | COG terrain left the masked area open and image pixels retained alpha. WMS and rotated-image bakes retained UVs and texture references after `.3dm` save/reopen. Both textures displayed in Rhino's Rendered mode. |
+| Saved state | A WMS definition solved after save/reopen. A saved area took precedence over a different file reference within that study; the browser helper displayed a restored rectangle. |
+
+Separate checks found two correctness problems and one diagnostic problem:
+
+- **Model-unit scale:** a 128 m WMS footprint in an EPSG:25833 context remained
+  128 model units in metre, millimetre and foot documents. Physical widths were
+  128 m, 0.128 m and 39.0144 m respectively. The tested localized output does not
+  adapt to document units. Use a metre document for this metric workflow until
+  unit handling is corrected; other source components still need unit checks.
+- **Selection isolation:** two Grasshopper documents with different stored
+  areas shared the helper's live selection. Recomputing the first after restoring
+  the second returned the second area. Independent study selection is not reliable
+  across those open definitions.
+- **Terrain cancellation text:** cancellation stopped the load and retry worked,
+  but the component displayed `One or more errors occurred. (A task was canceled.)`.
+
+The scale and selection cases remain unresolved. The full combined study,
+map-reference cancellation/removal, other coordinate systems, Google preview
+with a user-managed key, and Windows host validation remain outstanding.
+The checklist below covers those broader requirements; the results above do
+not complete every variant of an item.
 
 ## General Checks
 

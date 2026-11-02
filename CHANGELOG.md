@@ -33,6 +33,7 @@ for feature availability and the general workflow.
 - Document source formats, reader behavior and resource limits in the [technical documentation](docs/README.md#project-direction-and-maintenance). Windowed local terrain reads and remote BigTIFF remain future work.
 - Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.
 - Add offline regression coverage for source discovery, file formats, reader correctness and service reliability, with CI on macOS and Windows. Native preview, materials, baking and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
+- Record native macOS source, cancellation, material and persistence checks. Document the reproduced metric WMS scale mismatch in non-metre documents and shared selection between open definitions; both remain unresolved.
 
 ## 0.4.0 — 2026-11-01
 

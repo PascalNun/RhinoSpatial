@@ -16,7 +16,7 @@ The public package remains 0.4.0.
 | Service cancellation and resource limits | WMS/WCS/OSM request and cache review | Implemented in development; see [service reliability](SERVICE_RELIABILITY.md) |
 | Local terrain memory | Full-grid decode precedes crop | Window reader planned |
 | Remote BigTIFF | Basic LibTiff decoding works; remote preflight rejects the format | Bounded 64-bit remote handling planned |
-| Rhino units and host behavior | Placement/runtime review | Native measurements and host tests pending |
+| Rhino units and host behavior | Native macOS source/material tests and physical scale measurements | Metre workflow tested; WMS scale mismatch reproduced in millimetres/feet. Windows host tests pending |
 
 ## Original findings at the audit baseline
 
@@ -54,7 +54,12 @@ The first input must not become WGS84 merely because it contains `4326`. The sec
 
 ### Units and whole-study behavior
 
-The [placement code](../../RhinoSpatial/RhinoSpatialContextTools.cs) constructs points from transformed coordinates. A repository search found document tolerance use but no `ModelUnitSystem`/`UnitScale` handling in the plugin source. This is a strong reason to test scale in metre, millimetre and foot templates; it is **not yet a reproduced Rhino units bug**.
+The [placement code](../../RhinoSpatial/RhinoSpatialContextTools.cs) constructs points
+from transformed coordinates. The initial review found no document-unit scaling.
+Subsequent [native macOS checks](../../examples/VALIDATION.md#native-macos-results--2026-11-02)
+reproduced the problem: a 128 m WMS footprint remained 128 model units in metre,
+millimetre and foot documents. A separate two-document check reproduced shared
+selection leaking between studies. Both findings remain unresolved.
 
 Use a known-length rectangle and building height, compare imagery/vectors/terrain together, change units, save/reopen and test supported bake paths. Establish an explicit units policy before changing behavior. Automatic scaling must not quietly break the promise of original coordinates in absolute mode. McNeel documents the relevant [unit conversion API](https://developer.rhino3d.com/api/rhinocommon/type/rhino.rhinomath/).
 
@@ -101,4 +106,11 @@ URN EPSG::32632: rejected while EPSG:32632 is accepted
 Pinned LibTiff BigTIFF: marker 43, successful row [30,40]
 ```
 
-The observations above are the original research results. The follow-up implementation now retains both courtyard rings, rejects the truncated terrain file, leaves `EPSG:9994326` unsupported, and accepts the supported UTM URN. A valid local BigTIFF still reads correctly. The 52 correctness cases run in macOS/Windows CI. Standalone checks also passed using Rhino 8.16's bundled .NET 7 runtime; see the [runtime record](../../examples/VALIDATION.md#recorded-runtime-check--2026-11-02). Native Rhino scale/material/assembly behavior remains unverified by these probes.
+The observations above are the original research results. The development readers
+retain both courtyard rings, reject the truncated terrain file, leave
+`EPSG:9994326` unsupported and accept the supported UTM URN. A valid local BigTIFF
+still reads correctly. The 52 correctness cases run in macOS/Windows CI.
+Standalone checks also passed under Rhino's bundled .NET 7 runtime. Separate
+[native macOS results](../../examples/VALIDATION.md#native-macos-results--2026-11-02)
+cover source output, materials and persistence and identify the unresolved scale
+and selection-isolation cases.
