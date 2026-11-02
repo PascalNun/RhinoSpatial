@@ -202,3 +202,15 @@ Before release:
 
 No installed plugin, public version, release assets or Food4Rhino listing are
 changed by this implementation batch.
+
+## Follow-up correctness research
+
+The [research report](../docs/NEXT_WORK_RESEARCH.md) adds the following release
+checks. Current passing CI does not imply these newly demonstrated cases are
+covered or fixed.
+
+- [ ] Incomplete scanline/tile reads fail without repeating old elevations or publishing partial terrain.
+- [ ] Equivalent GeoJSON/GML/Shapefile/GeoPackage polygons retain courtyard boundaries and feature grouping.
+- [ ] Unknown CRS identifiers are rejected; supported short/URN/URL forms resolve consistently without an axis-order regression.
+- [ ] A known-length/height study is checked in metre, millimetre and foot documents, including save/reopen and supported bake paths; confirm the intended units policy before changing absolute-coordinate behavior.
+- [ ] Packaged assemblies are loaded under the actual supported Rhino 8 host runtimes on both platforms; assess Rhino 9 separately rather than assuming the .NET 10 sandbox proves host compatibility.

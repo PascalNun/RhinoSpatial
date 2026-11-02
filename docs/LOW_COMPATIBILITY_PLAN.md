@@ -83,4 +83,6 @@ LibTiff's unknown ASCII tags return count + value, so the value must be parsed
 instead of the count. Explicit WGS84 UTM north/south transformations were added
 after the live Sentinel test exposed that missing CRS support. No source CRS or
 vertical datum is guessed. Unreferenced rounded overview grids are skipped when
-their mapping is ambiguous; BigTIFF remains an explicit decoder limitation.
+their mapping is ambiguous; BigTIFF remains blocked by the remote reader.
+Subsequent [research](NEXT_WORK_RESEARCH.md) confirmed basic BigTIFF decoding
+with the pinned library, correcting the earlier decoder-limitation explanation.

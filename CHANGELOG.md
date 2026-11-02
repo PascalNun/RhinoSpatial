@@ -26,6 +26,7 @@ for feature availability and the general workflow.
 
 ### Documentation, dependencies and validation
 
+- Record [follow-up correctness research](docs/NEXT_WORK_RESEARCH.md), diagnostic fixtures and priorities for terrain reads, courtyard rings, coordinate names, host/unit checks and BigTIFF range handling. These findings are not implemented fixes.
 - Refresh the overview, visual workflow, project-data guide, examples, reference and maintainer documentation. General workflows apply across providers; recorded URLs, bounds and technical probe results remain in linked recipes.
 - Save [service/download examples](examples/COMPATIBILITY_WORKFLOWS.md), [building/imagery examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md), and [COG/GeoPackage examples](examples/LOW_COMPATIBILITY_WORKFLOWS.md), with synthetic sample files and actual live-check results.
 - Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.

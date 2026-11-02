@@ -480,3 +480,18 @@ headers through a tighter range budget without decoding/importing pixels. These
 follow the existing rule that saved selections take priority. Explicit WGS84 UTM
 north/south EPSG:32601–32660 / 32701–32760 are supported transformations; source
 heights are not vertically reinterpreted.
+
+## Reader issues under review
+
+The [2026-11-02 research](NEXT_WORK_RESEARCH.md) records three reproduced cases
+that are not fixed yet: GeoJSON/GML polygon interiors can be omitted, a failed
+local terrain scanline can repeat the preceding row, and some malformed or
+alternative CRS identifiers are mishandled by the shared helper. Do not treat a
+terrain result accompanied by a read error as valid. Use the source's verified
+coordinate identifier and check that expected interior boundaries are present.
+
+Remote BigTIFF remains unsupported by the COG reader. A basic probe confirmed
+that the shipped decoder can read BigTIFF; bounded 64-bit remote header/directory
+handling is the remaining implementation work, rather than a demonstrated lack
+of basic decoder support. The research separates confirmed cases from proposed
+Rhino units/runtime checks and other follow-ups.

@@ -277,3 +277,15 @@ Live probes: Sentinel TCI 11×12 pixels / 2,686,976 range bytes; Copernicus DSM
 RTree. Results are parser/core placement evidence; Rhino visual/Windows-host
 checks remain pending. External bytes are not committed; the saved fixtures are
 synthetic and reproducible with `low-probe examples`.
+
+## Follow-up reader research (2026-11-02)
+
+[Next-work research](NEXT_WORK_RESEARCH.md) records synthetic reproductions of
+lost GeoJSON/GML interior rings, a truncated DEM repeating its last readable row,
+and inconsistent CRS identifier handling. A tiny BigTIFF also proved basic
+support in the pinned decoder. Inputs are saved separately under
+[research fixtures](../examples/fixtures/research/README.md), including one
+intentionally truncated file. They are diagnostic cases, not working site-data
+recommendations or implemented regression fixes. The native units/runtime and
+resource-limit findings remain investigation items at the evidence levels stated
+in that report.

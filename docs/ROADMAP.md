@@ -20,6 +20,21 @@ The Release build and all nine automated suites have passed on macOS and Windows
 
 Implementation records remain available for [services and downloads](COMPATIBILITY_IMPLEMENTATION_PLAN.md), [building and imagery formats](MEDIUM_COMPATIBILITY_PLAN.md), and [COG/GeoPackage](LOW_COMPATIBILITY_PLAN.md). Their original priority labels describe the research order, not the user-facing structure of the toolkit.
 
+## Immediate correctness work
+
+The [next-work research](NEXT_WORK_RESEARCH.md) reproduces three issues that the
+current green suites do not cover: incomplete terrain reads can repeat a row,
+GeoJSON/GML can lose courtyard boundaries, and the shared coordinate helper can
+misread an invalid identifier. Fix these and add regressions before another
+round of format expansion. The research includes tiny inputs, evidence levels
+and proposed acceptance checks; the fixes are not implemented yet.
+
+Then check complete studies in Rhino, including model units, actual host runtimes,
+materials and saved definitions. Consistent cancellation and bounded reads in
+older source paths are the next reliability work. BigTIFF range handling is a
+promising format follow-up: the shipped decoder passed a basic BigTIFF probe,
+while the current remote reader still rejects the format.
+
 ## Now: validate complete studies
 
 The next release should be judged through complete workflows as well as isolated source tests.
@@ -58,7 +73,7 @@ Keep introductions practical and broad enough to work with different project sou
 
 ## Later: additions with a demonstrated need
 
-Possible follow-ups include more representative CityJSON variants, additional GeoPackage extensions, or COG arrangements such as BigTIFF when decoder support and limits are established. Output refinements should improve a recurring architectural or site-context task.
+Possible follow-ups include more representative CityJSON variants, additional GeoPackage extensions, or COG arrangements such as BigTIFF after bounded 64-bit remote metadata handling is established. Output refinements should improve a recurring architectural or site-context task.
 
 These are candidates, not promises or reasons to expand the interface before a useful project example exists.
 
