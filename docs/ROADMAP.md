@@ -1,185 +1,73 @@
-# RhinoSpatial Roadmap
+# RhinoSpatial roadmap
 
-This roadmap is written for contributors and technically interested users. It describes what is already established, what is being improved now, and what may follow later. User instructions and supported-source details live in the [Component and Source Reference](COMPONENT_REFERENCE.md).
+RhinoSpatial's direction is to make everyday site-context work more dependable: choose one area, connect the project's sources, and work with aligned maps, terrain and geometry in Rhino.
 
-## Direction
+The main source categories are established. Future work will focus on compatibility, output quality, performance and usability within those workflows. See [Working with project data](WORKING_WITH_PROJECT_DATA.md) for user guidance and the [project scope](PROJECT_SCOPE.md) for design principles.
 
-RhinoSpatial has grown from a WFS-focused loader into a broader geospatial toolkit for Rhino and Grasshopper.
+## Released and in development
 
-The core source scope is now defined:
+**0.4.0 is the public release.** It provides the shared study-area workflow, vector and map services, local project data, terrain, LoD2 buildings, OSM and optional Google 3D visual reference. Supported building ATOM feeds can select and download tiles for the study area.
 
-- Spatial Context
-- vector data through WFS, OGC API Features, Shapefile, and GeoJSON
-- WMS imagery
-- LoD2 buildings
-- terrain
-- GeoTIFF
-- OSM context
-- Google 3D Tiles reference viewing
+The compatibility work below is merged into `main` for the next release:
 
-No additional core source categories are currently planned. The priority is to make these workflows more dependable, coherent, efficient, and pleasant to use on real projects.
+| Area | What improves |
+| --- | --- |
+| Services and downloads | Feature paging, API collection discovery, direct vector/building downloads, terrain ATOM and source metadata |
+| Building and image formats | CityJSON detail selection, sequences and templates; affine/world-file imagery; WMTS map services |
+| Remote rasters and local vectors | COG image/elevation windows and read-only GeoPackage feature layers |
 
-The guiding product idea remains:
+The Release build and all nine automated suites have passed on macOS and Windows. Preview, materials, baking, installed-package behavior and saved definitions still need the relevant Rhino checks before publication. Merging code into `main` does not change the installed plugin or published packages.
 
-**one selected area, multiple aligned spatial layers**
+Implementation records remain available for [services and downloads](COMPATIBILITY_IMPLEMENTATION_PLAN.md), [building and imagery formats](MEDIUM_COMPATIBILITY_PLAN.md), and [COG/GeoPackage](LOW_COMPATIBILITY_PLAN.md). Their original priority labels describe the research order, not the user-facing structure of the toolkit.
 
-## Current baseline
+## Now: validate complete studies
 
-The current release already provides:
+The next release should be judged through complete workflows as well as isolated source tests.
 
-- one shared `Spatial Context` with saved area selection;
-- optional map orientation from WFS, WMS, WCS, and supported local sources;
-- a neutral world view instead of an implicit Frankfurt default;
-- localized placement near Rhino's origin or optional absolute coordinates;
-- vector loading from WFS, OGC API Features, Shapefile, and GeoJSON;
-- WMS imagery with an ordered orientation fallback;
-- terrain from WCS, GeoTIFF DEM, Esri ASCII Grid, XYZ/CSV grids, and a bounded global fallback;
-- LoD2 buildings from WFS, ATOM download feeds, CityGML/GML/XML, CityJSON, folders, and ZIP archives;
-- GeoTIFF raster placement;
-- curated OSM buildings, roads, water, green areas, and rail;
-- bounded Google Photorealistic 3D Tiles reference viewing;
-- a shared elevation baseline that does not depend on Grasshopper solve order;
-- public examples, a visual workflow, a user guide, a tested-source catalogue, and release validation checks.
+- Compare imagery, vectors, terrain and buildings using one shared context, in localized and absolute placement.
+- Check saved definitions, map selection restoration, layer choices and cancellation in Rhino.
+- Check materials, transparency, image clipping, geometry grouping and supported bake behavior.
+- Verify installation and assembly resolution on macOS and Windows.
+- Keep Google 3D Tiles a temporary reference preview, with the same shared placement rules.
 
-These are the starting conditions for future work, not unfinished roadmap promises.
+The [validation checklist](../examples/VALIDATION.md) records the remaining work. Console checks and metadata probes provide useful evidence, but do not establish Rhino visual correctness.
 
-## Unreleased compatibility batch
+## Next: improve what projects reveal
 
-The [research backlog](COMPATIBILITY_RESEARCH.md) is recorded and priorities 1–5
-are implemented on the source-compatibility branch: bounded feature paging, API-root
-collection discovery, direct vector/building downloads, terrain ATOM and reference
-metadata. [The implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records
-validation and remaining work; [example recipes](../examples/COMPATIBILITY_WORKFLOWS.md)
-save tested URLs and bounds. Interactive Rhino/Windows checks remain before release.
-The [medium-priority follow-up](MEDIUM_COMPATIBILITY_PLAN.md) implements priorities 6–8: CityJSON detail/sequence/templates, affine/world-file rasters and WMTS. Its [saved examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) include synthetic declared-CRS data and live PDOK imagery. Native Rhino/Windows validation remains. The [low-priority plan](LOW_COMPATIBILITY_PLAN.md) implements priorities 9–10: bounded remote COG windows and read-only local GeoPackage features, with [saved examples](../examples/LOW_COMPATIBILITY_WORKFLOWS.md), platform CI and explicit format limits.
+### Consistent workflows
 
-## Now: real-use stabilization
+Keep source components consistent in naming, grouping, status messages and failure handling. Improve recurring friction in complete studies, including saved state and predictable XY/Z alignment. Small, well-evidenced fixes are more useful than a growing set of speculative options.
 
-The most useful next improvements should come from real project use rather than speculative expansion.
+### More representative sources
 
-### Core workflow consistency
+Test actual feature, image and elevation requests across different providers, coordinate systems and file structures. Keep changes in shared readers and placement logic where possible. Distinguish missing source coverage from filtering, parsing and geometry-conversion failures.
 
-- collect recurring friction from complete study workflows;
-- keep source components consistent in naming, status behavior, grouping, and failure handling;
-- protect XY and Z alignment across all source combinations;
-- improve persistence and state restoration where real definitions expose problems;
-- prefer a small number of high-value fixes over a large speculative issue list.
+Continue collecting varied CityGML and CityJSON examples. Retain conservative building conversion: source problems should remain visible rather than being hidden by invented surfaces.
 
-### Provider compatibility
+### Useful outputs
 
-- test more bounded, real feature/image/coverage requests rather than capabilities documents alone;
-- add compatibility fixes only when a real provider or file demonstrates the need;
-- keep axis-order, CRS, HTTPS, service-version, and response-format handling centralized where possible;
-- return useful diagnostics instead of silently producing empty or misplaced geometry.
+Improve road interpretation, figure-ground studies and grouping within the curated OSM workflow. Keep image materials and transparency consistent across raster components. Strengthen terrain diagnostics and shared elevation behavior, while keeping broad fallbacks small and responsive.
 
-### LoD2 reliability
+### Performance and maintenance
 
-- validate the new ATOM tile-download/cache workflow in Rhino, including Berlin and other spatially indexed INSPIRE feeds;
-- distinguish provider coverage gaps from filtering or conversion failures;
-- retain the small internal WFS request buffer for BBOX edge cases;
-- keep folder and ZIP loading bounded by file/building metadata where available;
-- improve invalid or duplicate surface handling conservatively;
-- avoid inventing false faces merely to force closed solids;
-- continue collecting CityGML and CityJSON examples across providers and coordinate systems.
+Avoid repeated requests, unnecessary transformations and geometry conversion outside the selected area. Measure costs before adding dependencies, share source/placement logic, and keep the Grasshopper components focused on the user's task.
 
-### Documentation freshness
+### Documentation
 
-- keep the README useful to architects and designers before introducing implementation details;
-- keep exact formats, coordinate behavior, fallbacks, and diagnostics in the component reference;
-- refresh screenshots when public component labels change;
-- keep the website, Food4Rhino, GitHub, Package Manager, and release notes consistent;
-- update examples and the tested-source catalogue whenever supported behavior changes.
+Keep introductions practical and broad enough to work with different project sources. Explain necessary technical terms where they first matter; keep protocol details, budgets and test commands in reference pages. Update instructions and examples alongside behavior, and clearly separate the public release from development features.
 
-## Next: focused quality improvements
+## Later: additions with a demonstrated need
 
-### OSM context
+Possible follow-ups include more representative CityJSON variants, additional GeoPackage extensions, or COG arrangements such as BigTIFF when decoder support and limits are established. Output refinements should improve a recurring architectural or site-context task.
 
-`Load OSM` should remain curated and lightweight rather than becoming a full query editor.
+These are candidates, not promises or reasons to expand the interface before a useful project example exists.
 
-Useful refinements include:
+## Dependencies and releases
 
-- better road width and surface interpretation;
-- stronger figure-ground and black-plan outputs;
-- clearer grouping;
-- improved building geometry where source data supports it;
-- selected additional contextual outputs only when they remain broadly useful and do not overload the interface.
+Use mature libraries for TIFF decoding, topology, coordinate transforms, vector parsing and glTF. Managed image and SQLite dependencies are part of the development build; their licenses and package expectations must stay documented.
 
-### Raster and imagery
+Before a release, inspect Food4Rhino and Yak package contents and size, verify intentional assemblies and supported platforms, update notices, and rebuild from the intended commit. The [contributor guide](../CONTRIBUTING.md) and [release checklist](../examples/VALIDATION.md) provide the checks.
 
-- improve transparency and alpha handling;
-- keep WMS materials and GeoTIFF materials consistent;
-- improve raster alignment diagnostics;
-- keep the WMS fallback order useful and clearly reported;
-- continue testing providers that require an alternate advertised request CRS.
+## Product boundaries
 
-### Terrain and elevation
-
-- strengthen vertical consistency across terrain, LoD2 buildings, and Google reference meshes;
-- keep the global fallback small, quick, and honest about its limitations;
-- improve WCS and local DEM error reporting;
-- avoid repeated transformations or requests that do not improve the result.
-
-### Performance and maintainability
-
-- reduce duplicated request, transform, filtering, and placement logic;
-- centralize shared spatial behavior without hiding the workflow;
-- avoid unnecessary requests and geometry conversion outside the selected context;
-- measure package size and runtime cost before adding dependencies;
-- keep Grasshopper components small even when the underlying source handling becomes more capable.
-
-## Later: carefully bounded candidates
-
-Later work should still strengthen the existing source categories rather than widen the product indiscriminately.
-
-Possible candidates include:
-
-- additional GeoPackage extensions only when justified by representative projects; the unreleased standard vector reader is implemented;
-- stronger CityJSON coverage after more representative real sources are tested;
-- additional remote COG arrangements/codecs such as BigTIFF after decoder support and allocation limits are verified; bounded classic-TIFF range access is implemented;
-- optional output refinements that clearly improve architectural site workflows.
-
-These are candidates, not commitments or release blockers.
-
-## Dependency posture
-
-RhinoSpatial should remain careful about each shipped dependency, but mature spatial libraries should not be replaced by fragile custom code simply to reduce the file count.
-
-Current posture:
-
-- keep `BitMiracle.LibTiff.NET` while TIFF and GeoTIFF support is active;
-- keep `ProjNET` for coordinate transformations until a clearly smaller, reliable replacement exists;
-- keep `SharpGLTF.Core` while the Google viewer decodes GLB content;
-- keep `NetTopologySuite` for OSM topology, buffering, unions, and Shapefile geometry;
-- keep `NetTopologySuite.IO.Esri.Shapefile` only in `RhinoSpatial.Core`;
-- do not add broad format dependencies without real test data and a clear workflow need.
-
-Before each release:
-
-- measure the actual Food4Rhino and Yak package;
-- confirm the included DLLs are intentional;
-- keep third-party notices current;
-- remove deferred experimental references;
-- prefer small internal parsers only for genuinely simple formats.
-
-## Explicit non-goals
-
-RhinoSpatial is not currently trying to:
-
-- become a full GIS desktop environment inside Grasshopper;
-- expose every low-level service parameter;
-- turn `Load OSM` into a general OSM query editor;
-- build a giant in-plugin provider catalogue;
-- continually add unrelated source categories;
-- prioritize streamed 3D reference viewing over the editable contextual workflow;
-- turn Google 3D Tiles into an import, bake, extraction, export, or offline-cache path.
-
-## Long-term outcome
-
-The long-term goal is a compact toolkit that feels trustworthy in everyday design work:
-
-- choose an area once;
-- connect the sources available for the project;
-- receive useful geometry, imagery, and terrain in one aligned Rhino space;
-- understand clearly when a provider, file, coordinate system, or fallback limits the result.
-
-When priorities compete, prefer robustness, simplicity, aligned outputs, sensible defaults, and practical contextual modeling over configurability, scope growth, and UI complexity.
+RhinoSpatial remains a compact toolkit for aligned site context. It should keep a manageable interface, sensible defaults and clear source limitations. A full GIS desktop, unrestricted OSM query editor or large provider browser is outside the current scope. Google 3D Tiles remain a visual reference workflow with no import, extraction, bake, export or offline-cache path.

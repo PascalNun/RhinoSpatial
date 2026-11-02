@@ -11,6 +11,12 @@ user-facing source instructions, see the
 
 The **Current Use** column describes what the source is supposed to validate in RhinoSpatial: parser coverage, provider quirks, CRS behavior, terrain/raster alignment, local-file handling, or manual visual context. If a source is on the watch list, it is intentionally not a recommended example yet.
 
+For a general workflow, start with [Working with project data](WORKING_WITH_PROJECT_DATA.md).
+The dated checks below are maintainer evidence. All compatibility batches are
+merged into `main`, while the public package remains 0.4.0. The combined nine-suite
+CI passes on macOS and Windows; native Rhino and installed-package checks remain
+separate.
+
 Use these together with:
 
 - `examples/sources.json`
@@ -62,7 +68,7 @@ five pages with an intentional cap. Berlin DGM1 yielded a 400 × 400 single-tile
 raster and a 200 × 200 two-tile mosaic, both built into Core meshes. Direct Natural
 Earth GeoJSON parsed 177 features, its Shapefile ZIP returned three sample features,
 and the cjio Delft CityJSON fixture parsed 160 buildings. These are download/parser/
-Core-placement checks; new interactive Rhino/Grasshopper and Windows validation
+Core-placement checks; new interactive Rhino/Grasshopper and installed-package validation
 remains pending. The older Delft-hosted CityJSON URL failed TLS in this batch;
 historical local-file results below remain historical results.
 
@@ -70,7 +76,7 @@ historical local-file results below remain historical results.
 
 [The plan](MEDIUM_COMPATIBILITY_PLAN.md) and [example guide](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) record priorities 6–8 and exact inputs. `medium-compatibility-check` tests LoD selection, sequence headers/records/cancellation, instance matrices, invalid geometry, world files/CRS/cache invalidation, embedded affine/PixelIsPoint GeoTIFFs, image UV clipping/reprojection, terrain centers, projected/geographic WMTS, matrix limits, tile ordering/alpha, corruption, failures and metadata-only references. The suite uses temporary fixtures and no network.
 
-Live PDOK capabilities exposed 19 layers/six supported sets; bounded native EPSG:28992 imagery loaded 36 JPEG tiles at 0.42 m/pixel, yielding a 1536 × 1536 PNG and a 512-triangle clipped Core mesh. The mosaic was visually inspected for continuity, not in Rhino. The cjio multi-LoD fixture parsed ten buildings/348 selected surfaces at LoD 2.2; it lacks CRS metadata, so it is parser-only evidence. Bundled declared-CRS synthetic models/sequence/template each parsed one building/six surfaces, and the rotated PNG generated 512 Core triangles. New Rhino/Windows checks remain pending.
+Live PDOK capabilities exposed 19 layers/six supported sets; bounded native EPSG:28992 imagery loaded 36 JPEG tiles at 0.42 m/pixel, yielding a 1536 × 1536 PNG and a 512-triangle clipped Core mesh. The mosaic was visually inspected for continuity, not in Rhino. The cjio multi-LoD fixture parsed ten buildings/348 selected surfaces at LoD 2.2; it lacks CRS metadata, so it is parser-only evidence. Bundled declared-CRS synthetic models/sequence/template each parsed one building/six surfaces, and the rotated PNG generated 512 Core triangles. New native Rhino/installed-package checks on macOS/Windows remain pending.
 
 ## Deterministic correctness regressions
 
@@ -234,14 +240,16 @@ These confirm bounded source loading and compatible native coordinate metadata. 
 | LINZ Data Service WFS/WMS demo-key candidates | `401 Unauthorized` / `404 Not Found` during capabilities probes | LINZ remains interesting for New Zealand, but a real API key or confirmed open endpoint is needed before adding it to the active catalogue. |
 | EOX WCS endpoint | SSL failure during WCS capabilities probe | `https://ows.eox.at/eoxserver/ows?SERVICE=WCS&REQUEST=GetCapabilities` remains useful as a provider-resilience watch item, but not a current regression source. |
 
-## Format Gaps Worth Considering
+## Format coverage and follow-ups
 
-These are not release blockers, but they are the most sensible future source-format candidates:
+These notes distinguish established support from additions on `main` and formats
+that still need representative project testing. They are not a list of missing
+core features or release blockers.
 
 - **Local DEM / terrain files**
   `Load Terrain` now accepts local `.tif/.tiff` GeoTIFF DEM paths, `.asc` Esri ASCII Grid files, and regular `.xyz` / `.csv` point grids with x,y,z columns. Text-grid CRS is taken from the `Coverage` input when it looks like an EPSG code, otherwise from the current Spatial Context SRS.
 - **CityJSON**
-  Basic local CityJSON building import is now supported through `Load LoD2 Buildings`. More real CityJSON sources should be added to this test catalogue before calling it mature.
+  The public package supports local CityJSON building import through `Load LoD2 Buildings`. Development adds detail selection, sequences and geometry templates. Continue adding varied real sources alongside the synthetic regression files.
 - **GeoPackage**
   Implemented in the unreleased low-priority batch: local read-only standard feature tables, catalog metadata, RTree/bounded queries and standard WKB with hole curves. Raster tables, curved/extended geometry and editing remain outside scope. See the low-priority how-to and fixtures.
 - **Shapefile**
@@ -249,7 +257,7 @@ These are not release blockers, but they are the most sensible future source-for
 - **Local GeoJSON**
   Local `.geojson` and GeoJSON `.json` files are now supported as vector sources through `Load WFS`. This is intentionally simple: FeatureCollection geometry is treated like WFS/OGC vector geometry, defaulting to EPSG:4326 unless the file advertises an older named CRS.
 - **OGC API Features**
-  Basic GeoJSON OGC API Features item/collection URLs are now supported through the vector loader path. They are not treated as WFS internally; RhinoSpatial requests GeoJSON items with the Spatial Context WGS84 bbox and transforms them into the shared context.
+  The public package supports GeoJSON item/collection URLs through the vector loader. Development adds landing-page discovery and bounded paging. The client uses the shared area and transforms returned features into the context.
 - **Cloud Optimized GeoTIFF**
   Implemented in the unreleased low-priority batch using bounded HTTP ranges and selected classic-TIFF image/DEM windows. Stable representations, byte/time/allocation limits, usable overviews, masks, NoData and header-only references are tested; BigTIFF and unsupported layouts remain explicit limitations.
 

@@ -235,7 +235,7 @@
         "2026-11-01: validated 214976-byte direct payload, EPSG:4326 metadata and three bounded sample features."
       ],
       "last_verified": "2026-11-01",
-      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "COMPATIBILITY_WORKFLOWS.md",
       "direct_download_url": "https://naturalearth.s3.amazonaws.com/110m_cultural/ne_110m_admin_0_countries.zip"
     },
@@ -306,7 +306,7 @@
         "2026-11-01: limit=1 probe read 5 unique features across 5 pages, then explicitly stopped at Max Features 5."
       ],
       "last_verified": "2026-11-01",
-      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "COMPATIBILITY_WORKFLOWS.md",
       "pagination_url": "https://demo.pygeoapi.io/master/collections/lakes/items?limit=1",
       "max_features": 5,
@@ -892,7 +892,7 @@
         "16-17 MiB ZIP downloads per tile; subsequent validated cache reuse."
       ],
       "last_verified": "2026-11-01",
-      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "COMPATIBILITY_WORKFLOWS.md",
       "context": {
         "srs": "EPSG:25833",
@@ -924,7 +924,7 @@
         "Root/collection metadata supported as Reference Source; select a small context before loading."
       ],
       "last_verified": "2026-11-01",
-      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "COMPATIBILITY_WORKFLOWS.md",
       "layer": "lakes",
       "max_features": 5,
@@ -949,7 +949,7 @@
         "Coarse world polygons are compatibility data; existing oversized-outline filtering can exclude them in small site contexts."
       ],
       "last_verified": "2026-11-01",
-      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -964,7 +964,7 @@
         "For Reference Source use a downloaded local copy and a supported map SRS such as EPSG:3857. Rhino visual checks pending."
       ],
       "last_verified": "2026-11-01",
-      "availability": "Unreleased source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "COMPATIBILITY_WORKFLOWS.md",
       "native_extent": {
         "srs": "EPSG:7415",
@@ -999,7 +999,7 @@
         "Mosaic continuity inspected; Rhino textures/alignment and Windows runtime pending."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1012,7 +1012,7 @@
         "No declared CRS: parser-only evidence, not verified placement; direct downloader correctly requires CRS metadata."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1039,7 +1039,7 @@
         "Connect directly to Load LoD2 Buildings, Layer empty. A local path can also orient Reference Source."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1067,7 +1067,7 @@
         "Connect to existing Load GeoTIFF. Core mesh produced 512 triangles; native Rhino validation pending."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased medium-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1089,7 +1089,7 @@
         "Provider terms: https://registry.opendata.aws/sentinel-2-l2a-cogs/; image date/cloud conditions are source properties. Native Rhino validation pending."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1111,7 +1111,7 @@
         "DSM includes vegetation/buildings, not bare-earth terrain. Source heights retained; no vertical datum conversion. Provider terms: https://registry.opendata.aws/copernicus-dem/"
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1133,7 +1133,7 @@
         "106496-byte GDAL test fixture; 10 features / 10 rings, RTree query verified. Declared regression coordinates, not a real project-site recommendation."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1155,7 +1155,7 @@
         "Start python3 examples/serve_range.py; Load GeoTIFF uses the HTTP URL. Synthetic RGB grid with an internal mask, not real imagery."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1177,7 +1177,7 @@
         "Start fixture range server; connect URL to Load Terrain. Shared affine grid, missing corner sample and internal mask hole."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
     },
     {
@@ -1200,7 +1200,7 @@
         "Reference Source reads both layers' catalog extents without feature geometry. No source mutation; native Rhino validation pending."
       ],
       "last_verified": "2026-11-02",
-      "availability": "Unreleased low-source-compatibility branch; not the public 0.4.0 package",
+      "availability": "Development build from main; not included in the public 0.4.0 package",
       "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
     }
   ]

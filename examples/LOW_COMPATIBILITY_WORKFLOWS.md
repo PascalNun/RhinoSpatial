@@ -1,9 +1,14 @@
-# Low-priority compatibility: how to use and verify
+# Remote rasters and GeoPackage workflows
 
-These workflows are **Unreleased**, on `codex/low-source-compatibility`, building
-on the two earlier compatibility batches. The installed/public 0.4.0 is unchanged.
-The implementation plan was recorded before coding in
-[LOW_COMPATIBILITY_PLAN.md](../docs/LOW_COMPATIBILITY_PLAN.md).
+These examples show how to load a selected image/elevation window from a remote
+COG and choose vector layers in a local GeoPackage. The features are merged into
+`main` for the next release and need a development build; the public package
+remains 0.4.0. For general source selection, start with
+[Working with project data](../docs/WORKING_WITH_PROJECT_DATA.md).
+
+The [implementation record](../docs/LOW_COMPATIBILITY_PLAN.md) keeps the original
+plan and validation evidence. Exact URLs and technical limits are retained below
+so these examples can be repeated.
 
 ## Start with small, repeatable examples
 

@@ -1,14 +1,19 @@
 # RhinoSpatial Workflow
 
 This is the visual, step-by-step guide for assembling site context with
-RhinoSpatial. For exact input behavior, supported formats, fallbacks, and
-coordinate-system notes, see the
+RhinoSpatial. For help choosing your own services and files, read
+[Working with project data](WORKING_WITH_PROJECT_DATA.md). For exact input behavior,
+supported formats, fallbacks and coordinate-system notes, see the
 [Component and Source Reference](COMPONENT_REFERENCE.md).
 
 RhinoSpatial starts with one selected study area and builds multiple aligned
 context layers around it. Create one shared `Spatial Context`, then connect
 maps, vector data, GeoTIFF, terrain, LoD2 buildings, OSM, and optional Google
 3D Tiles reference context to that same output.
+
+**Version note:** 0.4.0 is the public package. Additions on `main` are marked as
+development below and need a development build. See the
+[version overview](WORKING_WITH_PROJECT_DATA.md#release-and-development-features).
 
 The URLs and files shown in the screenshots are examples. They can be replaced
 with your own project data as long as the source type is supported.
@@ -58,7 +63,8 @@ flowchart LR
 ### WMS / Map Imagery
 
 Use `Load WMS` to bring orthophotos, maps, or raster overlays into Rhino as an
-aligned image mesh.
+aligned image mesh. Development builds also support WMTS tile services through
+the same map components.
 
 You can provide a WMS service URL, a layer name when the service needs one, and
 an image format such as `image/png`. If the URL is left empty, RhinoSpatial can
@@ -71,9 +77,10 @@ use fallback map/imagery context for quick orientation.
 Use `Load WFS` for vector features such as parcels, planning data, roads,
 boundaries, or building footprints.
 
-Supported inputs include WFS service URLs, OGC API Features URLs, local
-Shapefiles (`.shp`), local GeoJSON files (`.geojson` / `.json`), and one or
-more layer names.
+Connect a WFS or OGC API Features service, a local Shapefile (`.shp`), or a
+GeoJSON file (`.geojson` / `.json`). Use `List WFS Layers` to choose a service
+layer. Development builds also accept supported direct downloads and local
+GeoPackage feature layers; use the same list component to select a GeoPackage layer.
 
 ![WFS vector data workflow](images/workflow-02-wfs-vector-data.jpg)
 
@@ -84,8 +91,11 @@ more layer names.
 Use `Load GeoTIFF` to place a local georeferenced raster image inside the same
 study space.
 
-Supported inputs include local GeoTIFF files (`.tif` / `.tiff`) with readable
-EPSG georeferencing.
+Start with a local GeoTIFF (`.tif` / `.tiff`) containing readable location and
+coordinate information. Development builds also accept TIFF/PNG/JPEG images
+with suitable world-file and CRS companions, and supported remote COG image
+windows. A world file describes image placement; the coordinate system tells
+RhinoSpatial where that placement belongs.
 
 ![GeoTIFF workflow](images/workflow-03-geotiff.jpg)
 
@@ -97,7 +107,11 @@ area.
 You can provide WCS service URLs, local GeoTIFF DEM files, local Esri ASCII Grid
 files (`.asc`), local XYZ/CSV terrain grids, and a coverage id or EPSG code
 when the source needs one. If the terrain URL is left empty, RhinoSpatial can
-use a small-area global terrain fallback.
+use a small-area global terrain fallback. Development builds also accept
+supported ATOM terrain feeds and remote COG elevation windows.
+
+Choose an elevation source appropriate to the project: some surface models
+include vegetation and buildings, while bare-earth models describe the ground.
 
 ![Terrain workflow](images/workflow-04-terrain.jpg)
 
@@ -108,9 +122,14 @@ use a small-area global terrain fallback.
 Use `Load LoD2 Buildings` to load official 3D building and roof geometry inside
 the selected Spatial Context.
 
-You can provide LoD2 WFS service URLs, local CityGML/GML/XML files, local
-CityJSON files, folders with LoD2 files, ZIP archives with LoD2 files, and
-layer names when the service needs them.
+Connect a building WFS or supported ATOM download service, or use local
+CityGML/GML/XML or CityJSON data, folders or ZIP archives. Choose a layer when
+the service needs one. For a supported ATOM feed, RhinoSpatial selects building
+tiles for the study area. Development builds add direct downloads and broader
+CityJSON detail, sequence and template support.
+
+Use an actual 3D building source when roof forms and heights matter. A parcel
+or footprint dataset belongs in the vector workflow and provides outlines.
 
 ![LoD2 buildings workflow](images/workflow-05-lod2-buildings.jpg)
 
@@ -155,3 +174,19 @@ including attribution requirements and restrictions on caching, extraction, and
 offline use.
 
 ![Google 3D Tiles reference workflow](images/workflow-06-google-3d-tiles-reference.jpg)
+
+## 5. Check the combined study
+
+Load one source at a time, then compare the layers together. Keep every loader
+on the same `Spatial Context`; check a recognizable boundary, road junction or
+building corner to assess XY placement. If heights differ, check the datasets'
+height references as well as their shared placement.
+
+Read each component's `Status` when coverage is missing, a request is too large,
+or a coordinate system is unsupported. Begin with a small area, confirm the
+source, then expand the study. The [project-data guide](WORKING_WITH_PROJECT_DATA.md#read-the-result)
+explains common messages and useful next steps.
+
+Save the Grasshopper definition with its selected area and project sources.
+Keep private files and API keys in your own working copy. More sample files and
+recorded public URLs are available in the [examples](../examples/README.md).

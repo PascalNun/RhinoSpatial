@@ -38,7 +38,7 @@ The complete planned core source set is present:
 | --- | --- |
 | `Spatial Context` | Selects the study area and defines shared placement |
 | WFS/vector | Brings in planning, parcel, boundary, road, point, and other feature data |
-| WMS | Provides maps, orthophotos, aerial imagery, and raster overlays |
+| Maps and imagery | Provides maps, orthophotos and raster overlays through WMS; development also supports WMTS |
 | LoD2 Buildings | Provides official 3D building massing and roof geometry |
 | Terrain | Provides ground and elevation context |
 | GeoTIFF | Places local georeferenced rasters; development also supports remote COG windows |
@@ -91,6 +91,18 @@ Fallbacks should remain bounded and responsive. If they cannot serve the selecte
 CRS transformation, request normalization, source filtering, and compatibility logic should be handled behind a simple component interface where possible.
 
 Low-level controls should only become public inputs when a recurring real workflow demonstrates the need. Status outputs are usually a better place for provider and diagnostic detail.
+
+### Clear documentation
+
+Start with the project task, the expected result and the steps needed to connect
+it. Use plain language with enough technical detail to choose a source and
+understand its limits. Explain unfamiliar terms where they become relevant.
+
+Keep the main workflow useful across providers and places. Put exact service
+URLs, coordinates, format quirks and probe commands in linked examples or the
+technical reference. Preserve those details without making them the first thing
+a new user has to understand. Documentation should make the difference between
+the public release and work on `main` clear.
 
 ### Independent but better together
 

@@ -1,8 +1,10 @@
-# Medium-priority compatibility examples
+# Building detail and imagery workflows
 
-These workflows are **Unreleased** and require the medium-source-compatibility
-build, which also contains the previous compatibility batch. Public/installed
-0.4.0 is unchanged. Checks below were recorded on 2026-11-02.
+These examples cover CityJSON detail/sequence/templates, world-file imagery and
+WMTS maps. The features are merged into `main` for the next release and need a
+development build; the public package remains 0.4.0. Start with the general
+[project-data guide](../docs/WORKING_WITH_PROJECT_DATA.md) to choose a workflow.
+Checks below were recorded on 2026-11-02.
 
 Keep one `Spatial Context` for a study. Existing definitions `02-geotiff-terrain.gh`
 and `03-lod2-buildings.gh` can be reused by replacing source inputs. Component
@@ -108,4 +110,4 @@ The `medium-compatibility-check` suite uses deterministic fixtures, including
 embedded affine GeoTIFFs, PixelIsPoint, projected/geographic WMTS, matrix limits,
 tile order, cache corruption, alpha and cancellation. It makes no external
 requests. Rhino preview, texture orientation, baking, saved definitions and
-Windows runtime validation remain on [the manual checklist](VALIDATION.md).
+installed-package validation on macOS/Windows remain on [the manual checklist](VALIDATION.md).

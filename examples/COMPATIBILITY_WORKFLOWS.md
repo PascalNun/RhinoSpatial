@@ -1,8 +1,10 @@
-# Source compatibility examples
+# Services and download workflows
 
-These additions are **Unreleased** and require a build from the source-compatibility
-branch. The public 0.4.0 package has not been replaced. URLs and results below were
-checked on 2026-11-01; public servers can change.
+These recorded examples cover API discovery, feature loading, direct downloads
+and terrain feeds. They complement the general [project-data guide](../docs/WORKING_WITH_PROJECT_DATA.md).
+Their additions are merged into `main` for the next release and need a development
+build. The public package remains 0.4.0. URLs and results below were checked on
+2026-11-01; public servers can change.
 
 Use the existing Grasshopper examples as starting points: `01-wms-wfs-basics.gh`
 for vectors, `02-geotiff-terrain.gh` for terrain, and `03-lod2-buildings.gh` for

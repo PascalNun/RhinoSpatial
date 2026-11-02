@@ -4,149 +4,87 @@
 
 # RhinoSpatial
 
-**Bring maps, terrain, buildings, imagery, and geodata into one aligned Rhino and Grasshopper site context.**
+**Bring real site context into Rhino and Grasshopper.**
 
-RhinoSpatial is a Grasshopper toolkit for working with real site context directly inside the design environment. Define a study area once with `Spatial Context`, then add the layers you need. Maps, terrain, imagery, buildings, vector data, and lightweight urban context are placed in one shared spatial framework so they line up.
+Choose a study area once, then add maps, terrain, buildings, imagery and project data in one aligned workspace. RhinoSpatial helps architects, urban designers and landscape architects assemble useful context for site analysis, concept design and early-stage studies.
 
-It is designed for architects, urban designers, landscape architects, and anyone using Rhino or Grasshopper for site analysis, context modeling, concept design, and early-stage studies. The aim is a direct, lightweight workflow with sensible defaults—not a full GIS application inside Grasshopper.
+The workflow stays familiar in Grasshopper: one `Spatial Context`, connected to the layers your project needs. Data is placed near Rhino's origin by default, so it remains practical to view and model. Projects that need original coordinates can use `Use Absolute Coordinates`.
 
-[Website and user guide](https://pascalnun.eu/tools/rhinospatial/) · [Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en) · [Workflow guide](docs/SHOWCASE.md) · [Examples](examples/README.md) · [Releases](https://github.com/PascalNun/RhinoSpatial/releases)
+[First workflow](docs/SHOWCASE.md) · [Working with project data](docs/WORKING_WITH_PROJECT_DATA.md) · [Examples](examples/README.md) · [Website](https://pascalnun.eu/tools/rhinospatial/) · [Releases](https://github.com/PascalNun/RhinoSpatial/releases)
 
-## One area, multiple aligned layers
+## Install
 
-The central RhinoSpatial workflow is:
+RhinoSpatial runs in Rhino 8 and Grasshopper on macOS and Windows.
 
-1. Define the project area once with `Spatial Context`.
-2. Add maps, terrain, buildings, imagery, or vector data.
-3. Combine the aligned results directly in Rhino and Grasshopper.
+1. Open Rhino 8 and run `PackageManager`.
+2. Search for `RhinoSpatial` and install it.
+3. Restart Rhino or Grasshopper if requested.
+4. Look for the `RhinoSpatial` tab in Grasshopper.
+
+For manual installation, download the ZIP from [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases) and follow the [installation guide](package/food4rhino/INSTALL.md). RhinoSpatial is also available on [Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
+
+**The public release is 0.4.0.** The `main` branch contains newer compatibility work for the next release. Features described as **development** require a build from `main`; updating the repository does not update an installed plugin. See [what is available in each version](docs/WORKING_WITH_PROJECT_DATA.md#release-and-development-features).
+
+## Start with one area
+
+1. Place `Spatial Context` and connect a Button to `Open Map`.
+2. Open the map and draw a small rectangle around your project.
+3. Connect the same `Spatial Context` output to each source component.
+4. Add one layer, check its result, then build up the rest of the study.
+
+If you already have a supported service or project file, connect it to `Reference Source` before opening the map. RhinoSpatial uses its location and coordinate information to orient the map. The referenced data is loaded only when you connect it to a source component. A saved study area takes priority when you reopen the definition.
 
 ```mermaid
 flowchart LR
     A["Select one study area"] --> B["Spatial Context"]
     B --> C["Maps and imagery"]
-    B --> D["Vector and planning data"]
+    B --> D["Project vectors"]
     B --> E["Terrain"]
     B --> F["3D buildings"]
     B --> G["OSM context"]
     B --> H["Google 3D reference"]
 ```
 
-By default, RhinoSpatial moves real-world data near Rhino's origin. This keeps geometry practical to view and model while preserving alignment between layers. Projects that require original source coordinates can enable `Use Absolute Coordinates`.
+Try imagery with parcels for a site plan, terrain with buildings for a context model, or OSM for a quick figure-ground study. The [visual workflow](docs/SHOWCASE.md) walks through the components, and the [example definitions](examples/README.md) provide starting points you can adapt to your own project.
 
-## Install
+## Choose the layers you need
 
-The easiest installation path is Rhino 8's Package Manager:
-
-1. Open Rhino 8.
-2. Run `PackageManager`.
-3. Search for `RhinoSpatial`.
-4. Install the package and restart Rhino or Grasshopper if requested.
-
-You can also find RhinoSpatial on [Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
-
-For manual installation, open [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases), choose the current release, and download its `RhinoSpatial-0.4.0.zip` asset. See the [manual installation guide](package/food4rhino/INSTALL.md) for the Grasshopper Libraries locations on macOS and Windows.
-
-Release packages include a small number of third-party libraries for raster handling, topology operations, coordinate transforms, and 3D tile decoding. Their licenses are documented in [Third-Party Notices](THIRD-PARTY-NOTICES.md).
-
-## New in 0.4.0
-
-Connect a supported ATOM download service directly to `Load LoD2 Buildings`: RhinoSpatial selects the required CityGML tiles for your study area and reuses completed downloads. This release also adds AdV UTM CRS names and corrects terrain placement, NoData handling and local vector parsing. See the [changelog](CHANGELOG.md) for details.
-
-## Your first RhinoSpatial workflow
-
-1. Open Grasshopper and place `Spatial Context`.
-2. Connect a Button to `Open Map`.
-3. Click the button and draw the study area in the browser helper.
-4. Connect the `Spatial Context` output to one or more source components.
-
-If you already have a geospatial service or local project file, you can connect it to `Reference Source` before opening the map. RhinoSpatial uses its extent and coordinate-system metadata to open the map near the project. It does **not** load the referenced data; it only helps orient the area selector. This input is optional.
-
-Good first combinations are:
-
-- `Load WMS` plus `Load WFS` for imagery and planning or parcel data
-- `Load GeoTIFF` plus `Load Terrain` for a local raster and ground surface
-- `Load LoD2 Buildings` plus `Load Terrain` for official 3D building context
-- `Load OSM` for quick figure-ground, black-plan, and general urban context
-- `3D Tiles Viewer (Google)` for optional visual comparison with Google Photorealistic 3D Tiles
-
-For a visual walkthrough, open the [RhinoSpatial workflow guide](docs/SHOWCASE.md). Downloadable Grasshopper definitions are available from the [example overview](examples/README.md).
-
-## What you can bring into Rhino
-
-| Design need | Component | Typical sources and result |
+| What you need | Component | Typical sources |
 | --- | --- | --- |
-| Select and place the project area | `Spatial Context` | One shared study area and placement context for every layer |
-| Planning, parcel, boundary, road, or other vector data | `Load WFS` | WFS, OGC API Features, Shapefile, or GeoJSON; curves and points grouped by layer and feature |
-| Maps, aerial imagery, orthophotos, or raster overlays | `Load WMS` | WMS imagery placed as an aligned image mesh and material |
-| Local georeferenced imagery | `Load GeoTIFF` | A local `.tif` or `.tiff` placed in the same study space |
-| Ground and elevation context | `Load Terrain` | WCS, GeoTIFF DEM, Esri ASCII Grid, XYZ/CSV grid, or a small-area fallback; aligned terrain meshes |
-| Official 3D building and roof geometry | `Load LoD2 Buildings` | WFS, ATOM download feeds, CityGML/GML/XML, CityJSON, folder, or ZIP archive; building Breps |
-| Fast urban and landscape context | `Load OSM` | OpenStreetMap buildings, roads, water, green areas, and rail |
-| Photogrammetric visual reference | `3D Tiles Viewer (Google)` | Temporary preview meshes and materials using your own Google Maps API key |
+| A shared study area and placement | `Spatial Context` | Map selection, optionally oriented from a service or file |
+| Parcels, boundaries, roads, planning layers or points | `Load WFS` | WFS, OGC API Features, Shapefile and GeoJSON; development also adds GeoPackage and direct downloads |
+| Maps and orthophotos | `Load WMS` | WMS; development also adds WMTS tile services |
+| Georeferenced project imagery | `Load GeoTIFF` | Local GeoTIFF; development also adds world-file imagery and remote COG windows |
+| Ground and elevation | `Load Terrain` | WCS, local DEMs, ASCII Grid and regular XYZ/CSV grids; development also adds ATOM and COG elevation sources |
+| 3D building and roof geometry | `Load LoD2 Buildings` | WFS, supported ATOM services, CityGML, CityJSON, folders and archives |
+| Quick urban and landscape context | `Load OSM` | OpenStreetMap buildings, roads, water, green areas and rail |
+| Photogrammetric visual comparison | `3D Tiles Viewer (Google)` | Temporary Google 3D reference using your own API key |
 
-`List WFS Layers` and `List WMS Layers` help inspect the layers offered by a service before loading them.
+`List WFS Layers` and `List WMS Layers` help choose a layer from a service. In development, `List WFS Layers` also lists local GeoPackage feature layers. Component names remain familiar as the supported sources grow.
 
-The component names remain stable for existing Grasshopper definitions. In particular, `Load WFS` now covers a broader vector workflow than its original name suggests: it also accepts OGC API Features, local Shapefiles, and local GeoJSON.
+For help choosing a service, download or local file, read [Working with project data](docs/WORKING_WITH_PROJECT_DATA.md). Exact formats, inputs and limits are in the [Component and Source Reference](docs/COMPONENT_REFERENCE.md).
 
-See the [Component and Source Reference](docs/COMPONENT_REFERENCE.md) for supported formats, inputs and outputs, coordinate-system behavior, automatic fallbacks, diagnostic status messages, and detailed workflow notes.
+## Working with real project data
 
-## Current status
+Use official or project-specific sources when accuracy and provenance matter. Built-in imagery and terrain fallbacks, along with OSM, can help you get oriented quickly. Their coverage, resolution and detail depend on the source.
 
-**0.4.0 is the recommended public release**, available as GitHub Latest and through Rhino’s Package Manager without enabling pre-releases. RhinoSpatial contains the complete planned source set: Spatial Context, vector data, imagery, terrain, LoD2 buildings, GeoTIFF, OSM, and the optional Google 3D Tiles reference viewer.
+Start with a small area and read the component's `Status` output if a layer is missing or takes longer than expected. Coordinate systems, available coverage and source formats can vary. RhinoSpatial reports unsupported data or placement rather than guessing where it belongs.
 
-The toolkit has been exercised against a growing international set of public services and local formats. Individual providers, coordinate systems, geometry types, service versions, API access rules, and file metadata can still expose edge cases. For project work, prefer official or project-specific sources and keep an older working definition when upgrading.
-
-Unreleased development adds [remote COG imagery/elevation and local GeoPackage vectors](examples/LOW_COMPATIBILITY_WORKFLOWS.md), following the earlier source and medium-priority compatibility batches. These features are not in the public 0.4.0 package; native Rhino validation remains before release.
-
-The [changelog](CHANGELOG.md) records release changes. The [test source catalogue](docs/TEST_SOURCES.md) documents the current compatibility set and known provider limitations.
-
-## Design principles
-
-RhinoSpatial is intended to remain:
-
-- direct and understandable in Grasshopper
-- useful for site analysis and contextual modeling
-- built around one shared spatial context
-- practical near the Rhino origin by default
-- compatible with official project data first and broad contextual fallbacks second
-- honest about source limitations through clear status messages
-- lightweight rather than overloaded with low-level GIS controls
-
-The goal is not to recreate a full GIS desktop application, build a giant provider browser, or expose every service parameter. The [project scope](docs/PROJECT_SCOPE.md) records the complete product boundaries and technical principles.
+Google 3D Tiles are a visual reference viewer. They require your own Google Maps Platform setup and are not provided as editable, bakeable or exportable project data. See the [viewer guidance](docs/SHOWCASE.md#google-3d-tiles-reference) for setup and usage information.
 
 ## Documentation
 
-### Learn and use RhinoSpatial
+| Start here | Go deeper |
+| --- | --- |
+| [Visual workflow](docs/SHOWCASE.md) — build a study step by step | [Component reference](docs/COMPONENT_REFERENCE.md) — formats, inputs, placement and limits |
+| [Working with project data](docs/WORKING_WITH_PROJECT_DATA.md) — choose sources and resolve common problems | [Test source catalogue](docs/TEST_SOURCES.md) — provider examples and recorded checks |
+| [Grasshopper examples](examples/README.md) — reusable definitions and sample files | [Validation checklist](examples/VALIDATION.md) — checks before a release |
+| [Installation](package/food4rhino/INSTALL.md) — Package Manager and manual setup | [Changelog](CHANGELOG.md) — released changes and work on `main` |
 
-- [Website and user guide](https://pascalnun.eu/tools/rhinospatial/)
-- [Workflow guide with screenshots](docs/SHOWCASE.md)
-- [Downloadable Grasshopper examples](examples/README.md)
-- [Installation guide](package/food4rhino/INSTALL.md)
+The [project scope](docs/PROJECT_SCOPE.md) explains the design principles. The [roadmap](docs/ROADMAP.md) records current priorities. Developers can find build instructions and documentation guidance in [Contributing](CONTRIBUTING.md).
 
-### Components and sources
+## About the project
 
-- [Component and Source Reference](docs/COMPONENT_REFERENCE.md)
-- [Curated example source list](examples/sources.json)
-- [Tested provider and format catalogue](docs/TEST_SOURCES.md)
+RhinoSpatial is created by **Pascal Nünninghoff** and released under the [MIT License](LICENSE). Bundled library licenses are recorded in [Third-Party Notices](THIRD-PARTY-NOTICES.md).
 
-### Project and development
-
-- [Project scope and design principles](docs/PROJECT_SCOPE.md)
-- [Roadmap](docs/ROADMAP.md)
-- [Manual validation checklist](examples/VALIDATION.md)
-- [Changelog](CHANGELOG.md)
-- [Third-party notices](THIRD-PARTY-NOTICES.md)
-
-## Repository structure
-
-- `RhinoSpatial` — Grasshopper components and Rhino-specific output builders
-- `RhinoSpatial.Core` — reusable geospatial clients, readers, parsing, filtering, and coordinate logic
-- `RhinoSpatial.Sandbox` — command-line probes and deterministic checks for core behavior outside Grasshopper
-
-All layer components consume the same shared spatial context. That common selection, coordinate, placement, and elevation logic is the central architectural rule of the project.
-
-## License and feedback
-
-RhinoSpatial is released under the [MIT License](LICENSE).
-
-Feedback, bug reports, provider edge cases, and additional real-world test datasets are welcome through [GitHub Issues](https://github.com/PascalNun/RhinoSpatial/issues).
+Bug reports, workflow feedback and small, shareable examples are welcome through [GitHub Issues](https://github.com/PascalNun/RhinoSpatial/issues).

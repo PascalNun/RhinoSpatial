@@ -1,5 +1,12 @@
 # Validation Checklist
 
+This is the maintainer checklist for a release. For ordinary use, start with the
+[visual workflow](../docs/SHOWCASE.md) or [project-data guide](../docs/WORKING_WITH_PROJECT_DATA.md).
+The compatibility work is merged into `main`; all nine automated suites pass on
+macOS and Windows. Unchecked native items below remain pending and are not implied
+by a successful console or CI run. The public package remains 0.4.0.
+
+
 This is the maintainer-facing manual validation set for RhinoSpatial. It is
 linked publicly for transparency, but ordinary users do not need to complete it
 before using the plugin.
@@ -63,7 +70,7 @@ It is intentionally small and practical. The point is to confirm that the core d
 - on macOS, trigger an ATOM load both normally and from the Grasshopper recompute menu; confirm progress callbacks do not deadlock the UI while Grasshopper waits for the worker task
 - repeat a solution and restart Rhino; confirm completed archives are reused
 - select an area crossing northing 5820000 and confirm both intersecting tiles load
-- compare ATOM building geometry against Berlin ALKIS building WFS and WMS using one context; repeat with a different supported context CRS and absolute coordinates
+- compare ATOM buildings against matching official vector and imagery sources using one context; repeat with another supported context CRS and absolute coordinates
 - confirm missing tile metadata, unsupported archives, unavailable services and interrupted downloads return clear errors without a misleading partial model
 - confirm existing saved LoD2 definitions still open with the same component GUID and three inputs/two outputs
 - connect a LoD2 WFS source
@@ -155,7 +162,7 @@ version/platform and actual results. These checks are pending for this batch:
 - [ ] Existing saved definitions open without changed GUIDs or parameter-layout warnings.
 - [ ] API-root layer listing, explicit multi-collection choice and optional single-collection Layer work in Grasshopper.
 - [ ] Paging status distinguishes the user cap, unknown totals and an incomplete/failed page.
-- [ ] Berlin DGM1 single- and two-tile windows load with responsive asynchronous progress; cancellation and retry work.
+- [ ] The recorded terrain-feed single- and two-tile windows load with responsive progress; cancellation and retry work.
 - [ ] DGM1 mesh, building roofs and WMS agree in XY and Z under one localized context, regardless of solve order.
 - [ ] NoData holes stay open and no seam appears at the terrain tile boundary.
 - [ ] ATOM/API references orient a fresh map without geometry downloads, while saved selections retain priority.
@@ -172,7 +179,7 @@ Use [MEDIUM_COMPATIBILITY_WORKFLOWS.md](MEDIUM_COMPATIBILITY_WORKFLOWS.md). Thes
 - [ ] Load the rotated PNG with both sidecars, compare its footprint to matching vectors, clip the study area, and verify UV orientation, alpha, preview and baking.
 - [ ] Edit a world file while keeping the raster unchanged; recompute and confirm both placement and reference extent update.
 - [ ] Verify embedded rotated/PixelIsPoint DEM alignment and cached OSM/building height sampling in localized and absolute modes.
-- [ ] List and load PDOK WMTS through existing WMS components, check the selected layer/matrix diagnostics and compare imagery to buildings/vectors in one context.
+- [ ] List and load the recorded WMTS imagery through existing WMS components, check the selected layer/matrix diagnostics and compare imagery to buildings/vectors in one context.
 - [ ] Confirm WMTS Reference Source reads capabilities without tile downloads and saved selections retain priority.
 - [ ] Cancel a tile batch and retry; confirm no partial image is presented and cached results remain usable.
 
@@ -184,7 +191,7 @@ The low-priority [plan](../docs/LOW_COMPATIBILITY_PLAN.md) and
 and three reproducible fixtures. Live Sentinel/Copernicus range subsets and the
 GDAL public GeoPackage were verified; these are not native Rhino screenshots.
 
-Before merge/release:
+Before release:
 
 - [ ] Open an existing definition in Rhino 8 on macOS and Windows; verify unchanged connections/GUIDs and responsive cancellation.
 - [ ] Use the fixture range server: compare imagery/terrain mask holes, correct pixel locations, shared baseline and reload behavior in local/absolute placement.

@@ -1,90 +1,55 @@
-# RhinoSpatial Examples
+# RhinoSpatial examples
 
-These Grasshopper definitions are starting points for common RhinoSpatial site-context workflows. Download the example closest to your task, replace its service URLs or local-file placeholders with your own project sources, and keep the same shared `Spatial Context`.
+Start with the definition closest to your task, connect your own project sources, and use one shared `Spatial Context` for every layer. These examples are meant to be adapted to different places and datasets.
 
-For a visual introduction, see the [RhinoSpatial workflow guide](../docs/SHOWCASE.md). For exact source formats and component behavior, see the [Component and Source Reference](../docs/COMPONENT_REFERENCE.md).
+New to the toolkit? Follow the [visual workflow](../docs/SHOWCASE.md). If you are choosing between a service, download and local file, read [Working with project data](../docs/WORKING_WITH_PROJECT_DATA.md).
 
-## Download an example
+## Choose a starting point
 
-### Full reference workflow
+| What you want to explore | Grasshopper definition |
+| --- | --- |
+| The complete toolkit in one study | [00 — Full reference workflow](gh/00-rhinospatial-reference-workflow.gh) |
+| A map background with parcels, boundaries or other vectors | [01 — WMS and WFS basics](gh/01-wms-wfs-basics.gh) |
+| A project raster with ground elevation | [02 — GeoTIFF and terrain](gh/02-geotiff-terrain.gh) |
+| Official building and roof geometry | [03 — LoD2 buildings](gh/03-lod2-buildings.gh) |
+| Quick urban and landscape context | [04 — OSM context](gh/04-osm-context.gh) |
+| Photogrammetric visual comparison | [05 — Google 3D Tiles reference](gh/05-google-3d-tiles-reference.gh) |
 
-[Download `00-rhinospatial-reference-workflow.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/00-rhinospatial-reference-workflow.gh)
+Open a file link, then use GitHub's **Download raw file** button to save the `.gh` definition. The [full example](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/00-rhinospatial-reference-workflow.gh) is also available as a direct download.
 
-One definition showing the complete shared workflow with Spatial Context, WMS, WFS, GeoTIFF, terrain, LoD2, OSM, and Google 3D Tiles reference context.
+The raster definition contains a placeholder for your own georeferenced image. The Google example contains no API key; add your own key only to a private working copy. The viewer provides temporary visual reference, with the usage guidance in the [workflow guide](../docs/SHOWCASE.md#google-3d-tiles-reference).
 
-### WMS and WFS basics
+## Use an example
 
-[Download `01-wms-wfs-basics.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/01-wms-wfs-basics.gh)
+1. Install RhinoSpatial and open the chosen definition in Grasshopper.
+2. Replace source URLs, layer names or local paths with suitable project data.
+3. Open `Spatial Context` and select a small area that the sources cover.
+4. Check one layer, then add the others using the same context.
+5. Read each component's `Status` if the result is empty or unexpected.
 
-Start here for an aligned map image plus editable vector data such as parcels, planning layers, roads, or building footprints.
+Keep the original definition as a reference and save your project as a separate copy. Public services can change; official or project-specific data is usually the best starting point for project work.
 
-### GeoTIFF and terrain
+If a saved definition reports an IO archive warning, check that the installed plugin matches the definition. Current component names and connections are preserved. Report a repeatable warning with the version and affected component rather than assuming that it is normal.
 
-[Download `02-geotiff-terrain.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/02-geotiff-terrain.gh)
+## Additional workflows on main
 
-A local raster and terrain workflow. The GeoTIFF input is intentionally a placeholder: connect your own georeferenced `.tif` or `.tiff` file. No personal local path or project raster is included.
+The public release is **0.4.0**. The following recipes require a development build from `main`; their features are merged but have not been published in that package.
 
-### LoD2 buildings
+| What you want to try | Guide and sample data |
+| --- | --- |
+| Discover API collections, load direct vector/building downloads, or use terrain tile feeds | [Services and download workflows](COMPATIBILITY_WORKFLOWS.md) |
+| Use CityJSON detail/sequence/templates, a rotated image or tiled map imagery | [Building detail and imagery workflows](MEDIUM_COMPATIBILITY_WORKFLOWS.md), with [small local fixtures](fixtures/medium) |
+| Load a remote raster window or choose layers in a GeoPackage | [Remote rasters and GeoPackage workflows](LOW_COMPATIBILITY_WORKFLOWS.md), with [small local fixtures](fixtures/low) |
 
-[Download `03-lod2-buildings.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/03-lod2-buildings.gh)
+These recipes keep exact URLs, coordinates, sample results and commands together for reproducibility. The same workflow can be used with another supported source. Sample files are synthetic unless the guide identifies a public provider.
 
-Official 3D building and roof context from a LoD2 WFS service, ATOM download service, or supported local CityGML/CityJSON source. For automatic Berlin tiles, connect `https://gdi.berlin.de/data/a_lod2/atom/` to `LoD2 Source` and select a small Berlin area with `Spatial Context`; leave `Layer` empty.
+For an overview of what is in the release and what is on `main`, see the [version guide](../docs/WORKING_WITH_PROJECT_DATA.md#release-and-development-features).
 
-### OSM context
+## Sources and validation
 
-[Download `04-osm-context.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/04-osm-context.gh)
+- [Source list](sources.json) — saved URLs, sample paths and study bounds.
+- [Test source catalogue](../docs/TEST_SOURCES.md) — broader provider coverage and recorded limitations.
+- [Validation checklist](VALIDATION.md) — maintainer checks for alignment, preview, materials and saved definitions.
+- [Component reference](../docs/COMPONENT_REFERENCE.md) — exact supported formats and inputs.
 
-Lightweight OpenStreetMap buildings, roads, water, green areas, and rail for quick site studies and figure-ground or black-plan views.
-
-### Google 3D Tiles reference
-
-[Download `05-google-3d-tiles-reference.gh`](https://github.com/PascalNun/RhinoSpatial/raw/main/examples/gh/05-google-3d-tiles-reference.gh)
-
-Optional Google Photorealistic 3D Tiles visual context. The example does not contain an API key. Add your own Google Maps Platform key only to a private working copy and do not publish that edited definition.
-
-## How to use the examples
-
-1. Install the current RhinoSpatial release through Package Manager.
-2. Download and open the chosen `.gh` definition.
-3. Replace example URLs, layer names, local files, or API-key placeholders with sources suitable for your project.
-4. Open `Spatial Context` and select a reasonably small study area.
-5. Read each component's `Status` output when a provider or file does not return the expected result.
-
-Public example services can change or become temporarily unavailable. For production work, official or project-specific sources remain the preferred path.
-
-If an older saved definition shows Grasshopper IO archive warnings after a component layout change, replace the affected RhinoSpatial component once and reconnect it. The definitions in this repository should represent the current component layout and open without those warnings.
-
-## Compatibility workflows (Unreleased)
-
-The [source compatibility recipes](COMPATIBILITY_WORKFLOWS.md) save tested URLs,
-collection choices, bounds and observed results for API-root discovery, paging,
-Berlin DGM1 ATOM terrain, direct GeoJSON/Shapefile ZIPs and CityJSON downloads.
-These require the development build; the public 0.4.0 package is unchanged.
-
-The [medium-priority examples](MEDIUM_COMPATIBILITY_WORKFLOWS.md) add declared-CRS CityJSON/sequence/template files, a rotated world-file raster, and a verified public WMTS URL with native test bounds. These also require the development build.
-
-## Source and testing references
-
-- [Curated example source list](sources.json)
-  Repeatable service and file references used by the example and validation workflows.
-- [Test Source Catalogue](../docs/TEST_SOURCES.md)
-  Broader international provider catalogue, current probe results, known limitations, and future format candidates.
-- [Manual Validation Checklist](VALIDATION.md)
-  Maintainer-facing regression checks for the complete toolkit.
-
-## For maintainers
-
-The examples serve two purposes: they help users start a real workflow, and they provide a small manual regression baseline.
-
-The set intentionally favors complete design studies over isolated technical probes:
-
-- contextual site modeling
-- figure-ground and black-plan studies
-- early-stage design workflows
-- alignment checks across imagery, vector, terrain, and buildings
-
-The source manifest combines broad fallback references, international compatibility sources, and deeper German/Hessen test data. Hessen remains useful for LoD2, terrain, cadastral, building, and parcel workflows, while international services help expose provider and coordinate-system differences.
-
-Local CityGML folders and ZIP archives can vary greatly in structure and size. Validation should record whether RhinoSpatial skipped files by metadata bounds, filtered buildings before conversion, or had to inspect a large single tile.
-
-The [low-priority how-to](LOW_COMPATIBILITY_WORKFLOWS.md) adds remote COG imagery/elevation, local GeoPackage layers, a loopback range server, synthetic fixtures and verified public URLs. These require the unreleased development build.
+For maintainers, validate a complete study as well as an isolated source: imagery, vectors, terrain and buildings should keep their shared placement. Record whether a result was checked in Rhino, through a core probe or only from metadata. Those checks answer different questions.

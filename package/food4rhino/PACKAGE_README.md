@@ -1,51 +1,38 @@
 # RhinoSpatial
 
-RhinoSpatial is a Grasshopper toolkit for bringing maps, terrain, buildings, imagery, and geodata into one aligned Rhino site context.
+Bring maps, terrain, imagery, buildings and project vectors into one aligned Rhino site study. Choose an area once with `Spatial Context`, then connect the sources needed for site analysis, context modeling or early-stage design.
 
-Define a study area once with `Spatial Context`, then connect the data layers needed for site analysis, context modeling, concept design, or early-stage studies.
+This package is **RhinoSpatial 0.4.0** for Rhino 8 and Grasshopper on macOS and Windows. The repository's `main` branch contains additions for the next release; those features are separate from this public package.
 
 ## Install
 
-The recommended installation method is Rhino 8's Package Manager:
+In Rhino 8, run `PackageManager`, search for `RhinoSpatial` and install it. Restart Rhino or Grasshopper if requested.
 
-1. Open Rhino 8.
-2. Run `PackageManager`.
-3. Search for `RhinoSpatial`.
-4. Install the package and restart Rhino or Grasshopper if requested.
+For manual installation from this ZIP, follow [INSTALL.md](INSTALL.md) and keep the plugin and dependency files together.
 
-For manual installation from this package, read [INSTALL.md](INSTALL.md).
-
-## New in 0.4.0
-
-`Load LoD2 Buildings` now accepts supported ATOM download services, selects the CityGML tiles for your study area and caches completed downloads. AdV UTM CRS names, terrain placement and NoData handling, and local vector parsing are improved. See [CHANGELOG.md](CHANGELOG.md).
-
-## First workflow
+## Make a first study
 
 1. Open Grasshopper and place `Spatial Context`.
-2. Connect a Button to `Open Map`.
-3. Select one reasonably small study area.
-4. Connect the same `Spatial Context` output to one or more source components.
+2. Connect a Button to `Open Map` and select a small area.
+3. Add a source component and connect that same context.
+4. Check the output, then add the other layers your project needs.
 
-Good starting points are:
+Good starting points are maps with vector outlines (`Load WMS` + `Load WFS`), a local raster with terrain (`Load GeoTIFF` + `Load Terrain`), or official 3D buildings (`Load LoD2 Buildings`). Use `Load OSM` for quick urban and landscape context. Google 3D Tiles are optional visual reference using your own API key.
 
-- `Load WMS` and `Load WFS` for imagery and vector data
-- `Load GeoTIFF` and `Load Terrain` for local raster and elevation context
-- `Load LoD2 Buildings` for official 3D building geometry
-- `Load OSM` for lightweight urban context
-- `3D Tiles Viewer (Google)` for optional visual reference using your own Google Maps API key
+Placement near Rhino's origin is the default. Supported project data and services can orient the map through `Reference Source`; loading the actual layer is a separate step.
 
-By default, RhinoSpatial localizes data near Rhino's origin so aligned geometry remains practical to view and model.
+## What is in 0.4.0
 
-## Documentation and support
+Supported ATOM building services can select and download tiles for the study area. Coordinate recognition, terrain placement, missing-elevation handling and local vector parsing are improved. See [CHANGELOG.md](CHANGELOG.md) for the release details; its Unreleased section, when present in a development build, describes later work.
 
-- [Website and user guide](https://pascalnun.eu/tools/rhinospatial/)
-- [GitHub documentation](https://github.com/PascalNun/RhinoSpatial)
-- [Visual workflow](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/SHOWCASE.md)
-- [Downloadable examples](https://github.com/PascalNun/RhinoSpatial/tree/main/examples)
-- [Component and Source Reference](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/COMPONENT_REFERENCE.md)
-- [Releases](https://github.com/PascalNun/RhinoSpatial/releases)
-- [Issues and support](https://github.com/PascalNun/RhinoSpatial/issues)
+## Guides and examples
 
-RhinoSpatial 0.4.0 is the recommended public release. Provider-specific services, coordinate systems, geometry types, API access, and local-file metadata can still expose edge cases. For project work, prefer official or project-specific data sources.
+- [Visual workflow](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/SHOWCASE.md) — build a study step by step.
+- [Working with project data](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/WORKING_WITH_PROJECT_DATA.md) — choose sources and understand coordinates and common messages.
+- [Example definitions](https://github.com/PascalNun/RhinoSpatial/tree/main/examples) — starting points you can adapt to different projects.
+- [Component reference](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/COMPONENT_REFERENCE.md) — exact formats, inputs and limits.
+- [Website](https://pascalnun.eu/tools/rhinospatial/), [releases](https://github.com/PascalNun/RhinoSpatial/releases) and [support](https://github.com/PascalNun/RhinoSpatial/issues).
 
-RhinoSpatial is released under the [MIT License](https://github.com/PascalNun/RhinoSpatial/blob/main/LICENSE). Bundled dependency licenses are documented in the [Third-Party Notices](https://github.com/PascalNun/RhinoSpatial/blob/main/THIRD-PARTY-NOTICES.md). Both files are also included beside this README in the release package.
+Online guides label development features explicitly. Start small and read `Status` if a source does not return the expected result. Coverage, coordinates and file metadata vary; prefer official or project-specific sources when accuracy matters.
+
+RhinoSpatial is created by **Pascal Nünninghoff** and released under the [MIT License](https://github.com/PascalNun/RhinoSpatial/blob/main/LICENSE). The package includes `LICENSE` and `THIRD-PARTY-NOTICES.md` with the dependency notices.

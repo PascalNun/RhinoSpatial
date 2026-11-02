@@ -1,4 +1,8 @@
-# Food4Rhino Listing Draft
+# Food4Rhino listing copy
+
+This copy describes the public **0.4.0** package. Development additions on `main`
+are not included in this listing until a matching release is published. Editing
+this repository file does not change the live Food4Rhino page.
 
 ## Title
 
@@ -12,7 +16,7 @@ Bring maps, terrain, buildings, imagery, and geodata into one aligned Rhino and 
 
 RhinoSpatial brings real-world site context directly into Rhino and Grasshopper. Choose your study area once with `Spatial Context`, then add the layers you need. Maps, terrain, imagery, buildings, vector data, and lightweight urban context are placed in one shared spatial framework so they line up.
 
-It is designed for architects, urban designers, landscape architects, and anyone using Rhino or Grasshopper for site analysis, context modeling, concept design, and early-stage studies. The aim is a direct, lightweight workflow with sensible defaults—not a full GIS application inside Grasshopper.
+It is designed for architects, urban designers and landscape architects working on site analysis, context models, concept design and early-stage studies. Familiar Grasshopper components and one shared area selection keep the workflow direct.
 
 ### One area, multiple aligned layers
 
@@ -40,7 +44,7 @@ The Google 3D Tiles component is an optional reference viewer. It requires your 
 
 ## Current Release
 
-Version **0.4.0** adds automatic LoD2 tile imports from supported ATOM feeds, including Berlin, with persistent download caching. It also recognizes AdV UTM32/UTM33 CRS names and corrects terrain placement, NoData handling, and local vector parsing. The macOS progress-update freeze encountered during testing is fixed.
+Version **0.4.0** adds automatic building-tile downloads from supported ATOM services and improves coordinate recognition, terrain placement, missing-elevation handling and local vector parsing. Completed downloads can be reused. Full details are in the [release notes](https://github.com/PascalNun/RhinoSpatial/releases/tag/v0.4.0).
 
 The complete planned source set is now present, but individual providers, coordinate systems, geometry types, and file metadata can still expose edge cases.
 
@@ -65,6 +69,7 @@ Created by Pascal Nünninghoff.
 User guide and examples:
 
 - https://pascalnun.eu/tools/rhinospatial/
+- [Working with project data](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/WORKING_WITH_PROJECT_DATA.md) — general source choices and workflows, with release/development features labeled.
 
 Support and bug reports:
 

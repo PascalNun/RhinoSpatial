@@ -1,22 +1,44 @@
 # Contributing to RhinoSpatial
 
-RhinoSpatial brings multiple geospatial layers into one aligned Rhino and Grasshopper study area. Contributions should strengthen that workflow through reproducible compatibility fixes, correctness, clear diagnostics, documentation and practical examples.
+RhinoSpatial helps people assemble maps, terrain, imagery and geometry in one aligned Rhino study. Contributions are most useful when they improve a real workflow: a reproducible source problem, clearer output, a performance issue, better documentation or a practical example.
 
 ## Report a problem
 
-Open a [bug report](https://github.com/PascalNun/RhinoSpatial/issues/new/choose). Include the RhinoSpatial version, Rhino version, operating system, component, selected area/SRS, exact status message and steps to reproduce. A small public source URL or non-private sample is especially helpful. Never publish API keys, authentication links or private project data.
+Open a [bug report](https://github.com/PascalNun/RhinoSpatial/issues/new/choose) and describe what you expected and what happened. Include:
+
+- the RhinoSpatial and Rhino versions, operating system and affected component;
+- the exact `Status` message and steps to reproduce;
+- the selected area and coordinate system, if known;
+- a public URL or small shareable file that demonstrates the problem.
+
+Keep API keys, authentication links and private project data out of reports and example definitions. A small reproducible case is more helpful than a large unrelated project.
 
 ## Propose a change
 
-Check the [project scope](docs/PROJECT_SCOPE.md) and [roadmap](docs/ROADMAP.md). For substantial changes, describe the real workflow and proposed behavior in an issue first. Keep pull requests focused and preserve component names, GUIDs, input/output layouts and existing Grasshopper definitions.
+Read the [project scope](docs/PROJECT_SCOPE.md) and [roadmap](docs/ROADMAP.md). For substantial changes, explain the design task and proposed behavior before expanding the interface. Keep changes focused and preserve component names, GUIDs, parameter layouts and existing definitions.
 
-Reusable source readers, clients and coordinate logic belong in `RhinoSpatial.Core`; Grasshopper orchestration and Rhino geometry belong in `RhinoSpatial`. All aligned sources use the shared Spatial Context. Unsupported coordinates, missing coverage and source failures should produce honest diagnostics.
+Reusable readers, source clients and coordinate logic belong in `RhinoSpatial.Core`. Grasshopper orchestration and Rhino geometry belong in `RhinoSpatial`. All aligned sources use the shared Spatial Context. Missing coverage, unsupported coordinates and source failures should produce useful diagnostics.
+
+## Write documentation for the user
+
+Documentation is part of a change, not a separate finishing task. Review the relevant overview, workflow, component reference, examples, source catalogue, validation notes and changelog whenever behavior changes. Update package-facing copy when release or installation guidance changes.
+
+Write for architects and designers who need enough technical detail to choose and use their data:
+
+- Lead with the task and the resulting output, then explain how to connect it.
+- Use plain English and the actual component labels. Explain terms such as CRS, layer or COG when they first become useful.
+- Keep general workflows applicable to different providers and places. Put exact URLs, coordinates and source quirks in linked examples or the test catalogue.
+- Keep request parameters, implementation details, budgets and probe commands in the technical reference or maintainer notes.
+- Distinguish features in the public release from additions on `main`, and automated checks from results actually inspected in Rhino.
+- Preserve technical facts, useful examples and license notices when making an introduction shorter.
+
+Use [Working with project data](docs/WORKING_WITH_PROJECT_DATA.md) as the general source guide. Keep links and sample paths usable. Avoid adding another overlapping guide when an existing page can explain the workflow clearly.
 
 ## Build and validate
 
-Install a .NET SDK able to build the solution's .NET 7 and .NET 10 targets, then run:
+Use .NET SDKs that can build the solution's .NET 7 and .NET 10 targets:
 
-```bash
+```sh
 dotnet build RhinoSpatial.sln -c Release
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- ogc-request-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- reference-source-check
@@ -24,9 +46,14 @@ dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- tiles-
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- source-reader-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- terrain-mesh-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- lod2-atom-check
+dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- source-compatibility-check
+dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- medium-compatibility-check
+dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- low-compatibility-check
 git diff --check
 ```
 
-Update the relevant documentation and [test-source catalogue](docs/TEST_SOURCES.md). Changes to Rhino geometry, preview, materials, UI or saved definitions also need the relevant [manual checks](examples/VALIDATION.md); console checks do not establish visual correctness. Explain the validation performed and its limits in the pull request.
+[CI](.github/workflows/validate.yml) runs the build and suites on macOS and Windows. Changes to geometry, preview, materials, UI or saved definitions also need the relevant [Rhino checks](examples/VALIDATION.md). Describe the checks actually performed and any remaining limits when submitting work.
 
-RhinoSpatial uses the [MIT License](LICENSE). Keep third-party notices current when dependencies change.
+For documentation-only changes, review wording, release labels, links, anchors and example paths. Do not present a documentation check as a runtime test.
+
+RhinoSpatial uses the [MIT License](LICENSE). Keep [third-party notices](THIRD-PARTY-NOTICES.md) current when dependencies change.

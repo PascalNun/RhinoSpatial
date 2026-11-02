@@ -1,8 +1,10 @@
 # Low-priority compatibility: how-to and implementation plan
 
 Started 2026-11-02 from `f20afe4` on `codex/low-source-compatibility`.
-This batch implements research priorities 9–10 and builds on draft PR #7.
-Public/installed 0.4.0 is unchanged. No merge, installation or release is planned.
+This implementation record covers research priorities 9–10. All three
+compatibility batches are now merged into `main`; the public package remains
+0.4.0. No installation or release was performed. For the general user workflow,
+see [Working with project data](WORKING_WITH_PROJECT_DATA.md).
 
 ## Intended user workflow
 
@@ -53,7 +55,7 @@ Public/installed 0.4.0 is unchanged. No merge, installation or release is planne
   verify manifest JSON, component interfaces, diff, dependencies and package
   contents. Update notices, reference/catalogue/roadmap/changelog and manual
   Rhino/Windows checks.
-- Commit/push and open a stacked draft PR targeting the medium-priority branch.
+- Record validation and integrate the tested result; this batch was initially stacked with the previous work and later merged into `main`.
 
 ## Progress
 
@@ -61,7 +63,7 @@ Public/installed 0.4.0 is unchanged. No merge, installation or release is planne
 - [x] Bounded range transport and remote raster readers.
 - [x] Read-only GeoPackage reader and source integration.
 - [x] Saved examples and documentation.
-- [x] Local validation and stacked draft PR workflow. Platform CI results are recorded on the PR; native Rhino validation remains manual.
+- [x] Local validation and integration into `main`. All nine suites passed in macOS/Windows CI; native Rhino validation remains manual.
 
 ## Implementation results
 

@@ -1,79 +1,53 @@
-# RhinoSpatial Installation
+# Install RhinoSpatial
 
-This package contains RhinoSpatial 0.4.0 for Rhino 8 on macOS and Windows.
+RhinoSpatial 0.4.0 runs in Rhino 8 and Grasshopper on macOS and Windows. This guide describes the public package. Newer features on the repository's `main` branch need a development build; see the [version guide](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/WORKING_WITH_PROJECT_DATA.md#release-and-development-features).
 
-## Package Manager Installation
+## Package Manager
 
-The easiest way to install RhinoSpatial is through Rhino's Package Manager.
+1. Open Rhino 8 and run `PackageManager`.
+2. Search for `RhinoSpatial` and install it.
+3. Restart Rhino or Grasshopper if requested.
+4. Open Grasshopper and look for the `RhinoSpatial` tab.
 
-1. Open Rhino 8.
-2. Run `PackageManager`.
-3. Search for `RhinoSpatial`.
-4. Install the package.
-5. Restart Rhino / Grasshopper if needed.
+Version 0.4.0 is available without enabling pre-releases. You can also find the package on [Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
 
-You can also open the [RhinoSpatial page on Food4Rhino](https://www.food4rhino.com/en/app/rhinospatial?lang=en).
-The [RhinoSpatial website](https://pascalnun.eu/tools/rhinospatial/) provides the user guide and example workflows.
+## Manual ZIP installation
 
-## Included Files
+Download the release ZIP from [GitHub Releases](https://github.com/PascalNun/RhinoSpatial/releases).
 
-- `RhinoSpatial.gha`
-- `RhinoSpatial.deps.json`
-- `RhinoSpatial.runtimeconfig.json`
-- `RhinoSpatial.Core.dll`
-- `BitMiracle.LibTiff.NET.dll`
-- `NetTopologySuite.dll`
-- `NetTopologySuite.Features.dll`
-- `NetTopologySuite.IO.Esri.Shapefile.dll`
-- `ProjNET.dll`
-- `SharpGLTF.Core.dll`
-- `README.md`
-- `CHANGELOG.md`
-- `LICENSE`
-- `THIRD-PARTY-NOTICES.md`
+1. Close Rhino before replacing plugin files.
+2. Copy the plugin and its accompanying files into your Grasshopper Libraries folder.
+3. Keep the `.gha` and all dependency `.dll` files together. When updating, replace the previous RhinoSpatial files as a set so the assemblies match.
+4. Start Rhino 8, open Grasshopper and look for the `RhinoSpatial` tab.
 
-## Manual Zip Installation
+Typical Libraries locations are:
 
-1. Close Rhino before copying plugin files.
-2. Copy all plugin files from the zip into your Grasshopper Libraries folder.
-3. Start Rhino 8.
-4. Open Grasshopper.
-5. Look for the `RhinoSpatial` tab.
+- **macOS:** `~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/Grasshopper (<version>)/Libraries`
+- **Windows:** `%AppData%\Grasshopper\Libraries`
 
-If Grasshopper was already open while the file was copied, restart Rhino and Grasshopper once.
+Restart Rhino if the files were copied while Grasshopper was open.
 
-Typical Grasshopper Libraries locations are:
+### Package files
 
-- macOS:
-  `~/Library/Application Support/McNeel/Rhinoceros/8.0/Plug-ins/Grasshopper (<version>)/Libraries`
-- Windows:
-  `%AppData%\Grasshopper\Libraries`
+The public package contains `RhinoSpatial.gha`, `RhinoSpatial.Core.dll`, dependency assemblies, runtime/dependency metadata and documentation. Copy the complete set rather than only the `.gha`.
 
-## First Run
+The 0.4.0 libraries include BitMiracle.LibTiff.NET, NetTopologySuite and its feature/Shapefile helpers, ProjNET and SharpGLTF. Their notices are included in `THIRD-PARTY-NOTICES.md`, alongside `LICENSE`, `README.md` and `CHANGELOG.md`. Development builds can contain additional dependencies listed in the repository notices.
 
-The usual first workflow is:
+## First study
 
-1. Place `Spatial Context`
-2. Define the study area once
-3. Connect that same `Spatial Context` into one or more data layers
+1. Place `Spatial Context` in Grasshopper.
+2. Connect a Button to `Open Map` and select a small area.
+3. Add one source component and connect the same context.
+4. Inspect the result, then add the other layers you need.
 
-Good first components to try are:
+Try maps with project vectors, terrain with buildings, or OSM for quick context. You can orient the map from a supported `Reference Source` before choosing the area. Data is placed near Rhino's origin by default.
 
-- `Load WMS`
-- `Load WFS`
-- `Load LoD2 Buildings`
-- `Load OSM`
-- `Load GeoTIFF`
-- `Load Terrain`
-- `3D Tiles Viewer (Google)` if you have a user-managed Google Maps API key
+The [visual workflow](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/SHOWCASE.md) and [example definitions](https://github.com/PascalNun/RhinoSpatial/tree/main/examples) provide starting points. [Working with project data](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/WORKING_WITH_PROJECT_DATA.md) explains source choices, coordinates and common status messages.
 
-## Notes
+## If a layer does not load
 
-- Version 0.4.0 installs without enabling pre-releases.
-- The plugin has been exercised against a growing international set of public services and local formats, but provider-specific services and unusual project data can still expose edge cases.
-- Leave imagery, terrain, or OSM source inputs empty only when you want RhinoSpatial's broad fallback behavior for quick context. The terrain fallback is intentionally limited to small study areas and short request times. For project work, prefer your own official or project-specific data sources.
-- `Load WFS` accepts WFS URLs, OGC API Features URLs, local `.shp` files, and local `.geojson` / GeoJSON `.json` files for vector context.
-- `Load LoD2 Buildings` accepts a LoD2 WFS or ATOM URL, local CityGML/GML/XML/CityJSON file, folder, or ZIP archive through one `LoD2 Source` input. Large local files may still take time because they have to be inspected before out-of-context buildings can be skipped.
-- The Google 3D Tiles component is a viewer/reference workflow that requires the user's own Google Maps API key and should not be treated as an editable project data source, cache, bake, or export workflow.
-- Behavior may still vary depending on the provider, geometry type, SRS, version, response format, API access, or local file metadata.
-- Release packages also include a small number of third-party libraries. See `THIRD-PARTY-NOTICES.md` for bundled dependency notices.
+Read the component's `Status`, then check the source, selected layer and study-area coverage. Start with a smaller area when detailed data takes longer than expected. Broad fallback imagery and terrain help with orientation; use official or project-specific data when the study needs it.
+
+Google 3D Tiles require your own Google Maps Platform setup and provide temporary visual reference. Follow the [viewer guidance](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/SHOWCASE.md#google-3d-tiles-reference); this is not an editable, bake or export workflow.
+
+For installation problems, report the plugin/Rhino versions, operating system and exact message through [GitHub Issues](https://github.com/PascalNun/RhinoSpatial/issues). Keep private project data and API keys out of reports.

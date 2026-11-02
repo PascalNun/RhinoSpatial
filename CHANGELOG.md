@@ -4,23 +4,32 @@ RhinoSpatial improves its established source categories through real project use
 
 ## Unreleased
 
-- Read remote classic-TIFF COG windows through bounded, validated HTTP byte ranges. Reuse LibTiff imagery/DEM codecs, usable overviews, masks and NoData; preserve affine placement, source elevations and the shared terrain baseline. Reject unsupported/range-refusing sources without whole-file fallback. Reference Source reads headers without decoding pixels.
-- Add read-only local GeoPackage feature-layer discovery, declared EPSG CRS, bounded RTree/fallback spatial queries, attributes and standard WKB geometry through existing vector components. Preserve polygon-hole curves and geometry grouping; reject malformed/extended geometry without repairs. Catalog references do not scan feature geometry.
-- Correct GDAL ASCII NoData tags that expose a count before their value. Add explicit WGS84 UTM north/south EPSG transformations needed by common COGs.
-- Add Microsoft.Data.Sqlite.Core/platform SQLitePCLRaw managed providers, license texts and package inspection; no new native binary. Add 43 low-priority regression cases, macOS/Windows CI, [how-to/URLs](examples/LOW_COMPATIBILITY_WORKFLOWS.md) and synthetic COG/GeoPackage fixtures. Installed/public 0.4.0 remains unchanged.
+The following work is merged into `main` for the next release. The public package
+remains 0.4.0. See [Working with project data](docs/WORKING_WITH_PROJECT_DATA.md)
+for feature availability and the general workflow.
 
-- Select one suitable CityJSON LoD per object, retaining parts at that level; support streamed CityJSONSeq and affine geometry templates through existing local/archive/download paths. Reject malformed indices or ambiguous LoDs instead of returning partial rings.
-- Support embedded affine GeoTIFF georeferencing and local world-file TIFF/PNG/JPEG with declared CRS, preserving rotated footprints, UV clipping, pixel centers and terrain sampling. Sidecar edits invalidate caches; projected CRS keys take priority over geographic keys.
-- Support WMTS layer discovery, reference metadata, bounded native tile selection and PNG/JPEG mosaics through existing WMS components. Honor axis order, matrix limits, dimensions and advertised REST/KVP endpoints; validate completed caches and fail required tile errors explicitly.
-- Add the managed `StbImageNext` 1.0.0 decoder (no native or further package dependencies), update third-party notices, and save [medium-priority recipes and synthetic examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md). New native Rhino/Windows checks remain pending.
+### Sources and workflows
 
-- Follow OGC API next links and supported WFS paging with explicit user caps, deduplication, repeated-page protection and completeness diagnostics. Preserve raw GML for the building loader.
-- Discover feature collections from OGC API landing pages, collection lists and advertised links using the existing layer-list/vector components. Layer selection is optional for a single collection and direct files.
-- Load bounded, validated direct GeoJSON and Shapefile ZIP downloads, plus remote CityJSON/CityGML building files. Check companion files, CRS metadata, archive paths and expanded sizes; reuse validated downloads.
-- Load terrain ATOM feeds through `Load Terrain`, using declared placement metadata and an aligned raster mosaic. Preserve source sample centers, NoData holes and the shared elevation baseline; reject incompatible grids or conflicting heights.
-- Use ATOM and OGC API metadata as Spatial Context references without intentionally downloading feature data or archives. Existing saved selections retain priority.
-- Correct projected Shapefile WKT authority detection so nested datum/ellipsoid EPSG codes cannot override the actual source CRS. Unsupported declared CRS metadata fails explicitly.
-- Add deterministic compatibility checks to CI and save [copyable example workflows](examples/COMPATIBILITY_WORKFLOWS.md), source URLs and live probe results. New Rhino/Grasshopper visual checks remain pending; component GUIDs and input/output layouts are retained. No public release or installed-plugin replacement is included in this batch.
+- Discover OGC API collections from a service root, follow supported feature pages and report user limits, duplicate records and incomplete responses clearly. Preserve raw GML for building imports.
+- Load validated direct GeoJSON and Shapefile ZIP downloads, and supported remote CityGML/CityJSON building files. Check companion files, archive paths, expanded sizes and declared coordinates; reuse completed downloads.
+- Load supported ATOM terrain feeds as aligned mosaics, preserving source sample centers, missing elevations and the shared placement baseline. Reject conflicting heights or incompatible grids.
+- Use WMTS map services through the existing imagery components, with layer discovery, advertised grids, supported dimensions and bounded PNG/JPEG mosaics.
+- Read remote COG image/elevation windows through validated byte ranges, using suitable overviews, internal masks and missing-value information. Unsupported formats and range-refusing servers return explicit errors without a whole-file fallback.
+- Read local GeoPackage feature layers through the vector components, including layer discovery, attributes, spatial queries and feature-grouped polygon-hole curves. Keep the source read-only and reject malformed or extended geometry without repairs.
+- Add API/feed/WMTS, GeoPackage and remote COG reference metadata for map orientation without importing source geometry or decoding imagery. Saved selections retain priority.
+
+### Placement and correctness
+
+- Support affine GeoTIFF and world-file TIFF/PNG/JPEG placement, including rotated footprints, correct pixel centers, UV clipping and terrain sampling. Sidecar edits invalidate caches; declared projected coordinates take priority over geographic keys.
+- Select one suitable CityJSON detail level per object and support sequences and geometry templates through existing local, archive and download workflows. Reject ambiguous detail or malformed geometry instead of returning partial rings.
+- Correct projected Shapefile WKT authority detection, GDAL ASCII NoData values returned after a field count, and add explicit WGS84 UTM north/south transformations needed by common remote rasters. Unsupported declared coordinates fail explicitly.
+
+### Documentation, dependencies and validation
+
+- Refresh the overview, visual workflow, project-data guide, examples, reference and maintainer documentation. General workflows apply across providers; recorded URLs, bounds and technical probe results remain in linked recipes.
+- Save [service/download examples](examples/COMPATIBILITY_WORKFLOWS.md), [building/imagery examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md), and [COG/GeoPackage examples](examples/LOW_COMPATIBILITY_WORKFLOWS.md), with synthetic sample files and actual live-check results.
+- Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.
+- Add 26 service/download, 27 building/imagery and 43 COG/GeoPackage regression cases. All nine suites pass on macOS and Windows. Native Rhino preview, material/bake and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
 
 ## 0.4.0 — 2026-11-01
 

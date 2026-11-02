@@ -1,7 +1,10 @@
 # Source compatibility implementation plan
 
 Started 2026-11-01 from 0.4.0 on `codex/source-compatibility`.
-The [research audit](COMPATIBILITY_RESEARCH.md) records the full backlog.
+The [research audit](COMPATIBILITY_RESEARCH.md) records the original backlog.
+This is an implementation record; all three batches are now merged into `main`.
+The public package remains 0.4.0. For user guidance, see
+[Working with project data](WORKING_WITH_PROJECT_DATA.md).
 
 ## Authorized scope
 
@@ -49,6 +52,6 @@ The [research audit](COMPATIBILITY_RESEARCH.md) records the full backlog.
 - Release solution build passed with zero warnings and errors; all seven suites passed, including 26 new compatibility checks. Component GUIDs and parameter names/order were compared against the 0.4.0 baseline; source manifest JSON and unique ids were checked.
 - Live results and exact reproduction inputs are saved in [the example guide](../examples/COMPATIBILITY_WORKFLOWS.md): API-root discovery, five-page capped loading, single- and two-tile DGM1 meshes, direct GeoJSON/Shapefile ZIPs and a declared-CRS CityJSON source.
 - The Delft-hosted older sample failed TLS on this machine; the cjio maintainer fixture provided a successful alternative. Certificate validation was retained.
-- New Rhino/Grasshopper visual checks and Windows runtime checks remain on [the manual checklist](../examples/VALIDATION.md#unreleased-source-compatibility), including progress/cancellation, saved definitions and cross-layer XY/Z alignment.
-- This first batch did not implement priorities 6–10. The subsequent [medium-priority plan](MEDIUM_COMPATIBILITY_PLAN.md) covers 6–8; COG and GeoPackage remain later work.
+- New Rhino/Grasshopper visual and installed-package checks on macOS/Windows remain on [the manual checklist](../examples/VALIDATION.md#unreleased-source-compatibility), including progress/cancellation, saved definitions and cross-layer XY/Z alignment.
+- This first batch covered priorities 1–5. The subsequent [building/imagery plan](MEDIUM_COMPATIBILITY_PLAN.md) covers 6–8 and the [COG/GeoPackage plan](LOW_COMPATIBILITY_PLAN.md) covers 9–10. All are now on `main`; the combined nine-suite CI passed on macOS and Windows.
 - Public release 0.4.0 and the installed plugin were not changed.

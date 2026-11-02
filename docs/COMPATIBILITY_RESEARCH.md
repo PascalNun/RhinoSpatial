@@ -4,6 +4,11 @@ Reviewed RhinoSpatial 0.4.0 at `2bd239ee409fdb06f2aa49aa81c2cffbcc1d2be5` agains
 
 Implementation of priorities 1–5 is tracked in the [implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) and [example guide](../examples/COMPATIBILITY_WORKFLOWS.md). Priorities 6–8 are implemented in the [medium-priority follow-up](MEDIUM_COMPATIBILITY_PLAN.md), with [saved examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md). Priorities 9–10 are implemented in the [low-priority follow-up](LOW_COMPATIBILITY_PLAN.md), with [COG/GeoPackage how-to examples](../examples/LOW_COMPATIBILITY_WORKFLOWS.md). The evidence below describes the audited 0.4.0 baseline, before those changes.
 
+The ten items below are a historical audit, not a current list of missing
+features. They have since been implemented and merged into `main`. The public
+package remains 0.4.0. For choosing and connecting sources, use
+[Working with project data](WORKING_WITH_PROJECT_DATA.md).
+
 ## Highest-value improvements
 
 | Priority | Gap | Current evidence | Proposed behavior and acceptance check |
