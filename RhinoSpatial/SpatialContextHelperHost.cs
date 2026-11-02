@@ -33,9 +33,20 @@ namespace RhinoSpatial
         private static Task? _serverTask;
         private static int _port;
         private static string? _htmlDocument;
-        private static SpatialContextSelection _latestSelection = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+        private static readonly HashSet<Guid> Sessions = new();
 
-        public static event EventHandler? SelectionChanged;
+        internal sealed class SelectionEventArgs : EventArgs
+        {
+            public Guid Session { get; }
+            public SpatialContextSelection Selection { get; }
+            public SelectionEventArgs(Guid session, SpatialContextSelection selection)
+            { Session = session; Selection = selection; }
+        }
+
+        public static void RegisterSession(Guid session) { lock (SyncRoot) Sessions.Add(session); }
+        public static void RemoveSession(Guid session) { lock (SyncRoot) Sessions.Remove(session); }
+
+        public static event EventHandler<SelectionEventArgs>? SelectionChanged;
 
         public static string EnsureStarted()
         {
@@ -59,20 +70,11 @@ namespace RhinoSpatial
             }
         }
 
-        public static void OpenInBrowser()
+        public static void OpenInBrowser(Guid session, BoundingBox2D? initialViewBoundingBox4326, string? preferredSrs, SpatialContextSelection? persistedSelection)
         {
-            OpenInBrowser(null, null);
-        }
-
-        public static void OpenInBrowser(BoundingBox2D? initialViewBoundingBox4326, string? preferredSrs)
-        {
-            OpenInBrowser(initialViewBoundingBox4326, preferredSrs, null);
-        }
-
-        public static void OpenInBrowser(BoundingBox2D? initialViewBoundingBox4326, string? preferredSrs, SpatialContextSelection? persistedSelection)
-        {
+            lock (SyncRoot) { if (!Sessions.Contains(session)) return; }
             var url = EnsureStarted();
-            var queryParts = new List<string>();
+            var queryParts = new List<string> { "session=" + session.ToString("N") };
 
             if (initialViewBoundingBox4326 is not null)
             {
@@ -127,27 +129,6 @@ namespace RhinoSpatial
                 Arguments = url,
                 UseShellExecute = false
             });
-        }
-
-        public static SpatialContextSelection GetLatestSelection()
-        {
-            lock (SyncRoot)
-            {
-                return _latestSelection;
-            }
-        }
-
-        public static void RestoreSelection(SpatialContextSelection selection)
-        {
-            if (!selection.HasSelection)
-            {
-                return;
-            }
-
-            lock (SyncRoot)
-            {
-                _latestSelection = selection;
-            }
         }
 
         private static bool IsRunning()
@@ -237,6 +218,12 @@ namespace RhinoSpatial
             if (string.Equals(requestMethod, "GET", StringComparison.OrdinalIgnoreCase) &&
                 string.Equals(requestPath, "/api/selection", StringComparison.OrdinalIgnoreCase))
             {
+                queryParameters.TryGetValue("session", out var sessionText);
+                if (!Guid.TryParse(sessionText, out var session))
+                {
+                    await WriteResponseAsync(stream, "410 Gone", "application/json", Encoding.UTF8.GetBytes("{\"ok\":false}"), cancellationToken).ConfigureAwait(false);
+                    return;
+                }
                 queryParameters.TryGetValue("bbox4326", out var boundingBox4326);
                 queryParameters.TryGetValue("bbox25832", out var boundingBox25832);
                 queryParameters.TryGetValue("bbox25833", out var boundingBox25833);
@@ -244,7 +231,7 @@ namespace RhinoSpatial
                 queryParameters.TryGetValue("bbox3857", out var boundingBox3857);
                 queryParameters.TryGetValue("bbox4283", out var boundingBox4283);
                 queryParameters.TryGetValue("bbox7844", out var boundingBox7844);
-                UpdateLatestSelection(
+                var accepted = UpdateSelection(session,
                     boundingBox4326 ?? string.Empty,
                     boundingBox25832 ?? string.Empty,
                     boundingBox25833 ?? string.Empty,
@@ -253,8 +240,8 @@ namespace RhinoSpatial
                     boundingBox4283 ?? string.Empty,
                     boundingBox7844 ?? string.Empty);
 
-                var responseBody = Encoding.UTF8.GetBytes("{\"ok\":true}");
-                await WriteResponseAsync(stream, "200 OK", "application/json; charset=utf-8", responseBody, cancellationToken).ConfigureAwait(false);
+                var responseBody = Encoding.UTF8.GetBytes(accepted ? "{\"ok\":true}" : "{\"ok\":false}");
+                await WriteResponseAsync(stream, accepted ? "200 OK" : "410 Gone", "application/json; charset=utf-8", responseBody, cancellationToken).ConfigureAwait(false);
                 return;
             }
 
@@ -289,38 +276,13 @@ namespace RhinoSpatial
             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        private static void UpdateLatestSelection(string boundingBox4326, string boundingBox25832, string boundingBox25833, string boundingBox27700, string boundingBox3857, string boundingBox4283, string boundingBox7844)
+        private static bool UpdateSelection(Guid session, string boundingBox4326, string boundingBox25832, string boundingBox25833, string boundingBox27700, string boundingBox3857, string boundingBox4283, string boundingBox7844)
         {
-            var normalized4326 = boundingBox4326.Trim();
-            var normalized25832 = boundingBox25832.Trim();
-            var normalized25833 = boundingBox25833.Trim();
-            var normalized27700 = boundingBox27700.Trim();
-            var normalized3857 = boundingBox3857.Trim();
-            var normalized4283 = boundingBox4283.Trim();
-            var normalized7844 = boundingBox7844.Trim();
-            var shouldRaiseEvent = false;
-
-            lock (SyncRoot)
-            {
-                if (string.Equals(_latestSelection.BoundingBox4326, normalized4326, StringComparison.Ordinal) &&
-                    string.Equals(_latestSelection.BoundingBox25832, normalized25832, StringComparison.Ordinal) &&
-                    string.Equals(_latestSelection.BoundingBox25833, normalized25833, StringComparison.Ordinal) &&
-                    string.Equals(_latestSelection.BoundingBox27700, normalized27700, StringComparison.Ordinal) &&
-                    string.Equals(_latestSelection.BoundingBox3857, normalized3857, StringComparison.Ordinal) &&
-                    string.Equals(_latestSelection.BoundingBox4283, normalized4283, StringComparison.Ordinal) &&
-                    string.Equals(_latestSelection.BoundingBox7844, normalized7844, StringComparison.Ordinal))
-                {
-                    return;
-                }
-
-                _latestSelection = new SpatialContextSelection(normalized4326, normalized25832, normalized25833, normalized27700, normalized3857, normalized4283, normalized7844);
-                shouldRaiseEvent = true;
-            }
-
-            if (shouldRaiseEvent)
-            {
-                SelectionChanged?.Invoke(null, EventArgs.Empty);
-            }
+            lock (SyncRoot) { if (!Sessions.Contains(session)) return false; }
+            var selection = new SpatialContextSelection(boundingBox4326.Trim(), boundingBox25832.Trim(),
+                boundingBox25833.Trim(), boundingBox27700.Trim(), boundingBox3857.Trim(), boundingBox4283.Trim(), boundingBox7844.Trim());
+            SelectionChanged?.Invoke(null, new SelectionEventArgs(session, selection));
+            return true;
         }
 
         private static Dictionary<string, string> ParseQueryParameters(string requestTarget)

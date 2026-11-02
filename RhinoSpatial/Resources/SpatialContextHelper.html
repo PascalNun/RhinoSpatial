@@ -746,6 +746,7 @@
 
     function publishSelection() {
       const query = new URLSearchParams({
+        session: pageParams.get("session") || "",
         bbox4326: bbox4326.value,
         bbox25832: bbox25832.value,
         bbox25833: bbox25833.value,
@@ -758,6 +759,8 @@
       fetch(`/api/selection?${query.toString()}`, {
         method: "GET",
         cache: "no-store"
+      }).then(response => {
+        if (!response.ok) setStatus("This map session has closed. Open the map again from Spatial Context.");
       }).catch(() => {
         setStatus("The map could not send the selection back to Grasshopper.");
       });

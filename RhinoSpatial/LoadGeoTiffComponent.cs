@@ -90,7 +90,7 @@ namespace RhinoSpatial
 
                 if (TryGetCachedSolveResult(requestData, out var cachedResult))
                 {
-                    ApplySolveResults(dataAccess, cachedResult);
+                    ApplySolveResults(dataAccess, cachedResult, requestData.SpatialContext);
                     return;
                 }
 
@@ -107,7 +107,7 @@ namespace RhinoSpatial
                 }
 
                 CacheSolveResult(requestData, result);
-                ApplySolveResults(dataAccess, result);
+                ApplySolveResults(dataAccess, result, requestData.SpatialContext);
             }
             catch (Exception ex)
             {
@@ -255,18 +255,19 @@ namespace RhinoSpatial
             _cachedResult = result;
         }
 
-        private void ApplySolveResults(IGH_DataAccess dataAccess, SolveResults result)
+        private void ApplySolveResults(IGH_DataAccess dataAccess, SolveResults result, SpatialContext2D spatialContext)
         {
             if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
             {
                 AddRuntimeMessage(result.MessageLevel.Value, result.Status);
             }
 
-            UpdatePreviewState(result);
+            var imageMesh = RhinoSpatialModelUnits.Geometry(result.ImageMesh, RhinoSpatialModelUnits.OutputScale(spatialContext));
+            UpdatePreviewState(result, imageMesh);
 
             if (result.ImageMesh is not null)
             {
-                dataAccess.SetData(0, result.ImageMesh);
+                dataAccess.SetData(0, imageMesh);
             }
 
             var material = GetOrCreateOutputMaterial(result.ImageFilePath);
@@ -334,7 +335,7 @@ namespace RhinoSpatial
             return $"{bytes} B";
         }
 
-        private void UpdatePreviewState(SolveResults result)
+        private void UpdatePreviewState(SolveResults result, Mesh? imageMesh)
         {
             if (result.ImageMesh is null || string.IsNullOrWhiteSpace(result.ImageFilePath))
             {
@@ -342,7 +343,7 @@ namespace RhinoSpatial
                 return;
             }
 
-            _previewMesh = result.ImageMesh;
+            _previewMesh = imageMesh;
             if (_previewMaterial is null || !string.Equals(_previewImageFilePath, result.ImageFilePath, StringComparison.OrdinalIgnoreCase))
             {
                 _previewMaterial = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(result.ImageFilePath);

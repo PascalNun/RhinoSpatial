@@ -73,12 +73,23 @@ RhinoSpatial reads coordinate information where available and transforms support
 
 Keep localized placement for ordinary modeling near Rhino's origin. Use `Use Absolute Coordinates` when the project specifically needs original coordinates, and keep all layers on the same context.
 
-In the current development build, a metric WMS footprint was measured at the
-wrong physical scale in millimetre and foot documents. Use a metre Rhino document
-for a metric context such as `EPSG:25833` while this is being corrected. Separate
-open definitions can also share the live map selection; check the study area
-after switching definitions. The [native validation record](../examples/VALIDATION.md#native-macos-results--2026-11-02)
-describes both findings and the tested scope.
+In development builds, localized geometry in a supported projected CRS uses the
+Rhino model's units. A 128 m footprint becomes 128 units in metres, 128,000 in
+millimetres or about 419.95 in feet. This applies across maps, vectors, terrain,
+buildings, local imagery and reference preview. Recompute the definition after
+changing model units; existing baked objects follow Rhino's normal unit tools.
+
+`Use Absolute Coordinates` retains the original coordinate numbers, without
+model-unit conversion. Use a model unit matching the projected CRS for physical
+measurements in that mode. Geographic contexts retain angular XY values; choose
+a projected project CRS for dimensioned modeling. Localized metric output needs
+a standard length unit; custom and unitless models show a message asking for one.
+
+Each Spatial Context keeps its own saved area and browser session. Opening or
+editing another definition does not replace that area. Clearing a rectangle also
+clears its saved selection. Reopen the map from the component if its old tab
+reports a closed session. See the [native validation record](../examples/VALIDATION.md#placement-and-selection-regressions--2026-11-02)
+for the tested scope.
 
 Terrain and 3D buildings can have different height references or levels of accuracy. RhinoSpatial shares a placement baseline, but that does not make different datasets equivalent or convert every vertical datum. A surface model may include trees and buildings; a bare-earth terrain model aims to describe the ground. Check the source description before relying on its heights.
 

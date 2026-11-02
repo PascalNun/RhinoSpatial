@@ -349,3 +349,9 @@ baking. Separate measurements reproduced document-unit scale and cross-document
 selection problems. These are development-build observations, not live-provider
 or Windows host validation. Full map-lifetime and combined-study checks remain
 on the checklist.
+
+The [placement and selection regressions](../examples/VALIDATION.md#placement-and-selection-regressions--2026-11-02)
+repeat those 42 cases after the fixes and add metre/millimetre/foot measurements
+across six loaders, independent live/cleared/copied map selections, closed-session
+rejection, textured baking in feet and synthetic Google preview conversion.
+`context-state-check` provides 24 offline session/CRS-unit checks in both-platform CI.

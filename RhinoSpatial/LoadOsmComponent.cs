@@ -122,11 +122,12 @@ namespace RhinoSpatial
                     AddRuntimeMessage(result.MessageLevel.Value, result.Status);
                 }
 
-                dataAccess.SetDataTree(0, result.Buildings);
-                dataAccess.SetDataTree(1, result.Roads);
-                dataAccess.SetDataTree(2, result.Water);
-                dataAccess.SetDataTree(3, result.Green);
-                dataAccess.SetDataTree(4, result.Rail);
+                var scale = RhinoSpatialModelUnits.OutputScale(requestData.SpatialContext);
+                dataAccess.SetDataTree(0, RhinoSpatialModelUnits.Tree(result.Buildings, scale));
+                dataAccess.SetDataTree(1, RhinoSpatialModelUnits.Tree(result.Roads, scale));
+                dataAccess.SetDataTree(2, RhinoSpatialModelUnits.Tree(result.Water, scale));
+                dataAccess.SetDataTree(3, RhinoSpatialModelUnits.Tree(result.Green, scale));
+                dataAccess.SetDataTree(4, RhinoSpatialModelUnits.Tree(result.Rail, scale));
                 dataAccess.SetData(5, result.Status);
             }
             catch (Exception ex)

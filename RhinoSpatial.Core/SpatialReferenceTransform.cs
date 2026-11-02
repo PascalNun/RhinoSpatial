@@ -71,6 +71,14 @@ namespace RhinoSpatial.Core
 
         public static bool IsSupportedSrs(string? srs) => CreateCoordinateSystem(NormalizeSrs(srs)) is not null;
 
+        public static bool TryGetMetresPerUnit(string? srs, out double metresPerUnit)
+        {
+            metresPerUnit = 0;
+            if (CreateCoordinateSystem(NormalizeSrs(srs)) is not ProjectedCoordinateSystem projected) return false;
+            metresPerUnit = projected.LinearUnit.MetersPerUnit;
+            return double.IsFinite(metresPerUnit) && metresPerUnit > 0;
+        }
+
         private static bool TryCreateMathTransform(string sourceSrs, string targetSrs, out MathTransform? math)
         {
             math = null;

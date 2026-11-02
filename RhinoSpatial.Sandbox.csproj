@@ -18,6 +18,7 @@
     <Compile Include="RhinoSpatial/Google3dTilesElevationBaseline.cs" Link="Google3dTilesElevationBaseline.cs" />
     <Compile Include="RhinoSpatial/Google3dTilesRefinementSelector.cs" Link="Google3dTilesRefinementSelector.cs" />
     <Compile Include="RhinoSpatial/Google3dTilesTileDescriptor.cs" Link="Google3dTilesTileDescriptor.cs" />
+    <Compile Include="RhinoSpatial/SpatialContextHelperHost.cs" Link="SpatialContextHelperHost.cs" />
     <Compile Include="RhinoSpatial/SpatialElevationBaselineCache.cs" Link="SpatialElevationBaselineCache.cs" />
   </ItemGroup>
 

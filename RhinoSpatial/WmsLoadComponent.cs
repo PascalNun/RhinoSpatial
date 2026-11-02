@@ -116,11 +116,12 @@ namespace RhinoSpatial
                 AddRuntimeMessage(result.MessageLevel.Value, result.Status);
             }
 
-            UpdatePreviewState(result);
+            var imageMesh = RhinoSpatialModelUnits.Geometry(result.ImageMesh, RhinoSpatialModelUnits.OutputScale(requestData.SpatialContext));
+            UpdatePreviewState(result, imageMesh);
 
             if (result.ImageMesh is not null)
             {
-                dataAccess.SetData(0, result.ImageMesh);
+                dataAccess.SetData(0, imageMesh);
             }
 
             var material = GetOrCreateOutputMaterial(result.ImageFilePath);
@@ -499,9 +500,9 @@ namespace RhinoSpatial
             }
         }
 
-        private void UpdatePreviewState(SolveResults result)
+        private void UpdatePreviewState(SolveResults result, Mesh? imageMesh)
         {
-            _previewMesh = result.ImageMesh;
+            _previewMesh = imageMesh;
             if (_previewMaterial is null || !string.Equals(_previewImageFilePath, result.ImageFilePath, StringComparison.OrdinalIgnoreCase))
             {
                 _previewMaterial = RhinoSpatialRasterDisplayTools.CreateDisplayMaterial(result.ImageFilePath);

@@ -48,20 +48,19 @@ records acceptance checks and efficiency measurements.
 
 Check complete studies in Rhino alongside this work, including model units,
 actual host runtimes, materials and saved definitions. Units need measurements
-and an explicit policy before changing placement. Native validation remains a
+under the documented localized/absolute policy. Native validation remains a
 release requirement; the .NET 10 Sandbox is not a substitute for the Rhino host.
 
 ## Now: validate complete studies
 
 The next release should be judged through complete workflows as well as isolated source tests.
 
-Native macOS checks have now reproduced two issues to address first: metric
-imagery retains metre-sized numbers in millimetre/foot documents, and restoring
-a second study can change the area returned by another open definition.
-The [native results](../examples/VALIDATION.md#native-macos-results--2026-11-02)
-record the measurements, successful source/material checks and remaining scope.
-Correct document scale and independent study selection take precedence over
-the larger-raster extensions.
+Native macOS checks reproduced incorrect scale in non-metre documents and shared
+selection between open definitions. Both are corrected in development. Localized
+metric output follows model units; absolute mode retains original numbers, and
+each context owns its map session. Terrain cancellation also has clearer diagnostics.
+The [native results](../examples/VALIDATION.md#placement-and-selection-regressions--2026-11-02)
+record physical measurements, saved-state checks and the remaining validation scope.
 
 - Compare imagery, vectors, terrain and buildings using one shared context, in localized and absolute placement.
 - Check saved definitions, map selection restoration, layer choices and cancellation in Rhino.

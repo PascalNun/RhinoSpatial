@@ -163,7 +163,7 @@ namespace RhinoSpatial
                     AddRuntimeMessage(result.MessageLevel.Value, result.Status);
                 }
 
-                dataAccess.SetDataTree(0, result.BrepTree);
+                dataAccess.SetDataTree(0, RhinoSpatialModelUnits.Tree(result.BrepTree, RhinoSpatialModelUnits.OutputScale(requestData.SpatialContext)));
                 dataAccess.SetData(1, result.Status);
             }
             catch (Exception ex)

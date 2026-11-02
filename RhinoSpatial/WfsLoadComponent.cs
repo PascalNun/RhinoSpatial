@@ -104,7 +104,7 @@ namespace RhinoSpatial
                     AddRuntimeMessage(result.MessageLevel.Value, result.Status);
                 }
 
-                dataAccess.SetDataTree(0, result.GeometryTree);
+                dataAccess.SetDataTree(0, RhinoSpatialModelUnits.Tree(result.GeometryTree, RhinoSpatialModelUnits.OutputScale(requestData.SpatialContext)));
 
                 if (result.FeatureCount == 0 && !result.MessageLevel.HasValue)
                 {

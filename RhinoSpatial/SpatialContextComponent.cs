@@ -25,6 +25,7 @@ namespace RhinoSpatial
         private readonly WmsClient _wmsClient = new();
         private readonly WcsClient _wcsClient = new();
         private bool _lastOpenMapRequest;
+        private Guid _mapSession;
         private CancellationTokenSource? _mapLoadCancellation;
         private string _mapReferenceIdentity = string.Empty;
         private SpatialContextHelperHost.SpatialContextSelection _persistedSelection = new(
@@ -68,12 +69,18 @@ namespace RhinoSpatial
         public override void AddedToDocument(GH_Document document)
         {
             base.AddedToDocument(document);
+            SpatialContextHelperHost.RemoveSession(_mapSession);
+            SpatialContextHelperHost.SelectionChanged -= HandleSelectionChanged;
+            _mapSession = Guid.NewGuid();
+            SpatialContextHelperHost.RegisterSession(_mapSession);
             SpatialContextHelperHost.SelectionChanged += HandleSelectionChanged;
-            SpatialContextHelperHost.RestoreSelection(_persistedSelection);
         }
 
         public override void RemovedFromDocument(GH_Document document)
         {
+            SpatialContextHelperHost.RemoveSession(_mapSession);
+            _mapSession = Guid.Empty;
+            _lastOpenMapRequest = false;
             _mapLoadCancellation?.Cancel();
             _mapLoadCancellation?.Dispose();
             _mapLoadCancellation = null;
@@ -105,7 +112,6 @@ namespace RhinoSpatial
         {
             var result = base.Read(reader);
             _persistedSelection = ReadPersistedSelection(reader);
-            SpatialContextHelperHost.RestoreSelection(_persistedSelection);
             return result;
         }
 
@@ -641,32 +647,26 @@ namespace RhinoSpatial
             _mapLoadCancellation?.Dispose();
             _mapLoadCancellation = new CancellationTokenSource();
             var token = _mapLoadCancellation.Token;
-            _ = Task.Run(() => OpenMapAsync(baseUrl, layerSelection, requestedSrs, token));
+            var session = _mapSession;
+            _ = Task.Run(() => OpenMapAsync(session, baseUrl, layerSelection, requestedSrs, token));
         }
 
-        private void HandleSelectionChanged(object? sender, EventArgs e)
+        private void HandleSelectionChanged(object? sender, SpatialContextHelperHost.SelectionEventArgs e)
         {
-            var latestSelection = SpatialContextHelperHost.GetLatestSelection();
-            if (latestSelection.HasSelection)
+            if (e.Session != _mapSession) return;
+            Eto.Forms.Application.Instance?.AsyncInvoke(() =>
             {
-                _persistedSelection = latestSelection;
-            }
-
-            var document = OnPingDocument();
-
-            if (document is null)
-            {
-                return;
-            }
-
-            document.ScheduleSolution(1, _ => ExpireSolution(false));
+                var document = OnPingDocument();
+                if (e.Session != _mapSession || document is null || e.Selection == _persistedSelection) return;
+                _persistedSelection = e.Selection;
+                document.ScheduleSolution(1, _ =>
+                {
+                    if (e.Session == _mapSession && OnPingDocument() == document) ExpireSolution(false);
+                });
+            });
         }
 
-        private SpatialContextHelperHost.SpatialContextSelection GetActiveSelection()
-        {
-            var liveSelection = SpatialContextHelperHost.GetLatestSelection();
-            return liveSelection.HasSelection ? liveSelection : _persistedSelection;
-        }
+        private SpatialContextHelperHost.SpatialContextSelection GetActiveSelection() => _persistedSelection;
 
         private static SpatialContextHelperHost.SpatialContextSelection ReadPersistedSelection(GH_IReader reader)
         {
@@ -698,7 +698,7 @@ namespace RhinoSpatial
             return chunk.ItemExists(key) ? chunk.GetString(key) : string.Empty;
         }
 
-        private async Task OpenMapAsync(string? baseUrl, string? layerSelection, string? requestedSrs, CancellationToken caller)
+        private async Task OpenMapAsync(Guid session, string? baseUrl, string? layerSelection, string? requestedSrs, CancellationToken caller)
         {
             using var deadline = CancellationTokenSource.CreateLinkedTokenSource(caller);
             deadline.CancelAfter(TimeSpan.FromMinutes(2));
@@ -712,6 +712,7 @@ namespace RhinoSpatial
                 {
                     token.ThrowIfCancellationRequested();
                     SpatialContextHelperHost.OpenInBrowser(
+                            session,
                             persistedViewBoundingBox,
                             NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
                             persistedSelection);
@@ -725,10 +726,11 @@ namespace RhinoSpatial
                 var latestBounds = TryGetBoundingBox(latestSelection.BoundingBox4326);
                 if (latestSelection.HasSelection && latestBounds is not null)
                 {
-                    SpatialContextHelperHost.OpenInBrowser(latestBounds, NormalizeSupportedMapSrs(requestedSrs ?? string.Empty), latestSelection);
+                    SpatialContextHelperHost.OpenInBrowser(session, latestBounds, NormalizeSupportedMapSrs(requestedSrs ?? string.Empty), latestSelection);
                     return;
                 }
                 SpatialContextHelperHost.OpenInBrowser(
+                    session,
                     initialMapView,
                     preferredSrs,
                     null);
@@ -743,7 +745,7 @@ namespace RhinoSpatial
                 if (token.IsCancellationRequested) return;
                 var latestSelection = GetActiveSelection();
                 var latestBounds = TryGetBoundingBox(latestSelection.BoundingBox4326);
-                SpatialContextHelperHost.OpenInBrowser(latestBounds, NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
+                SpatialContextHelperHost.OpenInBrowser(session, latestBounds, NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
                     latestSelection.HasSelection ? latestSelection : null);
             }
         }

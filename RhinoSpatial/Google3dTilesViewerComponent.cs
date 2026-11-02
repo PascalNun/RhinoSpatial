@@ -124,10 +124,11 @@ namespace RhinoSpatial
                 result = ComputeSafe(requestData, CancellationToken.None);
             }
 
-            ApplySolveResults(result);
+            var scale = RhinoSpatialModelUnits.OutputScale(requestData.SpatialContext);
+            ApplySolveResults(result, scale);
             dataAccess.SetData(0, result.Status);
             dataAccess.SetData(1, result.Active);
-            dataAccess.SetDataList(2, result.Primitives.Select(static primitive => primitive.Mesh));
+            dataAccess.SetDataList(2, _previewPrimitives.Select(static primitive => primitive.Mesh));
             dataAccess.SetDataList(3, BuildOutputMaterials(result.Primitives));
 
             if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
@@ -299,10 +300,10 @@ namespace RhinoSpatial
             }
         }
 
-        private void ApplySolveResults(SolveResults result)
+        private void ApplySolveResults(SolveResults result, double scale)
         {
             _previewPrimitives.Clear();
-            _previewFrame = result.AreaFrame?.DuplicateCurve();
+            _previewFrame = RhinoSpatialModelUnits.Geometry(result.AreaFrame, scale);
             _previewBox = BoundingBox.Empty;
             Message = FormatAttributionMessage(result.Attribution);
 
@@ -315,12 +316,13 @@ namespace RhinoSpatial
             {
                 _previewPrimitives.Add(new Google3dTilesDisplayPrimitive
                 {
-                    Mesh = primitive.Mesh,
+                    Mesh = RhinoSpatialModelUnits.Geometry(primitive.Mesh, scale)!,
+                    TextureFilePath = primitive.TextureFilePath,
                     Material = primitive.Material,
                     SourceUrl = primitive.SourceUrl,
                     SourceKey = primitive.SourceKey
                 });
-                _previewBox.Union(primitive.Mesh.GetBoundingBox(accurate: false));
+                _previewBox.Union(_previewPrimitives[^1].Mesh.GetBoundingBox(accurate: false));
             }
         }
 

@@ -49,6 +49,11 @@ The Grasshopper tab is organized as:
 
 The selected area is saved with the Grasshopper definition. When the helper is opened again, a saved selection takes priority over newly connected reference metadata.
 
+Development builds keep each component's map selection independent, including
+copied components and separately opened definitions. Clearing the rectangle
+removes that component's saved area. A map tab belonging to a removed component
+cannot change another study; open a fresh tab from `Open Map` after reopening it.
+
 ### Inputs
 
 - `SRS`
@@ -63,6 +68,18 @@ The selected area is saved with the Grasshopper definition. When the helper is o
   Keeps original source coordinates when `True`. The default `False` localizes data near the Rhino origin.
 
 The component returns one `Spatial Context` output for all aligned source and viewer components.
+
+In development builds, localized geometry in a supported projected CRS is
+converted to the active Rhino model's length unit, including elevations. Source
+bounds, network requests, saved context text and terrain samples stay in CRS
+units. Output conversion uses geometry copies so repeated solves and cached
+imagery do not accumulate scale. Standard metre, millimetre and foot documents
+are covered by native tests. Custom and unitless documents require a standard
+length unit for this localized workflow.
+
+Absolute mode preserves raw coordinate numbers. Geographic XY values remain
+angular; choose a projected CRS for physical modeling. See the
+[coordinate guide](WORKING_WITH_PROJECT_DATA.md#keep-coordinates-and-heights-consistent).
 
 ### Reference Source behavior
 
@@ -538,7 +555,7 @@ heights are not vertically reinterpreted.
 
 ## Service reliability (development)
 
-WMS, WCS and OSM accept cancellation through requests, body transfers and retry/fallback paths. Components capture the current solve token, check before publication and use a two-minute overall deadline. Deliberate cancellation stops fallback rather than reporting cached/partial success. Ordinary OSM provider failures still report unavailable or cached categories explicitly.
+WMS, WCS and OSM accept cancellation through requests, body transfers and retry/fallback paths. Components capture the current solve token, check before publication and use a two-minute overall deadline. Deliberate cancellation stops fallback rather than reporting cached/partial success. Terrain cancellation no longer displays a wrapped task error; source and request-limit failures retain their useful message. Ordinary OSM provider failures still report unavailable or cached categories explicitly.
 
 Image and coverage files become reusable only after complete transfer, validation and checksum-receipt publication. Failed temporary files are removed. Existing texture files are preserved; no automatic cleanup of saved/baked image assets is added. Completed service metadata uses a bounded five-minute cache; canceled/faulted tasks are not reused. WFS metadata uses the same path for reference discovery. Map reference work is canceled when superseded or removed, with asynchronous UI reporting.
 

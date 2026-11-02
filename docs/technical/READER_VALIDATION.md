@@ -16,7 +16,7 @@ The public package remains 0.4.0.
 | Service cancellation and resource limits | WMS/WCS/OSM request and cache review | Implemented in development; see [service reliability](SERVICE_RELIABILITY.md) |
 | Local terrain memory | Full-grid decode precedes crop | Window reader planned |
 | Remote BigTIFF | Basic LibTiff decoding works; remote preflight rejects the format | Bounded 64-bit remote handling planned |
-| Rhino units and host behavior | Native macOS source/material tests and physical scale measurements | Metre workflow tested; WMS scale mismatch reproduced in millimetres/feet. Windows host tests pending |
+| Rhino units and host behavior | Native macOS source/material tests and physical scale measurements | Scale and independent selection corrected; macOS metre/millimetre/foot regressions pass. Windows host tests pending |
 
 ## Original findings at the audit baseline
 
@@ -59,9 +59,10 @@ from transformed coordinates. The initial review found no document-unit scaling.
 Subsequent [native macOS checks](../../examples/VALIDATION.md#native-macos-results--2026-11-02)
 reproduced the problem: a 128 m WMS footprint remained 128 model units in metre,
 millimetre and foot documents. A separate two-document check reproduced shared
-selection leaking between studies. Both findings remain unresolved.
+selection leaking between studies. Both are corrected in development, with
+[native regression evidence](../../examples/VALIDATION.md#placement-and-selection-regressions--2026-11-02).
 
-Use a known-length rectangle and building height, compare imagery/vectors/terrain together, change units, save/reopen and test supported bake paths. Establish an explicit units policy before changing behavior. Automatic scaling must not quietly break the promise of original coordinates in absolute mode. McNeel documents the relevant [unit conversion API](https://developer.rhino3d.com/api/rhinocommon/type/rhino.rhinomath/).
+Use a known-length rectangle and building height, compare imagery/vectors/terrain together, change units, save/reopen and test supported bake paths. Localized projected geometry now follows model units; absolute mode retains raw coordinate numbers. Geographic XY remains angular. McNeel documents the relevant [unit conversion API](https://developer.rhino3d.com/api/rhinocommon/type/rhino.rhinomath/).
 
 ### Actual host runtimes and packaged assemblies
 
@@ -112,5 +113,5 @@ retain both courtyard rings, reject the truncated terrain file, leave
 still reads correctly. The 52 correctness cases run in macOS/Windows CI.
 Standalone checks also passed under Rhino's bundled .NET 7 runtime. Separate
 [native macOS results](../../examples/VALIDATION.md#native-macos-results--2026-11-02)
-cover source output, materials and persistence and identify the unresolved scale
-and selection-isolation cases.
+cover source output, materials and persistence. The follow-up placement and
+selection regressions verify the corrections while wider host checks remain pending.

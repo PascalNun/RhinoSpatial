@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
@@ -83,7 +84,8 @@ namespace RhinoSpatial
 
                 if (CancelToken.IsCancellationRequested) return;
                 Message = string.Empty;
-                dataAccess.SetDataList(0, results.TerrainMeshes);
+                var scale = RhinoSpatialModelUnits.OutputScale(requestData.SpatialContext);
+                dataAccess.SetDataList(0, results.TerrainMeshes.Select(mesh => RhinoSpatialModelUnits.Geometry(mesh, scale)));
                 dataAccess.SetData(1, results.Status);
 
                 if (!string.IsNullOrWhiteSpace(results.Status) && results.MessageLevel.HasValue)
@@ -93,7 +95,14 @@ namespace RhinoSpatial
             }
             catch (Exception ex)
             {
-                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, ex.Message);
+                var error = ex is AggregateException aggregate ? aggregate.Flatten().InnerExceptions[0] : ex;
+                if (CancelToken.IsCancellationRequested || error is OperationCanceledException)
+                {
+                    Message = "Cancelled";
+                    return;
+                }
+                AddRuntimeMessage(GH_RuntimeMessageLevel.Error, error.Message);
+                dataAccess.SetData(1, error.Message);
             }
         }
 

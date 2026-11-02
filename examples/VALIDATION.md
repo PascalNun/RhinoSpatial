@@ -2,7 +2,7 @@
 
 This is the maintainer checklist for a release. For ordinary use, start with the
 [visual workflow](../docs/SHOWCASE.md) or [project-data guide](../docs/WORKING_WITH_PROJECT_DATA.md).
-The development work is merged into `main`; all eleven automated suites pass locally
+The development work is merged into `main`; all twelve automated suites pass locally
 and run in CI on macOS and Windows. Unchecked native items below remain pending and are not implied
 by a successful console or CI run. The public package remains 0.4.0.
 
@@ -45,32 +45,52 @@ results do not establish live-provider coverage or Windows host behavior.
 | Masks and materials | COG terrain left the masked area open and image pixels retained alpha. WMS and rotated-image bakes retained UVs and texture references after `.3dm` save/reopen. Both textures displayed in Rhino's Rendered mode. |
 | Saved state | A WMS definition solved after save/reopen. A saved area took precedence over a different file reference within that study; the browser helper displayed a restored rectangle. |
 
-Separate checks found two correctness problems and one diagnostic problem:
+The initial build had two correctness problems and one diagnostic problem
+(corrected in the follow-up below):
 
 - **Model-unit scale:** a 128 m WMS footprint in an EPSG:25833 context remained
   128 model units in metre, millimetre and foot documents. Physical widths were
-  128 m, 0.128 m and 39.0144 m respectively. The tested localized output does not
-  adapt to document units. Use a metre document for this metric workflow until
-  unit handling is corrected; other source components still need unit checks.
+  128 m, 0.128 m and 39.0144 m respectively. That build did not adapt localized
+  output to document units.
 - **Selection isolation:** two Grasshopper documents with different stored
   areas shared the helper's live selection. Recomputing the first after restoring
-  the second returned the second area. Independent study selection is not reliable
-  across those open definitions.
+  the second returned the second area.
 - **Terrain cancellation text:** cancellation stopped the load and retry worked,
   but the component displayed `One or more errors occurred. (A task was canceled.)`.
 
-The scale and selection cases remain unresolved. The full combined study,
-map-reference cancellation/removal, other coordinate systems, Google preview
-with a user-managed key, and Windows host validation remain outstanding.
-The checklist below covers those broader requirements; the results above do
-not complete every variant of an item.
+## Placement and selection regressions — 2026-11-02
+
+After the corrections, the same Rhino 8.16 / Grasshopper 1.0.0008 / arm64 .NET 7
+host repeated the 42 functional cases successfully. Additional native SDK checks
+and a browser interaction verified the following:
+
+| Check | Observed result |
+| --- | --- |
+| Physical dimensions | WMS, terrain, GeoPackage vectors, CityJSON buildings, rotated imagery and OSM roads retained their metre-based physical bounds through millimetres → feet → metres → millimetres. This includes repeated cached raster output and XYZ elevations. |
+| Absolute placement | A metric WMS footprint in a millimetre model kept the raw source minimum easting of 392000 and width of 128. Absolute mode deliberately does not convert coordinate numbers. |
+| Independent studies | Restoring two different saved areas did not change the first. A live helper update changed only its owning component and serialized that selection. |
+| Session lifetime | Removing and re-adding a component created a new browser session; the old session returned HTTP 410. A copied saved component retained its area and received a distinct session. |
+| Browser clearing | The helper displayed a restored rectangle. `Clear Rectangle` removed the owning component's output and saved selection while the other definition retained its area. |
+| Cancellation | WMS/WCS/OSM stopped in about 1.6 s after scheduled cancellation with no runtime errors or geometry. Normal-source retries succeeded in 0.03–0.24 s. Terrain resource-limit errors showed the useful message without an aggregate-task wrapper. |
+| Baking and persistence | WMS and rotated-image bakes retained materials and UVs in a foot document and after `.3dm` reopen. The 128 m WMS footprint measured 128 m before and after save. All six example connection graphs survived roundtrip without archive warnings. |
+| Google preview conversion | A synthetic mesh/frame retained placement and texture association after output scaling; the source mesh remained unchanged and bake returned no objects. This used no provider request or API key. |
+
+The Release build has zero warnings/errors, and all twelve console suites pass
+locally. `context-state-check` adds 24 offline checks for map-session routing,
+clearing/removal and linear CRS units, and runs in macOS/Windows CI. These checks
+do not substitute for native host measurements.
+
+A full combined provider study, map-reference metadata cancellation, other
+coordinate-system variants, live Google preview with a user-managed key and
+Windows Rhino validation remain outstanding. The checklist below covers those
+broader requirements; the measured cases do not complete every variant.
 
 ## General Checks
 
 - RhinoSpatial builds cleanly from `RhinoSpatial.sln`
 - sandbox probes from `docs/TEST_SOURCES.md` still run for at least one bounded WFS GetFeature, WMS GetMap, WCS GetCoverage, one CityGML file, one CityJSON file, one Shapefile, and one GeoTIFF file; capabilities-only checks do not count as full source validation
 - the sandbox `tiles-selection-check` passes before manual Google 3D Tiles validation
-- the sandbox `ogc-request-check` and `reference-source-check` pass before service and local-reference validation
+- the sandbox `ogc-request-check`, `reference-source-check` and `context-state-check` pass before service and local-reference validation
 - the sandbox `source-reader-check`, `terrain-mesh-check` and `correctness-check` pass before local vector and terrain validation
 - compare a courtyard polygon and a multipolygon in GeoJSON, GML, Shapefile and GeoPackage; all boundary curves should remain with their feature and attributes
 - confirm an incomplete terrain file shows an error and publishes no partial mesh; check a valid compressed raster and NoData gaps alongside it

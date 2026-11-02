@@ -19,6 +19,10 @@ for feature availability and the general workflow.
 
 ### Placement and correctness
 
+- Convert localized metric geometry and preview to Rhino model units across source loaders, including cached imagery and elevations. Keep source requests, terrain caches and absolute coordinate numbers unchanged.
+- Keep map selections independent between Spatial Context components and definitions. Preserve saved areas in copies, clear them deliberately and reject updates from closed map sessions.
+- Report terrain cancellation without the wrapped task error; preserve useful source and resource-limit diagnostics.
+
 - Reject incomplete terrain reads before returning a raster, and validate dimensions and allocation limits before decoding.
 - Preserve courtyard boundaries across vector readers, without duplicate rings in nested GML surface patches.
 - Recognize supported coordinate identifiers consistently, including EPSG names, OGC URNs/URLs, CRS84 and AdV aliases. Improve projected Shapefile CRS detection and WGS84 UTM transformations; unsupported transformations fail explicitly.
@@ -33,7 +37,7 @@ for feature availability and the general workflow.
 - Document source formats, reader behavior and resource limits in the [technical documentation](docs/README.md#project-direction-and-maintenance). Windowed local terrain reads and remote BigTIFF remain future work.
 - Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.
 - Add offline regression coverage for source discovery, file formats, reader correctness and service reliability, with CI on macOS and Windows. Native preview, materials, baking and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
-- Record native macOS source, cancellation, material and persistence checks. Document the reproduced metric WMS scale mismatch in non-metre documents and shared selection between open definitions; both remain unresolved.
+- Record native macOS source, cancellation, material and persistence checks. Repeat the original functional cases after correcting document-unit scale, independent map selection and terrain cancellation diagnostics. Include metre/millimetre/foot measurements, live browser clearing, session removal, copied selections and textured save/reopen in feet.
 
 ## 0.4.0 — 2026-11-01
 

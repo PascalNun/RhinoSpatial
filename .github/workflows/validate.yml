@@ -58,6 +58,9 @@ jobs:
       - name: Check correctness regressions
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- correctness-check
 
+      - name: Check context sessions and project units
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- context-state-check
+
       - name: Check service reliability
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- reliability-check
 
