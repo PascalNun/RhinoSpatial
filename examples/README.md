@@ -2,7 +2,7 @@
 
 Start with the definition closest to your task, connect your own project sources, and use one shared `Spatial Context` for every layer. These examples are meant to be adapted to different places and datasets.
 
-New to the toolkit? Follow the [visual workflow](../docs/SHOWCASE.md). If you are choosing between a service, download and local file, read [Working with project data](../docs/WORKING_WITH_PROJECT_DATA.md).
+New to the toolkit? Follow the [visual workflow](../docs/SHOWCASE.md). If you are choosing between a service, download and local file, read [Working with project data](../docs/WORKING_WITH_PROJECT_DATA.md). The [documentation index](../docs/README.md) brings the guides and references together.
 
 ## Choose a starting point
 
@@ -43,6 +43,10 @@ The public release is **0.4.0**. The following recipes require a development bui
 | Load a remote raster window or choose layers in a GeoPackage | [Remote rasters and GeoPackage workflows](LOW_COMPATIBILITY_WORKFLOWS.md), with [small local fixtures](fixtures/low) |
 
 These recipes keep exact URLs, coordinates, sample results and commands together for reproducibility. The same workflow can be used with another supported source. Sample files are synthetic unless the guide identifies a public provider.
+
+A city or provider named in a recipe is a worked example. Use a source that covers
+your own study area and matches the format and coordinate requirements in the
+reference. Availability and detail depend on that source.
 
 For an overview of what is in the release and what is on `main`, see the [version guide](../docs/WORKING_WITH_PROJECT_DATA.md#release-and-development-features).
 

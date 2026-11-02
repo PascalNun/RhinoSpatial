@@ -10,34 +10,27 @@ for feature availability and the general workflow.
 
 ### Sources and workflows
 
-- Carry cancellation through WMS, WCS and OSM service requests, retries and component processing. Bound response bytes, decoded images and OSM records; apply operation deadlines and prevent canceled work from falling back or publishing over a newer solve.
-- Publish validated image/coverage downloads through temporary files and checksum receipts, preserving existing texture assets. Cache completed metadata with bounded lifetime/storage and independent cancellation; use the shared path for WFS reference discovery too.
-- Stream WCS multipart responses through bounded spool files, preserve binary trailing bytes and prepare terrain coordinate transforms once per mesh. Reject incomplete Overpass query results and avoid caching reduced category results as complete studies.
-
-- Discover OGC API collections from a service root, follow supported feature pages and report user limits, duplicate records and incomplete responses clearly. Preserve raw GML for building imports.
-- Load validated direct GeoJSON and Shapefile ZIP downloads, and supported remote CityGML/CityJSON building files. Check companion files, archive paths, expanded sizes and declared coordinates; reuse completed downloads.
-- Load supported ATOM terrain feeds as aligned mosaics, preserving source sample centers, missing elevations and the shared placement baseline. Reject conflicting heights or incompatible grids.
-- Use WMTS map services through the existing imagery components, with layer discovery, advertised grids, supported dimensions and bounded PNG/JPEG mosaics.
-- Read remote COG image/elevation windows through validated byte ranges, using suitable overviews, internal masks and missing-value information. Unsupported formats and range-refusing servers return explicit errors without a whole-file fallback.
-- Read local GeoPackage feature layers through the vector components, including layer discovery, attributes, spatial queries and feature-grouped polygon-hole curves. Keep the source read-only and reject malformed or extended geometry without repairs.
-- Add API/feed/WMTS, GeoPackage and remote COG reference metadata for map orientation without importing source geometry or decoding imagery. Saved selections retain priority.
+- **Project vectors:** discover OGC API collections, follow supported feature pages, load direct GeoJSON/Shapefile downloads and read local GeoPackage layers. Keep feature grouping and attributes, and report incomplete results and request limits clearly.
+- **Maps and imagery:** use WMTS through the existing map components and place world-file TIFF/PNG/JPEG images, including rotated footprints and clipped texture coordinates.
+- **Terrain:** load supported ATOM tile feeds as aligned mosaics, retaining missing elevations and rejecting incompatible grids or conflicting overlap heights.
+- **Remote rasters:** read supported COG image and elevation windows with bounded byte ranges, suitable overviews and masks. Unsupported files or servers return clear errors without a whole-file fallback.
+- **3D buildings:** load direct building downloads and additional CityJSON variants, including detail selection, sequences and geometry templates.
+- **Map orientation:** use additional API, feed, WMTS, GeoPackage and COG reference metadata without importing geometry or imagery. Saved selections retain priority.
 
 ### Placement and correctness
 
-- Reject incomplete terrain rows and tiles before returning a raster. Validate dimensions, sample formats and allocation budgets first; reuse the open TIFF for metadata and one decode buffer.
-- Keep exterior and courtyard boundary curves in GeoJSON, GML and Shapefiles, matching GeoPackage. Preserve feature grouping and read nested GML surface patches without duplicate rings.
-- Parse complete coordinate identifiers through one shared helper, including supported EPSG short names, OGC URNs/URLs, CRS84 and AdV aliases. Reject unsupported or invalid vector transformations explicitly; preserve axis conventions and source heights. Prepare vector transformations once per batch or Shapefile read.
-
-- Support affine GeoTIFF and world-file TIFF/PNG/JPEG placement, including rotated footprints, correct pixel centers, UV clipping and terrain sampling. Sidecar edits invalidate caches; declared projected coordinates take priority over geographic keys.
-- Select one suitable CityJSON detail level per object and support sequences and geometry templates through existing local, archive and download workflows. Reject ambiguous detail or malformed geometry instead of returning partial rings.
-- Correct projected Shapefile WKT authority detection, GDAL ASCII NoData values returned after a field count, and add explicit WGS84 UTM north/south transformations needed by common remote rasters. Unsupported declared coordinates fail explicitly.
+- Reject incomplete terrain reads before returning a raster, and validate dimensions and allocation limits before decoding.
+- Preserve courtyard boundaries across vector readers, without duplicate rings in nested GML surface patches.
+- Recognize supported coordinate identifiers consistently, including EPSG names, OGC URNs/URLs, CRS84 and AdV aliases. Improve projected Shapefile CRS detection and WGS84 UTM transformations; unsupported transformations fail explicitly.
+- Keep affine pixel placement and terrain sampling consistent, refresh placement after sidecar edits and read GDAL missing-value metadata correctly.
+- Carry cancellation and deadlines through WMS, WCS and OSM loading so interrupted work does not fall back or replace newer output. Reject incomplete Overpass results and avoid caching reduced category results as complete studies.
+- Validate downloaded images and coverages before cache reuse, preserve existing texture assets and avoid reusing failed metadata requests. Stream WCS multipart data with less memory and reuse coordinate transformations during conversion.
 
 ### Documentation, dependencies and validation
 
-- Record the next [reliability plan](docs/RELIABILITY_PLAN.md): consistent cancellation and bounded downloads, local terrain windows, remote BigTIFF and native units/runtime validation. The first service-reliability batch is implemented; terrain windows, remote BigTIFF and native validation remain follow-ups.
-- Record [follow-up correctness research](docs/NEXT_WORK_RESEARCH.md), diagnostic fixtures and priorities for terrain reads, courtyard rings, coordinate names, host/unit checks and BigTIFF range handling. The three high-priority fixes are implemented with offline regressions; host/unit checks, broader cancellation and BigTIFF range handling remain follow-ups.
-- Refresh the overview, visual workflow, project-data guide, examples, reference and maintainer documentation. General workflows apply across providers; recorded URLs, bounds and technical probe results remain in linked recipes.
-- Save [service/download examples](examples/COMPATIBILITY_WORKFLOWS.md), [building/imagery examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md), and [COG/GeoPackage examples](examples/LOW_COMPATIBILITY_WORKFLOWS.md), with synthetic sample files and actual live-check results.
+- Add a [documentation index](docs/README.md) and refresh the workflow guides around the complete toolkit. Keep provider-specific examples and engineering history in supporting material.
+- Save worked source examples, synthetic fixtures, reproduction commands and observed results in the [example guides](examples/README.md#additional-workflows-on-main) and [test catalogue](docs/TEST_SOURCES.md).
+- Record correctness and reliability decisions in the [engineering records](docs/README.md#project-direction-and-maintenance). Windowed local terrain reads and remote BigTIFF remain future work.
 - Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.
 - Add 26 service/download, 27 building/imagery and 43 COG/GeoPackage regression cases, plus 52 correctness and 52 service-reliability regressions. The Release build and all eleven suites pass locally; CI runs them on macOS and Windows. Native Rhino preview, material/bake and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
 
@@ -51,9 +44,9 @@ Version 0.4.0 is the recommended public release and is published as GitHub Lates
 - Follow dataset feeds and pagination, select intersecting tiles from supported spatial metadata or declared UTM kilometre grids, and reuse the existing CityGML ZIP import and shared placement path.
 - Added persistent validated archive caching, download progress, cancellation/time limits and explicit diagnostics for missing spatial information, failed transfers and unsupported archives.
 - Queue progress updates asynchronously to prevent a Rhino UI/Grasshopper worker deadlock during ATOM loading on macOS.
-- Diagnose explicitly advertised CSV/raster downloads as unsuitable for the building loader before evaluating their tile grid, including Berlin's DGM1 terrain feed.
-- Recognize standard AdV UTM32/UTM33 horizontal CRS names, including Berlin's compound height-reference identifier, while retaining source heights.
-- Added deterministic ATOM regression checks and a live Berlin probe. Museum Island and a two-tile boundary area were exercised through download, cache reuse and filtered CityGML parsing; interactive loading in Rhino on macOS was confirmed after correcting the progress deadlock; detailed cross-layer alignment remains on the manual checklist.
+- Diagnose explicitly advertised terrain downloads as unsuitable for the building loader before evaluating their tile grid.
+- Recognize standard AdV UTM32/UTM33 horizontal and compound height-reference identifiers while retaining source heights.
+- Added deterministic ATOM regressions and live single- and adjacent-tile checks, including download reuse and filtered CityGML parsing. Interactive loading on macOS was confirmed after the progress fix; detailed cross-layer alignment remains on the manual checklist. Exact inputs and results are preserved in the [recorded integration case](docs/TEST_SOURCES.md#berlin-atom-integration-validation-2026-11-01).
 
 ### Terrain and vector correctness
 
@@ -81,7 +74,7 @@ Version 0.4.0 is the recommended public release and is published as GitHub Lates
 - Added geographic bounds checks and richer projection/traversal diagnostics for missing, oversized, or out-of-context 3D Tiles content.
 - Made the shared elevation baseline deterministic so Google 3D Tiles, LoD2 buildings, and terrain remain aligned regardless of Grasshopper connection or solution order.
 - Broadened Spatial Context reference metadata to cover WFS, WMS, WCS, GeoTIFF, Shapefile, GeoJSON, CityJSON, CityGML/GML/XML, Esri ASCII Grid, XYZ/CSV terrain grids, folders, and LoD ZIP archives.
-- Replaced the implicit Frankfurt startup assumption with a saved-selection/reference-extent/neutral-world startup sequence and an explicit fallback-SRS warning.
+- Replaced an implicit project location with a saved-selection/reference-extent/neutral-world startup sequence and an explicit fallback-SRS warning.
 - Improved WCS coverage discovery and multipart GeoTIFF extraction, WMS/WFS axis and HTTPS handling, LoD2 CRS inheritance, and EPSG:28992/7415 transforms.
 - Expanded tested-source documentation, validation checks, tutorial screenshots, and downloadable Grasshopper examples.
 

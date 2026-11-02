@@ -23,10 +23,23 @@ Placement near Rhino's origin is the default. Supported project data and service
 
 ## What is in 0.4.0
 
-Supported ATOM building services can select and download tiles for the study area. Coordinate recognition, terrain placement, missing-elevation handling and local vector parsing are improved. See [CHANGELOG.md](CHANGELOG.md) for the release details; its Unreleased section, when present in a development build, describes later work.
+| Part of the study | Supported sources |
+| --- | --- |
+| Project vectors | WFS, OGC API Features, local Shapefile and GeoJSON |
+| Maps and imagery | WMS and local GeoTIFF |
+| Ground and elevation | WCS, local GeoTIFF DEM, Esri ASCII Grid and regular XYZ/CSV grids |
+| 3D buildings | WFS, supported ATOM feeds, CityGML, CityJSON, folders and archives |
+| Quick context and visual comparison | Curated OSM outputs and the optional Google 3D reference viewer |
+
+Supported building feeds select and download tiles for the study area. Release
+0.4.0 also improves coordinate recognition, terrain placement, missing-elevation
+handling and local vector parsing. See [CHANGELOG.md](CHANGELOG.md) for the release
+details; its Unreleased section, when present in a development build, describes
+later work.
 
 ## Guides and examples
 
+- [Documentation index](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/README.md) — browse the complete toolkit and its guides.
 - [Visual workflow](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/SHOWCASE.md) — build a study step by step.
 - [Working with project data](https://github.com/PascalNun/RhinoSpatial/blob/main/docs/WORKING_WITH_PROJECT_DATA.md) — choose sources and understand coordinates and common messages.
 - [Example definitions](https://github.com/PascalNun/RhinoSpatial/tree/main/examples) — starting points you can adapt to different projects.

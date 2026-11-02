@@ -62,8 +62,6 @@ Try imagery with parcels for a site plan, terrain with buildings for a context m
 
 `List WFS Layers` and `List WMS Layers` help choose a layer from a service. In development, `List WFS Layers` also lists local GeoPackage feature layers. Component names remain familiar as the supported sources grow.
 
-Development also improves courtyard boundaries, terrain read checks, coordinate handling and service cancellation/download reliability. See the [correctness record](docs/CORRECTNESS_PLAN.md) for the changes and validation limits.
-
 For help choosing a service, download or local file, read [Working with project data](docs/WORKING_WITH_PROJECT_DATA.md). Exact formats, inputs and limits are in the [Component and Source Reference](docs/COMPONENT_REFERENCE.md).
 
 ## Working with real project data
@@ -75,6 +73,9 @@ Start with a small area and read the component's `Status` output if a layer is m
 Google 3D Tiles are a visual reference viewer. They require your own Google Maps Platform setup and are not provided as editable, bakeable or exportable project data. See the [viewer guidance](docs/SHOWCASE.md#google-3d-tiles-reference) for setup and usage information.
 
 ## Documentation
+
+The [documentation index](docs/README.md) brings the guides, component reference,
+examples and project information together.
 
 | Start here | Go deeper |
 | --- | --- |

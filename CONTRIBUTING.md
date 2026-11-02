@@ -28,6 +28,8 @@ Write for architects and designers who need enough technical detail to choose an
 - Lead with the task and the resulting output, then explain how to connect it.
 - Use plain English and the actual component labels. Explain terms such as CRS, layer or COG when they first become useful.
 - Keep general workflows applicable to different providers and places. Put exact URLs, coordinates and source quirks in linked examples or the test catalogue.
+- Present the toolkit as a whole. Give each source category useful coverage; avoid making the latest fix, one city or one provider the organizing idea of the documentation.
+- Describe current behavior in guides and references. Keep development history, individual bug reproductions and dated test results in the changelog and maintainer records.
 - Keep request parameters, implementation details, budgets and probe commands in the technical reference or maintainer notes.
 - Distinguish features in the public release from additions on `main`, and automated checks from results actually inspected in Rhino.
 - Preserve technical facts, useful examples and license notices when making an introduction shorter.

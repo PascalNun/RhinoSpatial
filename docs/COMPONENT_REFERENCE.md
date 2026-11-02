@@ -89,7 +89,7 @@ The startup order is deterministic:
 2. otherwise fit a readable `Reference Source` extent;
 3. otherwise show a neutral world view.
 
-If no project coordinate system can be inferred, the component reports that `EPSG:3857` is only a global fallback. It does not silently assume Frankfurt or another local project CRS.
+If no project coordinate system can be inferred, the component reports that `EPSG:3857` is only a global fallback. It does not silently assume a project location or local coordinate system.
 
 ### Localized and absolute placement
 
@@ -313,7 +313,10 @@ The WCS path supports ordinary single-part GeoTIFF responses and multipart GeoTI
 
 ## Load LoD2 Buildings: official 3D building context
 
-Use `Load LoD2 Buildings` for official building massing, roof forms, and 3D urban context.
+Use `Load LoD2 Buildings` for building volumes, roof forms and 3D urban context
+from an official or project-specific building dataset. Available detail and
+coverage depend on the source. A footprint dataset provides outlines and belongs
+in the vector workflow.
 
 One `LoD2 Source` input accepts:
 
@@ -335,36 +338,88 @@ Public inputs:
 
 Outputs are `Buildings` as a tree grouped by layer and building, plus `Status`.
 
+### Typical building workflow
+
+1. Choose a supported 3D building service, file, folder or archive for the project.
+2. Select a small area inside its coverage with `Spatial Context`.
+3. Connect the source to `LoD2 Source` and the shared context to `Spatial Context`.
+4. Choose a building layer for WFS when needed; leave `Layer` empty for ordinary file or feed loading.
+5. Inspect the buildings and `Status`, then compare them with the other study layers.
+
+The same workflow applies across supported providers. The [worked examples](../examples/COMPATIBILITY_WORKFLOWS.md)
+and [source catalogue](TEST_SOURCES.md#lod2--citygml-buildings) keep specific URLs,
+sample areas and observed results together.
+
 ### Automatic ATOM downloads
 
-Connect the service URL and a `Spatial Context`; no tile naming, manual download or extraction is required. RhinoSpatial follows linked dataset feeds and pagination, selects intersecting tiles, downloads those ZIPs, and uses the existing CityGML filtering and Brep conversion path. Existing inputs, outputs and component identity are retained.
+An ATOM download service lists data files or tiles. Connect a supported building
+feed and the shared context; RhinoSpatial selects the tiles for the study area,
+downloads them and loads the building geometry. Completed downloads can be reused.
+
+Choose a feed containing 3D buildings. A provider may publish terrain through a
+similar-looking feed, but elevation grids belong in `Load Terrain`. A feed needs
+enough spatial metadata to place and select its tiles; an arbitrary list of
+download links is not sufficient.
+
+Progress appears on the component. `Status` reports selected tiles, download and
+cache use, parsed buildings and conversion diagnostics. A required download or
+parse failure returns an error rather than presenting an incomplete study as
+complete.
 
 <details>
 <summary>Feed coverage, grid conventions and tile selection</summary>
 
+RhinoSpatial follows linked dataset feeds and pagination, then uses the existing
+file readers and shared placement path. In the public package, supported building
+tiles contain CityGML; development also supports the CityJSON variants below.
+
 Tile selection supports GeoRSS Simple boxes/polygons and GeoRSS GML envelopes, including native projected bounds. GeoRSS Simple coordinates are latitude/longitude independently of a dataset's CRS category. GML uses its declared CRS and authority axis order; an omitted CRS defaults to WGS84 latitude/longitude. Relative links and `xml:base` are resolved against the response URL.
 
-Some feeds, including Berlin's, publish a single dataset extent and many download links. These require additional tile information. The supported grid convention is a declared square grid size, an EPSG:25832 or EPSG:25833 category, an enclosing geographic extent, and filenames ending in `_EEE_NNNN` with southwest UTM coordinates in kilometres. Berlin buildings explicitly link a `1x1 Km` tile index; terrain uses a declared `2x2 Km` index. Coarse enclosing coverage allows a one-declared-tile margin for edge/buffer tiles; distant contradictory grids are rejected. This rule depends on metadata and the supported naming convention, not the service hostname. Arbitrary numeric filenames or whole-dataset bounds are never sufficient on their own. A feed with missing, ambiguous or unsupported spatial metadata returns a limitation before downloading building archives. Start from the service feed so its enclosing extent remains available.
+Feeds that publish a single dataset extent and many download links need additional tile information. The supported grid convention is a declared square grid size, an EPSG:25832 or EPSG:25833 category, an enclosing geographic extent, and filenames ending in `_EEE_NNNN` with southwest UTM coordinates in kilometres. Coarse enclosing coverage allows a one-declared-tile margin for edge/buffer tiles; distant contradictory grids are rejected. Arbitrary numeric filenames or whole-dataset bounds are never sufficient on their own. A feed with missing, ambiguous or unsupported spatial metadata returns a limitation before downloading building archives. Start from the service feed so its enclosing extent remains available. The [recorded feed case](TEST_SOURCES.md#berlin-atom-integration-validation-2026-11-01) shows how this metadata was checked for one provider.
 
 </details>
 
-ATOM and direct building download URLs support CityGML (`.gml`, `.citygml`, `.xml`) and CityJSON (`.json`, `.cityjson`), including ZIP/GMZ containers. Downloaded CityJSON/CityJSONSeq must declare the header `metadata.referenceSystem`. Standard CityJSONSeq (`.city.jsonl` / `.jsonl`) and affine row-major GeometryInstance templates are supported. Local CityJSON/file/folder/ZIP workflows remain supported. Downloaded CityGML must declare a source CRS that can transform into the context; no guessed CRS or approximate bounding-box placement is used. Standard AdV names such as `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH` resolve to UTM XY; published heights are retained without a vertical-datum conversion.
+<details>
+<summary>Download formats, validation, cache behavior and limits</summary>
 
-Choose a feed containing 3D building data for this component. Terrain grids belong in `Load Terrain` (terrain ATOM is a development feature). A provider may publish both through similar-looking feed URLs, so check the dataset description. Explicit terrain download types return a source-format explanation before building tile selection.
+Building ATOM supports CityGML (`.gml`, `.citygml`, `.xml`) in the public package.
+Development adds direct building downloads and CityJSON (`.json`, `.cityjson`),
+standard CityJSONSeq (`.city.jsonl`, `.jsonl`) and affine row-major GeometryInstance
+templates, including supported ZIP/GMZ containers. Downloaded CityJSON/CityJSONSeq
+must declare the header `metadata.referenceSystem`. Downloaded CityGML must declare
+a source CRS that can transform into the context. Source coordinates are not
+guessed or placed by approximate bounding-box scaling. Supported AdV horizontal
+and compound names retain their published heights without vertical-datum conversion;
+see [coordinate identifiers](#reader-correctness-and-limits).
+
+Explicit terrain download types return a source-format explanation before building tile selection.
 
 Completed ZIPs persist in the user's local application-data folder under `RhinoSpatial/Lod2AtomCache`. Repeated solutions reuse them, including after restarting Rhino. The cache key includes the download URL and feed entry's `updated` value. With no revision value, archives refresh after one day. Cached length and SHA-256 are checked before reuse. Downloads are written to temporary files, checked for complete transfer and supported readable payloads, and promoted only on success. Failures can be retried; successfully completed tiles remain cached. Delete this cache directory while RhinoSpatial is idle to reclaim space or force fresh downloads. Feed metadata is refreshed after five minutes within the running process.
 
-The component displays tile/download progress while working. `Status` reports selected tile filenames, downloaded and cached counts, cache location, parsed buildings, source CRS and conversion diagnostics. A failed required download or CityGML parse returns an error rather than presenting a partial area as complete.
+Limits are 64 feeds, 8 subfeed levels, 50,000 download entries and 32 selected tiles per solution; 512 MiB compressed per archive, 256 MiB per expanded file and 1 GiB total expanded per archive. Feed requests time out after 30 seconds, discovery after two minutes, individual downloads after three minutes and the download batch after five minutes. Reduce the study area or use a more specific spatially indexed feed if a limit is reached.
 
-Limits are 64 feeds, 8 subfeed levels, 50,000 download entries and 32 selected tiles per solution; 512 MiB compressed per archive, 256 MiB per expanded file and 1 GiB total expanded per archive. Feed requests time out after 30 seconds, discovery after two minutes, individual downloads after three minutes and the download batch after five minutes. Reduce the study area or use a more specific spatially indexed feed if a limit is reached. ATOM feed coverage and native CRS are supported by `Spatial Context → Reference Source`. Use a service feed containing coverage; a dataset feed lacking coverage reports that limitation. Reference processing reads feed metadata without downloading archives. Saved map selections retain priority.
+Development builds also support ATOM feed coverage and native CRS through
+`Spatial Context → Reference Source`. Use a service feed containing coverage;
+a dataset feed lacking coverage reports that limitation. Reference processing
+reads feed metadata without downloading archives. Saved map selections retain
+priority.
+
+</details>
 
 ### CityJSON detail, templates and sequences
 
-The additions in this section require a development build from `main`.
+Development builds read CityJSON sequences and geometry templates and select one
+detail level per object. Local files, supported archives and direct downloads use
+the same building reader.
+
+<details>
+<summary>Detail selection, sequence parsing and limits</summary>
 
 For each CityObject, import all geometry parts at one selected numeric LoD: the highest at or below 2.2, or the lowest higher value if none is available below that threshold. Geometry without any LoD retains legacy behavior; mixing declared and unspecified levels fails because a complete representation cannot be chosen safely. Hierarchy-wide LoD selection and material/texture import are not added.
 
-CityJSONSeq records are streamed with independent vertex indices and shared header transform, CRS and templates. GeometryInstance vertices use the declared matrix followed by the transformed reference-point anchor; template vertices are not quantized a second time. Invalid indices, duplicate building ids, malformed later records and unsupported selected primitives fail explicitly. Limits are 64 × 1024² characters per record, 512 × 1024² stream characters, 100,000 returned building objects and four million selected source surface points. Local/ZIP/direct downloads use the same reader. Reference metadata can stop at a declared header extent without constructing geometry. See the [medium-priority examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md).
+CityJSONSeq records are streamed with independent vertex indices and shared header transform, CRS and templates. GeometryInstance vertices use the declared matrix followed by the transformed reference-point anchor; template vertices are not quantized a second time. Invalid indices, duplicate building ids, malformed later records and unsupported selected primitives fail explicitly. Limits are 64 × 1024² characters per record, 512 × 1024² stream characters, 100,000 returned building objects and four million selected source surface points. Local/ZIP/direct downloads use the same reader. Reference metadata can stop at a declared header extent without constructing geometry. See the [building format examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md).
+
+</details>
 
 ### Filtering and performance
 
@@ -491,10 +546,9 @@ The [service guide](../examples/RELIABILITY_WORKFLOWS.md#limits-and-cache-behavi
 
 ## Reader correctness and limits
 
-The development build from `main` fixes the three high-priority cases in the
-[2026-11-02 research](NEXT_WORK_RESEARCH.md). GeoJSON, GML and Shapefiles retain
-exterior and interior boundary curves, as GeoPackage already does. Curves stay
-with their source feature and attributes; they are not filled polygon surfaces.
+In development, GeoJSON, GML, Shapefile and GeoPackage readers retain exterior
+and interior boundary curves. Curves stay with their source feature and
+attributes; they are not filled polygon surfaces.
 
 Local terrain TIFFs reject failed rows and incomplete tiles rather than returning
 partial elevations. The full-raster reader limits its elevation array to 256 MiB

@@ -80,29 +80,34 @@ checks below. Those macOS checks and Windows host checks remain pending.
 
 ## LoD2 Buildings
 
-- run `lod2-atom-check` before live ATOM validation
-- connect `https://gdi.berlin.de/data/a_lod2/atom/` directly to `LoD2 Source`, leave `Layer` empty, and select Museum Island in an EPSG:25833 Spatial Context
-- confirm selected tiles, cache/download counts and building/conversion diagnostics appear in `Status`, and tile progress appears on the component
-- on macOS, trigger an ATOM load both normally and from the Grasshopper recompute menu; confirm progress callbacks do not deadlock the UI while Grasshopper waits for the worker task
-- repeat a solution and restart Rhino; confirm completed archives are reused
-- select an area crossing northing 5820000 and confirm both intersecting tiles load
-- compare ATOM buildings against matching official vector and imagery sources using one context; repeat with another supported context CRS and absolute coordinates
-- confirm missing tile metadata, unsupported archives, unavailable services and interrupted downloads return clear errors without a misleading partial model
-- confirm existing saved LoD2 definitions still open with the same component GUID and three inputs/two outputs
-- connect a LoD2 WFS source
-- load buildings through `Load LoD2 Buildings`
-- test a local CityGML/GML/XML building file through the same `LoD2 Source` input when available
-- test a local CityJSON building file through the same `LoD2 Source` input when available
-- test a folder or ZIP archive of CityGML/GML/XML tiles and confirm out-of-context files are skipped when bounds are available
-- test a dense single CityGML tile with a small Spatial Context and confirm building-level prefiltering avoids parsing/converting the whole tile
-- confirm the building output still aligns to the same `Spatial Context`
-- confirm localized mode still behaves consistently with terrain
-- confirm obvious missing-face regressions are not reintroduced
-- connect the `Status` output and check whether gaps are reported as returned buildings/surfaces with skipped conversion, or as no returned LoD2 data for that area
-- confirm the status reports the buffered WFS query bounds and the kept buildings still match the visible Spatial Context
-- for suspected provider gaps, compare returned LoD2 local bounds and output Brep bounds; matching bounds with low conversion failures usually points to source coverage rather than dropped geometry
-- run the bounded Sachsen-Anhalt EPSG:4258 probe and confirm geographic axis order does not produce a false empty result; enclosing `srsDimension="3"` metadata must produce XYZ rings
-- load the Rotterdam EPSG:28992 or Den Haag EPSG:7415 CityJSON sample and confirm Dutch RD New XY uses an explicit transform rather than bbox scaling
+- load a supported WFS building layer through `Load LoD2 Buildings`
+- repeat with local CityGML/GML/XML, CityJSON, a folder and a supported archive
+- confirm buildings align with the shared context and terrain in localized and absolute placement
+- confirm saved definitions open with the same component GUID and three inputs/two outputs
+- check building and surface grouping, roof geometry and conversion diagnostics; do not treat source coverage gaps as conversion failures
+- compare kept source bounds and output Brep bounds when investigating missing geometry
+- use a small area inside a dense tile and confirm out-of-context files/buildings are filtered before expensive conversion
+- confirm buffered WFS query bounds and final output remain consistent with the selected area
+- run `lod2-atom-check`, then load a supported building feed and inspect tile selection, progress and cache/download counts
+- repeat an ATOM load normally and from the Grasshopper recompute menu on macOS; confirm progress callbacks do not deadlock the UI
+- select an area across a known tile boundary and confirm both required tiles load without a misleading partial result
+- repeat the solution and restart Rhino; confirm completed building archives are reused
+- compare feed-based buildings with matching imagery and vectors; repeat with another supported context CRS
+- confirm missing tile metadata, unsupported archives, service failures and interrupted downloads produce clear errors
+
+Use the [building source catalogue](../docs/TEST_SOURCES.md#lod2--citygml-buildings)
+for reproducible provider cases. These checks apply to the supported building
+workflow across sources; the cases below retain exact inputs for regression work.
+
+<details>
+<summary>Recorded source cases for maintainers</summary>
+
+- Connect `https://gdi.berlin.de/data/a_lod2/atom/` directly to `LoD2 Source`, leave `Layer` empty, and select Museum Island in an EPSG:25833 context. The [integration record](../docs/TEST_SOURCES.md#berlin-atom-integration-validation-2026-11-01) saves exact bounds and expected tile names.
+- Select an area crossing northing 5820000 to exercise adjacent building tiles. Compare with matching official vector and imagery sources under the same context.
+- Run the bounded Sachsen-Anhalt EPSG:4258 probe: geographic axis order must not produce a false empty result, and enclosing `srsDimension="3"` metadata must produce XYZ rings.
+- Load the Rotterdam EPSG:28992 or Den Haag EPSG:7415 CityJSON sample: Dutch RD New XY must use an explicit transform rather than bounding-box scaling.
+
+</details>
 
 ## Terrain
 

@@ -4,7 +4,8 @@ This is the visual, step-by-step guide for assembling site context with
 RhinoSpatial. For help choosing your own services and files, read
 [Working with project data](WORKING_WITH_PROJECT_DATA.md). For exact input behavior,
 supported formats, fallbacks and coordinate-system notes, see the
-[Component and Source Reference](COMPONENT_REFERENCE.md).
+[Component and Source Reference](COMPONENT_REFERENCE.md). The
+[documentation index](README.md) links the full guide set.
 
 RhinoSpatial starts with one selected study area and builds multiple aligned
 context layers around it. Create one shared `Spatial Context`, then connect
@@ -119,8 +120,8 @@ include vegetation and buildings, while bare-earth models describe the ground.
 
 ### LoD2 Buildings
 
-Use `Load LoD2 Buildings` to load official 3D building and roof geometry inside
-the selected Spatial Context.
+Use `Load LoD2 Buildings` to load 3D building volumes and roof geometry from an
+official or project-specific dataset inside the selected Spatial Context.
 
 Connect a building WFS or supported ATOM download service, or use local
 CityGML/GML/XML or CityJSON data, folders or ZIP archives. Choose a layer when

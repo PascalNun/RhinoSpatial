@@ -44,11 +44,11 @@ The Google 3D Tiles component is an optional reference viewer. It requires your 
 
 ## Current Release
 
-Version **0.4.0** adds automatic building-tile downloads from supported ATOM services and improves coordinate recognition, terrain placement, missing-elevation handling and local vector parsing. Completed downloads can be reused. Full details are in the [release notes](https://github.com/PascalNun/RhinoSpatial/releases/tag/v0.4.0).
+Version **0.4.0** brings the shared study-area workflow together with maps, project vectors, terrain, georeferenced imagery, 3D buildings and OSM context. It also adds automatic downloads from supported building feeds and improves coordinate recognition, terrain placement, missing-elevation handling and local vector parsing. Full details are in the [release notes](https://github.com/PascalNun/RhinoSpatial/releases/tag/v0.4.0).
 
-The complete planned source set is now present, but individual providers, coordinate systems, geometry types, and file metadata can still expose edge cases.
+Source coverage, detail and coordinate support depend on the connected dataset. Start with a small area, inspect each layer and use the component's `Status` output to resolve missing coverage or unsupported data.
 
-Feedback, edge cases, and additional test links are very welcome.
+Workflow feedback and reproducible source examples are welcome through the support link below.
 
 Created by Pascal Nünninghoff.
 

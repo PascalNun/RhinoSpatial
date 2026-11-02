@@ -17,97 +17,26 @@ merged into `main`, while the public package remains 0.4.0. The eleven-suite
 CI runs on macOS and Windows; native Rhino and installed-package checks remain
 separate.
 
-Use these together with:
+## Browse the catalogue
 
-- `examples/sources.json`
-- `examples/VALIDATION.md`
-- the sandbox probe command:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- probe <wfs|wms|wcs> <url>`
-- bounded service request probes:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- wfsfeature <capabilities-url> <layer> <srs> <minX,minY,maxX,maxY> [max-features]`,
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- wmsimage <capabilities-url> <layer> <srs> <minX,minY,maxX,maxY> [width] [height]`,
-  and `dotnet run --project RhinoSpatial.Sandbox.csproj -- wcscoverage <capabilities-url> <coverage> <minX,minY,maxX,maxY> [srs]`
-- local-file smoke commands:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2file <path>`,
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- geotiff <path>`,
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- terrainfile <path>`,
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- shapefile <path>`,
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- geojson <path>`,
-  and `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogcapi <items-url>`
-- Google 3D Tiles refinement, geographic-bounds, and shared-elevation-baseline check:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- tiles-selection-check`
-- Spatial Context local-reference metadata check:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- reference-source-check`
-- WFS/WMS request-axis check:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogc-request-check`
-- Local GeoJSON and terrain-reader checks:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- source-reader-check`
-- Terrain placement, NoData, and downsampling checks:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- terrain-mesh-check`
-- ATOM metadata, tile selection, download validation and persistent-cache checks:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2-atom-check`
-- ATOM discovery without archive downloads:
-  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom <feed-url> <srs> <minX,minY,maxX,maxY>`
-  Add `download` to download/reuse selected archives and parse buildings through the existing CityGML reader.
+The entries below cover the toolkit's source categories. A named city or provider
+is a reproducible test case; support elsewhere depends on the source's coverage,
+format and coordinates. Recorded capabilities checks, data requests and native
+Rhino observations provide different evidence and are identified as such.
 
-## Unreleased source-compatibility validation (2026-11-01)
+| Source category | Catalogue |
+| --- | --- |
+| Project vectors | [WFS, API and vector files](#wfs--vector) |
+| Maps and imagery | [WMS](#wms--imagery-and-map-context) |
+| Ground and elevation | [Terrain and WCS](#terrain--wcs) |
+| 3D building data | [Building services and files](#lod2--citygml-buildings) |
+| Georeferenced project rasters | [GeoTIFF and local files](#geotiff--local-raster) |
+| Quick urban and landscape context | [OSM](#osm) |
+| Photogrammetric reference | [Google 3D Tiles Viewer](#google-3d-tiles-viewer) |
 
-The [implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records scope and
-status; [example workflows](../examples/COMPATIBILITY_WORKFLOWS.md) save copyable
-URLs, context bounds, layer choices and reproduction commands. The source manifest
-includes verification dates and distinguishes development-only behavior.
-
-`dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- source-compatibility-check`
-exercises deterministic HTTP fixtures for pagination, caps, totals, duplicate and
-repeated pages, redirects, discovery, cancellation, validated downloads, unsafe or
-incomplete archives, projected WKT authority, terrain mosaics and metadata-only
-references. It is included in CI and makes no external requests.
-
-Live probes found 16 collections at the pygeoapi root and loaded five lakes across
-five pages with an intentional cap. Berlin DGM1 yielded a 400 × 400 single-tile
-raster and a 200 × 200 two-tile mosaic, both built into Core meshes. Direct Natural
-Earth GeoJSON parsed 177 features, its Shapefile ZIP returned three sample features,
-and the cjio Delft CityJSON fixture parsed 160 buildings. These are download/parser/
-Core-placement checks; new interactive Rhino/Grasshopper and installed-package validation
-remains pending. The older Delft-hosted CityJSON URL failed TLS in this batch;
-historical local-file results below remain historical results.
-
-## Unreleased medium-priority validation (2026-11-02)
-
-[The plan](MEDIUM_COMPATIBILITY_PLAN.md) and [example guide](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) record priorities 6–8 and exact inputs. `medium-compatibility-check` tests LoD selection, sequence headers/records/cancellation, instance matrices, invalid geometry, world files/CRS/cache invalidation, embedded affine/PixelIsPoint GeoTIFFs, image UV clipping/reprojection, terrain centers, projected/geographic WMTS, matrix limits, tile ordering/alpha, corruption, failures and metadata-only references. The suite uses temporary fixtures and no network.
-
-Live PDOK capabilities exposed 19 layers/six supported sets; bounded native EPSG:28992 imagery loaded 36 JPEG tiles at 0.42 m/pixel, yielding a 1536 × 1536 PNG and a 512-triangle clipped Core mesh. The mosaic was visually inspected for continuity, not in Rhino. The cjio multi-LoD fixture parsed ten buildings/348 selected surfaces at LoD 2.2; it lacks CRS metadata, so it is parser-only evidence. Bundled declared-CRS synthetic models/sequence/template each parsed one building/six surfaces, and the rotated PNG generated 512 Core triangles. New native Rhino/installed-package checks on macOS/Windows remain pending.
-
-## Deterministic correctness regressions
-
-The source-reader checks generate temporary, non-private fixtures for ASCII corner/center origins, reference extents, optional NoData, wrapped/truncated/excess cell values, invalid headers, sparse and irregular XYZ grids, non-finite positions, GeoJSON null attributes, empty geometries, malformed points, and versioned EPSG names. They cover format behavior documented by [Esri](https://help.arcgis.com/en/arcgisdesktop/10.0/help/009t/009t0000000z000000.htm) and [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html).
-
-The terrain-mesh checks exercise the same Core builder used by the Grasshopper component: projected and geographic source transforms, localization, absolute elevations, NoData holes (including holes between retained downsampled vertices), unsupported CRS errors, and preservation of raster edges. These do not validate Rhino materials, viewport rendering, or saved Grasshopper definitions; use the manual checklist for those surfaces.
-
-The ATOM checks use an in-process HTTP fixture and temporary ZIPs/cache directories, without external network requests. They cover subfeeds/pagination/cycles, relative URLs and `xml:base`, GeoRSS and GML axis order, native/projected tile selection, explicitly declared kilometre grids, missing spatial metadata, unsupported CRS/AdV aliases, WFS routing, limits/timeouts, archive parsing, concurrent cache writers, revision changes, corrupt/truncated downloads, invalid ZIP/CityGML and cancellation. Parsing follows [Atom RFC 4287](https://datatracker.ietf.org/doc/html/rfc4287) and the supported spatial subset of the [OGC GeoRSS standard](https://docs.ogc.org/cs/17-002r1/17-002r1.html). AdV horizontal naming is documented in the [official reference-system overview](https://www.ldbv.bayern.de/mam/ldbv/dateien/referenzsysteme.pdf). Source heights are preserved; these aliases do not convert vertical datums.
-
-### Berlin ATOM integration validation (2026-11-01)
-
-The [official service feed](https://gdi.berlin.de/data/a_lod2/atom/) links one dataset feed containing 925 ZIP links (`rel="section"`, `application/x-gmz`). There are no per-ZIP GeoRSS extents. The service entry supplies the enclosing geographic polygon and EPSG:25833 category; the dataset links a [1 km UTM tile index](https://gdi.berlin.de/data/a_lod2/atom/1X1_EPSG_25833.pdf). The index was inspected to verify the supported southwest-corner kilometre naming convention. The implementation uses this declared-grid pattern without a Berlin hostname special case, and refuses missing/ambiguous metadata.
-
-Verified console workflows:
-
-```bash
-# Museum Island: selects only LoD2_391_5820.zip (6,731,543 compressed bytes).
-dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom 'https://gdi.berlin.de/data/a_lod2/atom/' EPSG:25833 '391300,5820100,391700,5820500' download
-
-# Crosses the 5820000 tile boundary: selects LoD2_391_5819.zip and LoD2_391_5820.zip.
-dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom 'https://gdi.berlin.de/data/a_lod2/atom/' EPSG:25833 '391300,5819900,391700,5820200' download
-```
-
-Museum Island parsed 133 buildings / 8,642 surfaces before the component's additional surface filter. The boundary request parsed 5 buildings / 740 surfaces from the southern tile and 29 / 2,695 from the northern tile. Repeated runs reused persisted downloads. CityGML declares `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH`; its XY resolves explicitly to EPSG:25833 while its height reference remains unchanged.
-
-Bounded comparison requests for the same Museum Island EPSG:25833 bounds also returned 100 building features (explicit limit) from Berlin ALKIS WFS and a 512 × 512 PNG (90,597 bytes) from ALKIS building WMS:
-
-- WFS: `https://gdi.berlin.de/services/wfs/alkis?SERVICE=WFS&REQUEST=GetCapabilities`, layer `alkis:gebaeudeflaechen`
-- WMS: `https://gdi.berlin.de/services/wms/alkis_gebaeude?SERVICE=WMS&REQUEST=GetCapabilities`, layer `gebaeude`
-
-These confirm bounded source loading and compatible native coordinate metadata. They do **not** prove visual alignment, Brep quality, progress display or saved-definition compatibility in Rhino. Complete the ATOM entries in `examples/VALIDATION.md` before release. The unreleased compatibility branch adds ATOM reference-map preloading from feed metadata; interactive validation of that addition remains pending.
+[Probe commands](#probe-commands) and [dated validation records](#recorded-validation)
+follow the catalogue. For current build and test commands, use
+[Contributing](../CONTRIBUTING.md#build-and-validate).
 
 ## Current Tested Sources
 
@@ -261,6 +190,107 @@ core features or release blockers.
 - **Cloud Optimized GeoTIFF**
   Implemented in the unreleased low-priority batch using bounded HTTP ranges and selected classic-TIFF image/DEM windows. Stable representations, byte/time/allocation limits, usable overviews, masks, NoData and header-only references are tested; BigTIFF and unsupported layouts remain explicit limitations.
 
+## Probe commands
+
+Use these together with:
+
+- `examples/sources.json`
+- `examples/VALIDATION.md`
+- the sandbox probe command:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- probe <wfs|wms|wcs> <url>`
+- bounded service request probes:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- wfsfeature <capabilities-url> <layer> <srs> <minX,minY,maxX,maxY> [max-features]`,
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- wmsimage <capabilities-url> <layer> <srs> <minX,minY,maxX,maxY> [width] [height]`,
+  and `dotnet run --project RhinoSpatial.Sandbox.csproj -- wcscoverage <capabilities-url> <coverage> <minX,minY,maxX,maxY> [srs]`
+- local-file smoke commands:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2file <path>`,
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- geotiff <path>`,
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- terrainfile <path>`,
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- shapefile <path>`,
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- geojson <path>`,
+  and `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogcapi <items-url>`
+- Google 3D Tiles refinement, geographic-bounds, and shared-elevation-baseline check:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- tiles-selection-check`
+- Spatial Context local-reference metadata check:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- reference-source-check`
+- WFS/WMS request-axis check:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- ogc-request-check`
+- Local GeoJSON and terrain-reader checks:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- source-reader-check`
+- Terrain placement, NoData, and downsampling checks:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- terrain-mesh-check`
+- ATOM metadata, tile selection, download validation and persistent-cache checks:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2-atom-check`
+- ATOM discovery without archive downloads:
+  `dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom <feed-url> <srs> <minX,minY,maxX,maxY>`
+  Add `download` to download/reuse selected archives and parse buildings through the existing CityGML reader.
+
+## Recorded validation
+
+These records preserve exact inputs and observations from the named checks.
+Historical suite counts describe that stage of development; the current set has
+eleven suites. Native Rhino checks remain separately recorded in the
+[release checklist](../examples/VALIDATION.md).
+
+## Unreleased source-compatibility validation (2026-11-01)
+
+The [implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records scope and
+status; [example workflows](../examples/COMPATIBILITY_WORKFLOWS.md) save copyable
+URLs, context bounds, layer choices and reproduction commands. The source manifest
+includes verification dates and distinguishes development-only behavior.
+
+`dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- source-compatibility-check`
+exercises deterministic HTTP fixtures for pagination, caps, totals, duplicate and
+repeated pages, redirects, discovery, cancellation, validated downloads, unsafe or
+incomplete archives, projected WKT authority, terrain mosaics and metadata-only
+references. It is included in CI and makes no external requests.
+
+Live probes found 16 collections at the pygeoapi root and loaded five lakes across
+five pages with an intentional cap. Berlin DGM1 yielded a 400 × 400 single-tile
+raster and a 200 × 200 two-tile mosaic, both built into Core meshes. Direct Natural
+Earth GeoJSON parsed 177 features, its Shapefile ZIP returned three sample features,
+and the cjio Delft CityJSON fixture parsed 160 buildings. These are download/parser/
+Core-placement checks; new interactive Rhino/Grasshopper and installed-package validation
+remains pending. The older Delft-hosted CityJSON URL failed TLS in this batch;
+historical local-file results below remain historical results.
+
+## Unreleased medium-priority validation (2026-11-02)
+
+[The plan](MEDIUM_COMPATIBILITY_PLAN.md) and [example guide](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) record priorities 6–8 and exact inputs. `medium-compatibility-check` tests LoD selection, sequence headers/records/cancellation, instance matrices, invalid geometry, world files/CRS/cache invalidation, embedded affine/PixelIsPoint GeoTIFFs, image UV clipping/reprojection, terrain centers, projected/geographic WMTS, matrix limits, tile ordering/alpha, corruption, failures and metadata-only references. The suite uses temporary fixtures and no network.
+
+Live PDOK capabilities exposed 19 layers/six supported sets; bounded native EPSG:28992 imagery loaded 36 JPEG tiles at 0.42 m/pixel, yielding a 1536 × 1536 PNG and a 512-triangle clipped Core mesh. The mosaic was visually inspected for continuity, not in Rhino. The cjio multi-LoD fixture parsed ten buildings/348 selected surfaces at LoD 2.2; it lacks CRS metadata, so it is parser-only evidence. Bundled declared-CRS synthetic models/sequence/template each parsed one building/six surfaces, and the rotated PNG generated 512 Core triangles. New native Rhino/installed-package checks on macOS/Windows remain pending.
+
+## Deterministic correctness regressions
+
+The source-reader checks generate temporary, non-private fixtures for ASCII corner/center origins, reference extents, optional NoData, wrapped/truncated/excess cell values, invalid headers, sparse and irregular XYZ grids, non-finite positions, GeoJSON null attributes, empty geometries, malformed points, and versioned EPSG names. They cover format behavior documented by [Esri](https://help.arcgis.com/en/arcgisdesktop/10.0/help/009t/009t0000000z000000.htm) and [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html).
+
+The terrain-mesh checks exercise the same Core builder used by the Grasshopper component: projected and geographic source transforms, localization, absolute elevations, NoData holes (including holes between retained downsampled vertices), unsupported CRS errors, and preservation of raster edges. These do not validate Rhino materials, viewport rendering, or saved Grasshopper definitions; use the manual checklist for those surfaces.
+
+The ATOM checks use an in-process HTTP fixture and temporary ZIPs/cache directories, without external network requests. They cover subfeeds/pagination/cycles, relative URLs and `xml:base`, GeoRSS and GML axis order, native/projected tile selection, explicitly declared kilometre grids, missing spatial metadata, unsupported CRS/AdV aliases, WFS routing, limits/timeouts, archive parsing, concurrent cache writers, revision changes, corrupt/truncated downloads, invalid ZIP/CityGML and cancellation. Parsing follows [Atom RFC 4287](https://datatracker.ietf.org/doc/html/rfc4287) and the supported spatial subset of the [OGC GeoRSS standard](https://docs.ogc.org/cs/17-002r1/17-002r1.html). AdV horizontal naming is documented in the [official reference-system overview](https://www.ldbv.bayern.de/mam/ldbv/dateien/referenzsysteme.pdf). Source heights are preserved; these aliases do not convert vertical datums.
+
+### Berlin ATOM integration validation (2026-11-01)
+
+The [official service feed](https://gdi.berlin.de/data/a_lod2/atom/) links one dataset feed containing 925 ZIP links (`rel="section"`, `application/x-gmz`). There are no per-ZIP GeoRSS extents. The service entry supplies the enclosing geographic polygon and EPSG:25833 category; the dataset links a [1 km UTM tile index](https://gdi.berlin.de/data/a_lod2/atom/1X1_EPSG_25833.pdf). The index was inspected to verify the supported southwest-corner kilometre naming convention. The implementation uses this declared-grid pattern without a Berlin hostname special case, and refuses missing/ambiguous metadata.
+
+Verified console workflows:
+
+```bash
+# Museum Island: selects only LoD2_391_5820.zip (6,731,543 compressed bytes).
+dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom 'https://gdi.berlin.de/data/a_lod2/atom/' EPSG:25833 '391300,5820100,391700,5820500' download
+
+# Crosses the 5820000 tile boundary: selects LoD2_391_5819.zip and LoD2_391_5820.zip.
+dotnet run --project RhinoSpatial.Sandbox.csproj -- lod2atom 'https://gdi.berlin.de/data/a_lod2/atom/' EPSG:25833 '391300,5819900,391700,5820200' download
+```
+
+Museum Island parsed 133 buildings / 8,642 surfaces before the component's additional surface filter. The boundary request parsed 5 buildings / 740 surfaces from the southern tile and 29 / 2,695 from the northern tile. Repeated runs reused persisted downloads. CityGML declares `urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH`; its XY resolves explicitly to EPSG:25833 while its height reference remains unchanged.
+
+Bounded comparison requests for the same Museum Island EPSG:25833 bounds also returned 100 building features (explicit limit) from Berlin ALKIS WFS and a 512 × 512 PNG (90,597 bytes) from ALKIS building WMS:
+
+- WFS: `https://gdi.berlin.de/services/wfs/alkis?SERVICE=WFS&REQUEST=GetCapabilities`, layer `alkis:gebaeudeflaechen`
+- WMS: `https://gdi.berlin.de/services/wms/alkis_gebaeude?SERVICE=WMS&REQUEST=GetCapabilities`, layer `gebaeude`
+
+These confirm bounded source loading and compatible native coordinate metadata. They do **not** prove visual alignment, Brep quality, progress display or saved-definition compatibility in Rhino. Complete the ATOM entries in `examples/VALIDATION.md` before release. The development build adds ATOM reference-map preloading from feed metadata; interactive validation of that addition remains pending.
+
 ## Unreleased low-priority validation (2026-11-02)
 
 [Plan](LOW_COMPATIBILITY_PLAN.md) · [how-to, URLs and exact bounds](../examples/LOW_COMPATIBILITY_WORKFLOWS.md).
@@ -270,7 +300,7 @@ COG metadata/windows/overviews/masks/NoData/alpha/placement, decoder allocation
 limits, explicit WGS84 UTM transformations, and GeoPackage catalogs/quoted names/
 RTree/fallback/CRS/holes/attributes/endian/envelopes/collections/malformed geometry/
 limits/cancellation/source immutability. All eight prior suites also pass locally.
-The compatibility batch passed the build and all nine suites on macOS and Windows; the subsequent correctness suite brings the current total to ten.
+At that stage, the compatibility work passed all nine suites on macOS and Windows. The later correctness and reliability suites bring the current total to eleven.
 
 Live probes: Sentinel TCI 11×12 pixels / 2,686,976 range bytes; Copernicus DSM
 4×4 samples / 3,080,192 bytes; GDAL public GeoPackage 10 features / 10 rings with
@@ -298,8 +328,9 @@ dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- correctness-check
 The checks cover missing row/tile data, valid compressed and edge-tile reads,
 NoData, local BigTIFF, allocation guards, polygon interiors and islands,
 coordinate identifiers, axis conventions and retained AdV source heights. All
-ten suites pass locally. Native units/runtime checks, consistent cancellation,
-windowed local raster reads and remote BigTIFF remain follow-up work.
+ten suites passed at that stage. Service cancellation has since been implemented
+and covered by the reliability suite below. Native host/unit checks, windowed
+local raster reads and remote BigTIFF remain follow-up work.
 
 ## Service reliability validation (2026-11-02)
 

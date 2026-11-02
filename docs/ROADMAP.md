@@ -16,29 +16,34 @@ The compatibility work below is merged into `main` for the next release:
 | Building and image formats | CityJSON detail selection, sequences and templates; affine/world-file imagery; WMTS map services |
 | Remote rasters and local vectors | COG image/elevation windows and read-only GeoPackage feature layers |
 
-The Release build and all eleven automated suites pass locally; CI runs them on macOS and Windows. Preview, materials, baking, installed-package behavior and saved definitions still need the relevant Rhino checks before publication. Merging code into `main` does not change the installed plugin or published packages.
+The development build has automated checks on macOS and Windows. Preview,
+materials, baking, installed-package behavior and saved definitions still need
+the relevant Rhino checks before publication. The [validation checklist](../examples/VALIDATION.md)
+records that work. Merging code into `main` does not change the installed plugin
+or published packages.
 
-Implementation records remain available for [services and downloads](COMPATIBILITY_IMPLEMENTATION_PLAN.md), [building and imagery formats](MEDIUM_COMPATIBILITY_PLAN.md), and [COG/GeoPackage](LOW_COMPATIBILITY_PLAN.md). Their original priority labels describe the research order, not the user-facing structure of the toolkit.
+## Correctness and reliability
 
-## Completed correctness batch
+Development improves terrain read integrity, courtyard boundaries and coordinate
+recognition across the existing source components. Service loads also carry
+cancellation, enforce response limits and validate completed downloads before
+cache reuse. These changes support the same everyday workflow: load a layer,
+inspect it, change the area and retry when needed.
 
-The three high-priority findings from the [next-work research](NEXT_WORK_RESEARCH.md)
-are fixed in the development build: incomplete terrain reads fail explicitly,
-vector readers keep courtyard boundaries, and coordinate names are parsed
-consistently. The [implementation record](CORRECTNESS_PLAN.md) covers efficiency,
-shared code and the 52 new offline regression cases. The public package remains
-0.4.0 until a separately validated release.
+The [engineering records](README.md#project-direction-and-maintenance) preserve
+implementation decisions, measurements and regression evidence. The public
+package remains 0.4.0 until a separately validated release.
 
-## Next implementation batches
+## Next engineering priorities
 
-The [reliability plan](RELIABILITY_PLAN.md) records the order, code-review evidence,
-acceptance checks and efficiency measurements for the next work. These batches
-include the completed service reliability batch and two remaining implementation steps.
+The next engineering work concentrates on larger raster datasets within the
+existing terrain and imagery workflows. The [reliability plan](RELIABILITY_PLAN.md)
+records acceptance checks and efficiency measurements.
 
 | Order | Work | Everyday benefit |
 | --- | --- | --- |
 | Implemented in development | Consistent cancellation, bounded WMS/WCS/OSM transfers and reliable cache publication | Stop slow work, change the study area and retry without reusing an interrupted download |
-| Next code batch | Windowed local terrain reads | Read the selected area without allocating a whole TIFF elevation grid |
+| Next | Windowed local terrain reads | Read the selected area without allocating a whole TIFF elevation grid |
 | Then | Bounded remote BigTIFF handling | Use supported large raster products through the existing imagery and terrain components |
 
 Check complete studies in Rhino alongside this work, including model units,
