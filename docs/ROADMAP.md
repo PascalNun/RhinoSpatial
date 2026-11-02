@@ -20,7 +20,7 @@ The Release build and all ten automated suites pass locally; CI runs them on mac
 
 Implementation records remain available for [services and downloads](COMPATIBILITY_IMPLEMENTATION_PLAN.md), [building and imagery formats](MEDIUM_COMPATIBILITY_PLAN.md), and [COG/GeoPackage](LOW_COMPATIBILITY_PLAN.md). Their original priority labels describe the research order, not the user-facing structure of the toolkit.
 
-## Immediate correctness work
+## Completed correctness batch
 
 The three high-priority findings from the [next-work research](NEXT_WORK_RESEARCH.md)
 are fixed in the development build: incomplete terrain reads fail explicitly,
@@ -29,11 +29,22 @@ consistently. The [implementation record](CORRECTNESS_PLAN.md) covers efficiency
 shared code and the 52 new offline regression cases. The public package remains
 0.4.0 until a separately validated release.
 
-Then check complete studies in Rhino, including model units, actual host runtimes,
-materials and saved definitions. Consistent cancellation and bounded reads in
-older source paths are the next reliability work. BigTIFF range handling is a
-promising format follow-up: the shipped decoder passed a basic BigTIFF probe,
-while the current remote reader still rejects the format.
+## Next implementation batches
+
+The [reliability plan](RELIABILITY_PLAN.md) records the order, code-review evidence,
+acceptance checks and efficiency measurements for the next work. These batches
+are planned, not implemented.
+
+| Order | Work | Everyday benefit |
+| --- | --- | --- |
+| Next code batch | Consistent cancellation, bounded WMS/WCS/OSM transfers and reliable cache publication | Stop slow work, change the study area and retry without reusing an interrupted download |
+| Following batch | Windowed local terrain reads | Read the selected area without allocating a whole TIFF elevation grid |
+| Then | Bounded remote BigTIFF handling | Use supported large raster products through the existing imagery and terrain components |
+
+Check complete studies in Rhino alongside this work, including model units,
+actual host runtimes, materials and saved definitions. Units need measurements
+and an explicit policy before changing placement. Native validation remains a
+release requirement; the .NET 10 Sandbox is not a substitute for the Rhino host.
 
 ## Now: validate complete studies
 

@@ -208,9 +208,11 @@ changed by this implementation batch.
 
 ## Follow-up correctness research
 
-The [research report](../docs/NEXT_WORK_RESEARCH.md) adds the following release
-checks. Current passing CI does not imply these newly demonstrated cases are
-covered or fixed.
+The three high-priority cases in the [research report](../docs/NEXT_WORK_RESEARCH.md)
+are implemented and covered by automated regressions. The native checks below
+remain pending. The [next reliability plan](../docs/RELIABILITY_PLAN.md) records
+cancellation, bounded downloads, terrain windows and remote BigTIFF work that
+has not been implemented yet.
 
 - [ ] Incomplete scanline/tile reads fail without repeating old elevations or publishing partial terrain.
 - [ ] Equivalent GeoJSON/GML/Shapefile/GeoPackage polygons retain courtyard boundaries and feature grouping.

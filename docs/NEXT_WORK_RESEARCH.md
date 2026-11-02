@@ -8,6 +8,11 @@ The next phase should improve correctness and everyday reliability before adding
 
 ## Research priorities and follow-up
 
+The [next reliability plan](RELIABILITY_PLAN.md) turns the remaining findings
+into three ordered implementation batches and a native units/runtime validation
+track. It records code-review evidence separately from proposed behavior and
+acceptance checks; those follow-up batches are not implemented yet.
+
 | Priority | Work | Benefit | Evidence |
 | --- | --- | --- | --- |
 | High — first | Reject incomplete terrain reads | Prevent unreadable data from becoming plausible elevations | Reproduced with a 166-byte TIFF |

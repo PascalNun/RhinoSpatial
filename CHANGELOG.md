@@ -30,6 +30,7 @@ for feature availability and the general workflow.
 
 ### Documentation, dependencies and validation
 
+- Record the next [reliability plan](docs/RELIABILITY_PLAN.md): consistent cancellation and bounded downloads, local terrain windows, remote BigTIFF and native units/runtime validation. These follow-up batches are planned, not implemented.
 - Record [follow-up correctness research](docs/NEXT_WORK_RESEARCH.md), diagnostic fixtures and priorities for terrain reads, courtyard rings, coordinate names, host/unit checks and BigTIFF range handling. The three high-priority fixes are implemented with offline regressions; host/unit checks, broader cancellation and BigTIFF range handling remain follow-ups.
 - Refresh the overview, visual workflow, project-data guide, examples, reference and maintainer documentation. General workflows apply across providers; recorded URLs, bounds and technical probe results remain in linked recipes.
 - Save [service/download examples](examples/COMPATIBILITY_WORKFLOWS.md), [building/imagery examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md), and [COG/GeoPackage examples](examples/LOW_COMPATIBILITY_WORKFLOWS.md), with synthetic sample files and actual live-check results.
