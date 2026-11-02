@@ -308,3 +308,10 @@ The [reliability implementation plan](RELIABILITY_PLAN.md) now includes the comp
 Live Core checks parsed GeoMet's 39,668,951-byte WMS catalogue (7,606 layers), NRW 100×100 terrain (1,907 bytes), and USGS native EPSG:3857 100×100 terrain (65,924-byte TIFF extracted from a 68,591-byte multipart response). A forced geographic USGS subset returned HTTP 404; the native request succeeded. Overpass returned HTTP 502, so new OSM evidence is offline. Native Rhino cancellation, preview, saved-definition and package checks remain pending.
 
 The controlled 16 MiB multipart fixture allocated approximately 301 KB of managed memory, excluding prepared input and native memory. This measures transfer/extraction, not large-terrain or Rhino memory. Local terrain windowing and remote BigTIFF remain unimplemented.
+
+An additional macOS check ran all eleven existing suites under Rhino 8.16's
+bundled arm64 .NET 7.0.0 runtime, using a temporary `net7.0` test project and
+Core's existing target at `c9d5e40`. All passed, including 52 correctness and 52
+reliability cases. This is standalone runtime compatibility evidence, not a
+Rhino/Grasshopper host test. See the [validation record](../examples/VALIDATION.md#recorded-runtime-check--2026-11-02)
+for the exact host installation and remaining interactive checks.

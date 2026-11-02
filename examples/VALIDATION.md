@@ -6,12 +6,25 @@ The development work is merged into `main`; all eleven automated suites pass loc
 and run in CI on macOS and Windows. Unchecked native items below remain pending and are not implied
 by a successful console or CI run. The public package remains 0.4.0.
 
-
 This is the maintainer-facing manual validation set for RhinoSpatial. It is
 linked publicly for transparency, but ordinary users do not need to complete it
 before using the plugin.
 
 It is intentionally small and practical. The point is to confirm that the core data layers still feel aligned, usable, and trustworthy after changes.
+
+## Recorded runtime check — 2026-11-02
+
+All eleven console suites also passed using the arm64 .NET 7.0.0 runtime bundled
+with Rhino 8.16 (`8.16.25042.13002`) on macOS, against source commit `c9d5e40`.
+An isolated temporary test project compiled the existing Sandbox sources for
+`net7.0` and referenced Core's existing `net7.0` target. This included all 52
+correctness and 52 service-reliability cases; the Release build had no warnings
+or errors. Project targets and the installed plugin were unchanged.
+
+This was standalone console execution using Rhino's bundled runtime. It did not
+run inside Rhino or Grasshopper, so it does not complete the interactive,
+installed-package, preview, material, baking, saved-definition or model-unit
+checks below. Those macOS checks and Windows host checks remain pending.
 
 ## General Checks
 
