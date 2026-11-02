@@ -1,6 +1,6 @@
 # Reader research inputs
 
-These tiny synthetic files support the [next-work research](../../../docs/NEXT_WORK_RESEARCH.md), recorded against `3e71e25` on 2026-11-02. They are diagnostic cases, separate from the ready-to-use site examples. The truncated file is intentionally invalid. Neither raster has geospatial placement metadata.
+These tiny synthetic files support the [reader validation findings](../../../docs/technical/READER_VALIDATION.md), recorded against `3e71e25` on 2026-11-02. They are diagnostic cases, separate from the ready-to-use site examples. The truncated file is intentionally invalid. Neither raster has geospatial placement metadata.
 
 | File | Purpose | Observed result before a fix |
 | --- | --- | --- |
@@ -28,4 +28,4 @@ TerrainRasterReader.ReadRaster(truncatedPath, "probe", "EPSG:25833");
 // For BigTIFF decoding: Tiff.Open(bigTiffPath, "r") and ReadScanline(buffer, 1).
 ```
 
-The explicit CRS in the truncated-raster call is a test argument, not a claim that the unreferenced file is project data. The BigTIFF case proves basic decoder capability only; it does not prove remote range handling, tiled COGs, overviews or offsets above 4 GiB. The follow-up [correctness implementation](../../../docs/CORRECTNESS_PLAN.md) adds production fixes and 52 offline checks, including generated Shapefiles and compressed/edge-tile rasters. The original table records the pre-fix observations.
+The explicit CRS in the truncated-raster call is a test argument, not a claim that the unreferenced file is project data. The BigTIFF case proves basic decoder capability only; it does not prove remote range handling, tiled COGs, overviews or offsets above 4 GiB. The [reader integrity checks](../../../docs/technical/READER_INTEGRITY.md) cover the fixes with 52 offline cases, including generated Shapefiles and compressed/edge-tile rasters. The original table records the pre-fix observations.

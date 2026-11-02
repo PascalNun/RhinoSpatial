@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve the small low-priority fixtures on loopback with proper HTTP byte ranges."""
+"""Serve the small raster fixtures on loopback with proper HTTP byte ranges."""
 import argparse
 import hashlib
 import re

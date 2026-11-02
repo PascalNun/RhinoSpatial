@@ -1000,7 +1000,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "BUILDING_AND_IMAGERY.md"
     },
     {
       "id": "cityjson-cjio-multi-lod",
@@ -1013,7 +1013,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "BUILDING_AND_IMAGERY.md"
     },
     {
       "id": "cityjson-medium-local-examples",
@@ -1040,7 +1040,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "BUILDING_AND_IMAGERY.md"
     },
     {
       "id": "raster-medium-affine-local",
@@ -1068,7 +1068,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "MEDIUM_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "BUILDING_AND_IMAGERY.md"
     },
     {
       "id": "cog-low-sentinel-berlin",
@@ -1090,7 +1090,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "REMOTE_RASTERS_AND_GEOPACKAGE.md"
     },
     {
       "id": "cog-low-copernicus-berlin",
@@ -1112,7 +1112,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "REMOTE_RASTERS_AND_GEOPACKAGE.md"
     },
     {
       "id": "geopackage-low-gdal-public",
@@ -1134,7 +1134,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "REMOTE_RASTERS_AND_GEOPACKAGE.md"
     },
     {
       "id": "cog-low-local-imagery",
@@ -1156,7 +1156,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "REMOTE_RASTERS_AND_GEOPACKAGE.md"
     },
     {
       "id": "cog-low-local-dem",
@@ -1178,7 +1178,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "REMOTE_RASTERS_AND_GEOPACKAGE.md"
     },
     {
       "id": "geopackage-low-local",
@@ -1201,7 +1201,7 @@
       ],
       "last_verified": "2026-11-02",
       "availability": "Development build from main; not included in the public 0.4.0 package",
-      "example_guide": "LOW_COMPATIBILITY_WORKFLOWS.md"
+      "example_guide": "REMOTE_RASTERS_AND_GEOPACKAGE.md"
     }
   ]
 }

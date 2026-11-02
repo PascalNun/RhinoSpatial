@@ -12,9 +12,8 @@ user-facing source instructions, see the
 The **Current Use** column describes what the source is supposed to validate in RhinoSpatial: parser coverage, provider quirks, CRS behavior, terrain/raster alignment, local-file handling, or manual visual context. If a source is on the watch list, it is intentionally not a recommended example yet.
 
 For a general workflow, start with [Working with project data](WORKING_WITH_PROJECT_DATA.md).
-The dated checks below are maintainer evidence. All compatibility batches are
-merged into `main`, while the public package remains 0.4.0. The eleven-suite
-CI runs on macOS and Windows; native Rhino and installed-package checks remain
+The dated checks below are maintainer evidence. Development features are
+separate from the public 0.4.0 package. Automated checks run on macOS and Windows; native Rhino and installed-package checks remain
 separate.
 
 ## Browse the catalogue
@@ -180,7 +179,7 @@ core features or release blockers.
 - **CityJSON**
   The public package supports local CityJSON building import through `Load LoD2 Buildings`. Development adds detail selection, sequences and geometry templates. Continue adding varied real sources alongside the synthetic regression files.
 - **GeoPackage**
-  Implemented in the unreleased low-priority batch: local read-only standard feature tables, catalog metadata, RTree/bounded queries and standard WKB with hole curves. Raster tables, curved/extended geometry and editing remain outside scope. See the low-priority how-to and fixtures.
+  Development supports local read-only standard feature tables, catalog metadata, RTree/bounded queries and standard WKB with hole curves. Raster tables, curved/extended geometry and editing remain outside scope. See the remote raster/GeoPackage guide and fixtures.
 - **Shapefile**
   Local Shapefile is now supported as a vector source through `Load WFS`, using the existing shared Spatial Context and geometry tree output. It is not treated as LoD2 building import; many municipal Shapefiles are 2D footprints or thematic vector layers rather than true LoD2 geometry.
 - **Local GeoJSON**
@@ -188,7 +187,7 @@ core features or release blockers.
 - **OGC API Features**
   The public package supports GeoJSON item/collection URLs through the vector loader. Development adds landing-page discovery and bounded paging. The client uses the shared area and transforms returned features into the context.
 - **Cloud Optimized GeoTIFF**
-  Implemented in the unreleased low-priority batch using bounded HTTP ranges and selected classic-TIFF image/DEM windows. Stable representations, byte/time/allocation limits, usable overviews, masks, NoData and header-only references are tested; BigTIFF and unsupported layouts remain explicit limitations.
+  Development uses bounded HTTP ranges and selected classic-TIFF image/DEM windows. Stable representations, byte/time/allocation limits, usable overviews, masks, NoData and header-only references are tested; BigTIFF and unsupported layouts remain explicit limitations.
 
 ## Probe commands
 
@@ -228,14 +227,12 @@ Use these together with:
 ## Recorded validation
 
 These records preserve exact inputs and observations from the named checks.
-Historical suite counts describe that stage of development; the current set has
-eleven suites. Native Rhino checks remain separately recorded in the
+Dates identify when each source or runtime was checked. Native Rhino checks are recorded in the
 [release checklist](../examples/VALIDATION.md).
 
-## Unreleased source-compatibility validation (2026-11-01)
+## Service and download checks (2026-11-01)
 
-The [implementation plan](COMPATIBILITY_IMPLEMENTATION_PLAN.md) records scope and
-status; [example workflows](../examples/COMPATIBILITY_WORKFLOWS.md) save copyable
+The [technical reference](technical/SOURCE_COMPATIBILITY.md) describes source behavior; [example workflows](../examples/COMPATIBILITY_WORKFLOWS.md) save copyable
 URLs, context bounds, layer choices and reproduction commands. The source manifest
 includes verification dates and distinguishes development-only behavior.
 
@@ -251,12 +248,12 @@ raster and a 200 × 200 two-tile mosaic, both built into Core meshes. Direct Nat
 Earth GeoJSON parsed 177 features, its Shapefile ZIP returned three sample features,
 and the cjio Delft CityJSON fixture parsed 160 buildings. These are download/parser/
 Core-placement checks; new interactive Rhino/Grasshopper and installed-package validation
-remains pending. The older Delft-hosted CityJSON URL failed TLS in this batch;
+remains pending. The older Delft-hosted CityJSON URL failed TLS during the recorded check;
 historical local-file results below remain historical results.
 
-## Unreleased medium-priority validation (2026-11-02)
+## Building and imagery checks (2026-11-02)
 
-[The plan](MEDIUM_COMPATIBILITY_PLAN.md) and [example guide](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md) record priorities 6–8 and exact inputs. `medium-compatibility-check` tests LoD selection, sequence headers/records/cancellation, instance matrices, invalid geometry, world files/CRS/cache invalidation, embedded affine/PixelIsPoint GeoTIFFs, image UV clipping/reprojection, terrain centers, projected/geographic WMTS, matrix limits, tile ordering/alpha, corruption, failures and metadata-only references. The suite uses temporary fixtures and no network.
+[The technical reference](technical/BUILDING_AND_IMAGE_FORMATS.md) and [example guide](../examples/BUILDING_AND_IMAGERY.md) record behavior and exact inputs. `medium-compatibility-check` tests LoD selection, sequence headers/records/cancellation, instance matrices, invalid geometry, world files/CRS/cache invalidation, embedded affine/PixelIsPoint GeoTIFFs, image UV clipping/reprojection, terrain centers, projected/geographic WMTS, matrix limits, tile ordering/alpha, corruption, failures and metadata-only references. The suite uses temporary fixtures and no network.
 
 Live PDOK capabilities exposed 19 layers/six supported sets; bounded native EPSG:28992 imagery loaded 36 JPEG tiles at 0.42 m/pixel, yielding a 1536 × 1536 PNG and a 512-triangle clipped Core mesh. The mosaic was visually inspected for continuity, not in Rhino. The cjio multi-LoD fixture parsed ten buildings/348 selected surfaces at LoD 2.2; it lacks CRS metadata, so it is parser-only evidence. Bundled declared-CRS synthetic models/sequence/template each parsed one building/six surfaces, and the rotated PNG generated 512 Core triangles. New native Rhino/installed-package checks on macOS/Windows remain pending.
 
@@ -291,16 +288,15 @@ Bounded comparison requests for the same Museum Island EPSG:25833 bounds also re
 
 These confirm bounded source loading and compatible native coordinate metadata. They do **not** prove visual alignment, Brep quality, progress display or saved-definition compatibility in Rhino. Complete the ATOM entries in `examples/VALIDATION.md` before release. The development build adds ATOM reference-map preloading from feed metadata; interactive validation of that addition remains pending.
 
-## Unreleased low-priority validation (2026-11-02)
+## Remote raster and GeoPackage checks (2026-11-02)
 
-[Plan](LOW_COMPATIBILITY_PLAN.md) · [how-to, URLs and exact bounds](../examples/LOW_COMPATIBILITY_WORKFLOWS.md).
+[Technical reference](technical/REMOTE_RASTERS_AND_GEOPACKAGE.md) · [how-to, URLs and exact bounds](../examples/REMOTE_RASTERS_AND_GEOPACKAGE.md).
 `low-compatibility-check` contains 43 network-independent cases: range refusal,
 invalid headers, truncation, mutation, validator/cache/budget/cancellation behavior,
 COG metadata/windows/overviews/masks/NoData/alpha/placement, decoder allocation
 limits, explicit WGS84 UTM transformations, and GeoPackage catalogs/quoted names/
 RTree/fallback/CRS/holes/attributes/endian/envelopes/collections/malformed geometry/
-limits/cancellation/source immutability. All eight prior suites also pass locally.
-At that stage, the compatibility work passed all nine suites on macOS and Windows. The later correctness and reliability suites bring the current total to eleven.
+limits/cancellation/source immutability. The suite passes on macOS and Windows.
 
 Live probes: Sentinel TCI 11×12 pixels / 2,686,976 range bytes; Copernicus DSM
 4×4 samples / 3,080,192 bytes; GDAL public GeoPackage 10 features / 10 rings with
@@ -308,16 +304,15 @@ RTree. Results are parser/core placement evidence; Rhino visual/Windows-host
 checks remain pending. External bytes are not committed; the saved fixtures are
 synthetic and reproducible with `low-probe examples`.
 
-## Follow-up reader research (2026-11-02)
+## Reader validation (2026-11-02)
 
-[Next-work research](NEXT_WORK_RESEARCH.md) records synthetic reproductions of
+[Reader validation findings](technical/READER_VALIDATION.md) records synthetic reproductions of
 lost GeoJSON/GML interior rings, a truncated DEM repeating its last readable row,
 and inconsistent CRS identifier handling. A tiny BigTIFF also proved basic
 support in the pinned decoder. Inputs are saved separately under
 [research fixtures](../examples/fixtures/research/README.md), including one
 intentionally truncated file. They are diagnostic cases, separate from working
-site-data recommendations. The three high-priority findings are now fixed on
-`main`; see the [correctness implementation](CORRECTNESS_PLAN.md).
+site-data recommendations. These defects are fixed in development; see [reader integrity](technical/READER_INTEGRITY.md).
 
 Run the 52 offline regressions from the repository root:
 
@@ -327,14 +322,12 @@ dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- correctness-check
 
 The checks cover missing row/tile data, valid compressed and edge-tile reads,
 NoData, local BigTIFF, allocation guards, polygon interiors and islands,
-coordinate identifiers, axis conventions and retained AdV source heights. All
-ten suites passed at that stage. Service cancellation has since been implemented
-and covered by the reliability suite below. Native host/unit checks, windowed
+coordinate identifiers, axis conventions and retained AdV source heights. Service cancellation is covered by the reliability suite below. Native host/unit checks, windowed
 local raster reads and remote BigTIFF remain follow-up work.
 
 ## Service reliability validation (2026-11-02)
 
-The [reliability implementation plan](RELIABILITY_PLAN.md) now includes the completed first batch. [Reproduction guide](../examples/RELIABILITY_WORKFLOWS.md): 52 offline checks, a loopback WMS/WCS/OSM fixture server, exact public-service commands and measured limits. Run `reliability-check`; CI includes it alongside the ten previous suites.
+The [service reliability reference](technical/SERVICE_RELIABILITY.md) describes request and cache behavior. [Reproduction guide](../examples/RELIABILITY_WORKFLOWS.md): 52 offline checks, a loopback WMS/WCS/OSM fixture server, exact public-service commands and measured limits. Run `reliability-check`; It runs in macOS/Windows CI.
 
 Live Core checks parsed GeoMet's 39,668,951-byte WMS catalogue (7,606 layers), NRW 100×100 terrain (1,907 bytes), and USGS native EPSG:3857 100×100 terrain (65,924-byte TIFF extracted from a 68,591-byte multipart response). A forced geographic USGS subset returned HTTP 404; the native request succeeded. Overpass returned HTTP 502, so new OSM evidence is offline. Native Rhino cancellation, preview, saved-definition and package checks remain pending.
 

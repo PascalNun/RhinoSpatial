@@ -50,18 +50,17 @@ for checks in Rhino. Automated test results and native Rhino observations are
 recorded separately.
 
 <details>
-<summary>Engineering plans and research records</summary>
+<summary>Technical documentation</summary>
 
-These records explain implementation decisions and the evidence behind them.
-They complement the current user guides; their dates and priority labels refer
-to the work at that time.
+These pages explain supported formats, design constraints, validation methods
+and measured limits.
 
-- [Service and download compatibility](COMPATIBILITY_IMPLEMENTATION_PLAN.md)
-- [Building and imagery formats](MEDIUM_COMPATIBILITY_PLAN.md)
-- [Remote rasters and GeoPackage](LOW_COMPATIBILITY_PLAN.md)
-- [Reader correctness](CORRECTNESS_PLAN.md)
-- [Service reliability and remaining raster work](RELIABILITY_PLAN.md)
-- [Source compatibility research](COMPATIBILITY_RESEARCH.md)
-- [Correctness and reliability research](NEXT_WORK_RESEARCH.md)
+- [Service and download compatibility](technical/SOURCE_COMPATIBILITY.md)
+- [Building and imagery formats](technical/BUILDING_AND_IMAGE_FORMATS.md)
+- [Remote rasters and GeoPackage](technical/REMOTE_RASTERS_AND_GEOPACKAGE.md)
+- [Reader correctness](technical/READER_INTEGRITY.md)
+- [Service reliability and remaining raster work](technical/SERVICE_RELIABILITY.md)
+- [Source compatibility review](technical/SOURCE_COMPATIBILITY_REVIEW.md)
+- [Reader validation findings](technical/READER_VALIDATION.md)
 
 </details>

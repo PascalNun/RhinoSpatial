@@ -28,11 +28,11 @@ for feature availability and the general workflow.
 
 ### Documentation, dependencies and validation
 
-- Add a [documentation index](docs/README.md) and refresh the workflow guides around the complete toolkit. Keep provider-specific examples and engineering history in supporting material.
+- Add a [documentation index](docs/README.md), organize technical references by subject and refresh workflow guides around the complete toolkit. Keep provider-specific examples and detailed format information in supporting material.
 - Save worked source examples, synthetic fixtures, reproduction commands and observed results in the [example guides](examples/README.md#additional-workflows-on-main) and [test catalogue](docs/TEST_SOURCES.md).
-- Record correctness and reliability decisions in the [engineering records](docs/README.md#project-direction-and-maintenance). Windowed local terrain reads and remote BigTIFF remain future work.
+- Document source formats, reader behavior and resource limits in the [technical documentation](docs/README.md#project-direction-and-maintenance). Windowed local terrain reads and remote BigTIFF remain future work.
 - Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.
-- Add 26 service/download, 27 building/imagery and 43 COG/GeoPackage regression cases, plus 52 correctness and 52 service-reliability regressions. The Release build and all eleven suites pass locally; CI runs them on macOS and Windows. Native Rhino preview, material/bake and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
+- Add offline regression coverage for source discovery, file formats, reader correctness and service reliability, with CI on macOS and Windows. Native preview, materials, baking and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
 
 ## 0.4.0 — 2026-11-01
 

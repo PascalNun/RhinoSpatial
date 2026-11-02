@@ -1,6 +1,6 @@
 # Stop, retry and check source loading
 
-These examples require a development build from `main`. The public package remains 0.4.0. WMS, WCS and OSM reliability is implemented; local terrain windows and remote BigTIFF remain follow-ups in the [plan](../docs/RELIABILITY_PLAN.md).
+These examples require a development build from `main`. The public package remains 0.4.0. WMS, WCS and OSM reliability is implemented; local terrain windows and remote BigTIFF remain follow-ups in the [technical reference](../docs/technical/SERVICE_RELIABILITY.md).
 
 ## Automated checks
 
@@ -43,7 +43,7 @@ Checked on 2026-11-02 using the new Core clients:
 | NRW `nw_dgm`, native EPSG:25832 | 100 × 100 raster, 10,000 finite samples, 1,907-byte TIFF; approximately 1.8 s |
 | USGS `DEP3Elevation`, native EPSG:3857 | 100 × 100 raster, 10,000 finite samples, 65,924-byte extracted TIFF; approximately 6.0 s |
 
-The USGS HTTP response was also inspected directly: HTTP 200, `multipart/related`, boundary `wcs`, 68,591 body bytes. A forced EPSG:4326 request returned HTTP 404 and was not accepted as coverage; the recorded native-coordinate request succeeded. The terrain component uses advertised native coverage coordinates. An Overpass POST probe returned HTTP 502, so this batch claims offline OSM regression coverage rather than a new successful live Overpass check.
+The USGS HTTP response was also inspected directly: HTTP 200, `multipart/related`, boundary `wcs`, 68,591 body bytes. A forced EPSG:4326 request returned HTTP 404 and was not accepted as coverage; the recorded native-coordinate request succeeded. The terrain component uses advertised native coverage coordinates. An Overpass POST probe returned HTTP 502, OSM regression coverage here uses offline fixtures, with no successful live Overpass result from this check.
 
 ```sh
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- probe wms 'https://geo.weather.gc.ca/geomet?SERVICE=WMS&REQUEST=GetCapabilities'

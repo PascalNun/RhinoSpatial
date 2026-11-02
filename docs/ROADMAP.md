@@ -30,14 +30,14 @@ cancellation, enforce response limits and validate completed downloads before
 cache reuse. These changes support the same everyday workflow: load a layer,
 inspect it, change the area and retry when needed.
 
-The [engineering records](README.md#project-direction-and-maintenance) preserve
-implementation decisions, measurements and regression evidence. The public
+The [technical documentation](README.md#project-direction-and-maintenance) explains
+design decisions, measurements and regression evidence. The public
 package remains 0.4.0 until a separately validated release.
 
 ## Next engineering priorities
 
 The next engineering work concentrates on larger raster datasets within the
-existing terrain and imagery workflows. The [reliability plan](RELIABILITY_PLAN.md)
+existing terrain and imagery workflows. The [reliability plan](technical/SERVICE_RELIABILITY.md)
 records acceptance checks and efficiency measurements.
 
 | Order | Work | Everyday benefit |

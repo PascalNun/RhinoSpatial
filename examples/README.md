@@ -38,9 +38,9 @@ The public release is **0.4.0**. The following recipes require a development bui
 | What you want to try | Guide and sample data |
 | --- | --- |
 | Discover API collections, load direct vector/building downloads, or use terrain tile feeds | [Services and download workflows](COMPATIBILITY_WORKFLOWS.md) |
-| Use CityJSON detail/sequence/templates, a rotated image or tiled map imagery | [Building detail and imagery workflows](MEDIUM_COMPATIBILITY_WORKFLOWS.md), with [small local fixtures](fixtures/medium) |
+| Use CityJSON detail/sequence/templates, a rotated image or tiled map imagery | [Building detail and imagery workflows](BUILDING_AND_IMAGERY.md), with [small local fixtures](fixtures/medium) |
 | Check slow, interrupted and oversized service requests | [Service reliability workflows](RELIABILITY_WORKFLOWS.md), with a local fixture server |
-| Load a remote raster window or choose layers in a GeoPackage | [Remote rasters and GeoPackage workflows](LOW_COMPATIBILITY_WORKFLOWS.md), with [small local fixtures](fixtures/low) |
+| Load a remote raster window or choose layers in a GeoPackage | [Remote rasters and GeoPackage workflows](REMOTE_RASTERS_AND_GEOPACKAGE.md), with [small local fixtures](fixtures/low) |
 
 These recipes keep exact URLs, coordinates, sample results and commands together for reproducibility. The same workflow can be used with another supported source. Sample files are synthetic unless the guide identifies a public provider.
 
@@ -59,4 +59,4 @@ For an overview of what is in the release and what is on `main`, see the [versio
 
 For maintainers, validate a complete study as well as an isolated source: imagery, vectors, terrain and buildings should keep their shared placement. Record whether a result was checked in Rhino, through a core probe or only from metadata. Those checks answer different questions.
 
-Maintainers can find small correctness regression inputs, including deliberately invalid terrain, in the [reader research fixtures](fixtures/research/README.md), with findings in the [next-work report](../docs/NEXT_WORK_RESEARCH.md). These are separate from the working examples above.
+Maintainers can find small correctness regression inputs, including deliberately invalid terrain, in the [reader research fixtures](fixtures/research/README.md), with findings in the [reader validation report](../docs/technical/READER_VALIDATION.md). These are separate from the working examples above.

@@ -8,7 +8,7 @@ build. The public package remains 0.4.0. URLs and results below were checked on
 
 Use the existing Grasshopper examples as starting points: `01-wms-wfs-basics.gh`
 for vectors, `02-geotiff-terrain.gh` for terrain, and `03-lod2-buildings.gh` for
-buildings. These recipes do not add new binary Grasshopper definitions. Keep one
+buildings. Keep one
 shared `Spatial Context` for every layer in a study. The machine-readable inputs
 are also saved in [sources.json](sources.json).
 
@@ -119,9 +119,9 @@ loader. EPSG:7415 uses the supported RD New horizontal transform; source Z
 values are retained without vertical-datum conversion.
 
 The older [Delfshaven CityJSON example](https://3d.bk.tudelft.nl/opendata/cityjson/3dcities/v2.0/3-20-DELFSHAVEN.city.json)
-failed TLS validation from this machine during this batch. Historical local-file
-parser results remain in the catalogue; it is not a verified direct-download
-example for this batch. Certificate checks were retained.
+failed TLS validation during the recorded check on 2026-11-01. Its historical
+local-file parser results remain in the catalogue; the direct download was not
+verified. Certificate checks were retained.
 
 ## Reproduce the live probes
 

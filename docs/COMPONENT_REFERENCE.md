@@ -153,7 +153,7 @@ the CRS; polygon exterior/hole rings remain feature-grouped closed curves, with
 points/lines/multi-geometries/collections and string attributes in the existing XY
 vector contract. Z/M are not a building/elevation import. Raster tables, editing,
 SQL, curved/extended geometry and automatic remote GeoPackage downloads are not
-supported. See [limits and saved examples](../examples/LOW_COMPATIBILITY_WORKFLOWS.md).
+supported. See [limits and saved examples](../examples/REMOTE_RASTERS_AND_GEOPACKAGE.md).
 
 ### Typical WFS workflow
 
@@ -266,7 +266,7 @@ bytes. The existing mesh/material/image-path outputs retain affine placement,
 UV clipping and localization. Remote inputs revalidate on a new solve. Reference
 Source reads headers only; saved selections retain priority. BigTIFF, striped
 files, unsupported masks/codecs and range refusal return explicit errors. See
-[the complete budgets and recipes](../examples/LOW_COMPATIBILITY_WORKFLOWS.md).
+[the complete budgets and recipes](../examples/REMOTE_RASTERS_AND_GEOPACKAGE.md).
 
 ## Load Terrain: elevation and ground surfaces
 
@@ -417,7 +417,7 @@ the same building reader.
 
 For each CityObject, import all geometry parts at one selected numeric LoD: the highest at or below 2.2, or the lowest higher value if none is available below that threshold. Geometry without any LoD retains legacy behavior; mixing declared and unspecified levels fails because a complete representation cannot be chosen safely. Hierarchy-wide LoD selection and material/texture import are not added.
 
-CityJSONSeq records are streamed with independent vertex indices and shared header transform, CRS and templates. GeometryInstance vertices use the declared matrix followed by the transformed reference-point anchor; template vertices are not quantized a second time. Invalid indices, duplicate building ids, malformed later records and unsupported selected primitives fail explicitly. Limits are 64 × 1024² characters per record, 512 × 1024² stream characters, 100,000 returned building objects and four million selected source surface points. Local/ZIP/direct downloads use the same reader. Reference metadata can stop at a declared header extent without constructing geometry. See the [building format examples](../examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md).
+CityJSONSeq records are streamed with independent vertex indices and shared header transform, CRS and templates. GeometryInstance vertices use the declared matrix followed by the transformed reference-point anchor; template vertices are not quantized a second time. Invalid indices, duplicate building ids, malformed later records and unsupported selected primitives fail explicitly. Limits are 64 × 1024² characters per record, 512 × 1024² stream characters, 100,000 returned building objects and four million selected source surface points. Local/ZIP/direct downloads use the same reader. Reference metadata can stop at a declared header extent without constructing geometry. See the [building format examples](../examples/BUILDING_AND_IMAGERY.md).
 
 </details>
 
@@ -568,7 +568,7 @@ otherwise unsupported CRS. An invalid or unsupported vector transformation
 returns an error instead of silently removing points.
 
 These changes require the development build; the public package remains 0.4.0.
-See the [implementation and validation record](CORRECTNESS_PLAN.md).
+See [reader integrity and validation](technical/READER_INTEGRITY.md).
 
 Remote BigTIFF remains unsupported by the COG reader. A basic probe confirmed
 that the shipped decoder can read BigTIFF; bounded 64-bit remote header/directory

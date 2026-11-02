@@ -8,8 +8,7 @@ Checks below were recorded on 2026-11-02.
 
 Keep one `Spatial Context` for a study. Existing definitions `02-geotiff-terrain.gh`
 and `03-lod2-buildings.gh` can be reused by replacing source inputs. Component
-names, GUIDs and parameter layouts are retained; these recipes do not add new
-binary Grasshopper definitions.
+names, GUIDs and parameter layouts are retained.
 
 ## Small local examples with declared coordinates
 
@@ -66,8 +65,8 @@ geometry parts at the selected level. This does not add hierarchy-wide LoD
 selection, material/texture import or a public LoD selector.
 
 The [official CityJSONSeq page](https://www.cityjson.org/cityjsonseq/) links real
-sequence samples. Its Delft data host failed TLS from this machine during this
-batch; those files are not advertised here as verified downloads. The bundled
+sequence samples. Its Delft data host failed TLS during the recorded check on 2026-11-02;
+those downloads remain unverified. The bundled
 sequence exercises shared transform/CRS and independent record vertex indices.
 
 ## Live WMTS imagery from PDOK

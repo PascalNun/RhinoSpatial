@@ -6,8 +6,8 @@ COG and choose vector layers in a local GeoPackage. The features are merged into
 remains 0.4.0. For general source selection, start with
 [Working with project data](../docs/WORKING_WITH_PROJECT_DATA.md).
 
-The [implementation record](../docs/LOW_COMPATIBILITY_PLAN.md) keeps the original
-plan and validation evidence. Exact URLs and technical limits are retained below
+The [technical reference](../docs/technical/REMOTE_RASTERS_AND_GEOPACKAGE.md) describes
+source handling and validation. Exact URLs and technical limits are retained below
 so these examples can be repeated.
 
 ## Start with small, repeatable examples
@@ -131,8 +131,7 @@ while idle to reclaim space. No whole remote TIFF is stored there.
 GeoPackage support is local, read-only, standard feature tables and standard WKB
 points/lines/polygons/multi-geometries/collections. Holes remain separate closed
 curves with the feature's grouping. Optional curved/extended geometry, raster
-tables, editing, SQL input and automatic remote GeoPackage downloads are outside
-this batch. Declared EPSG organization codes determine the CRS, not a guessed
+tables, editing, SQL input and automatic remote GeoPackage downloads are unsupported. Declared EPSG organization codes determine the CRS, not a guessed
 interpretation of a local SRS id. Catalog references require transformable extents.
 
 Queries use an advertised RTree when the platform supports it, otherwise a bounded

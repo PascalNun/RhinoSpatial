@@ -175,10 +175,10 @@ workflow across sources; the cases below retain exact inputs for regression work
 - confirm ignored staging/package artifacts are not committed
 
 
-## Unreleased source compatibility
+## Service and download workflows (development)
 
 Use [COMPATIBILITY_WORKFLOWS.md](COMPATIBILITY_WORKFLOWS.md) and record the Rhino
-version/platform and actual results. These checks are pending for this batch:
+version/platform and actual results. These host checks remain pending:
 
 - [ ] Existing saved definitions open without changed GUIDs or parameter-layout warnings.
 - [ ] API-root layer listing, explicit multi-collection choice and optional single-collection Layer work in Grasshopper.
@@ -191,9 +191,9 @@ version/platform and actual results. These checks are pending for this batch:
 - [ ] Repeat the relevant checks on Windows before a public release.
 
 
-## Unreleased medium-priority compatibility
+## Building and imagery formats (development)
 
-Use [MEDIUM_COMPATIBILITY_WORKFLOWS.md](MEDIUM_COMPATIBILITY_WORKFLOWS.md). These native checks remain pending:
+Use the [building and imagery guide](BUILDING_AND_IMAGERY.md). These native checks remain pending:
 
 - [ ] Open existing definitions with unchanged GUIDs and parameter layouts on macOS and Windows.
 - [ ] Load each bundled CityJSON/sequence/template example: one six-surface building at the expected coordinates, with no alternate-LoD overlay.
@@ -204,11 +204,11 @@ Use [MEDIUM_COMPATIBILITY_WORKFLOWS.md](MEDIUM_COMPATIBILITY_WORKFLOWS.md). Thes
 - [ ] Confirm WMTS Reference Source reads capabilities without tile downloads and saved selections retain priority.
 - [ ] Cancel a tile batch and retry; confirm no partial image is presented and cached results remain usable.
 
-## Unreleased low-priority compatibility
+## Remote rasters and GeoPackage (development)
 
-Local Release build and all nine sandbox suites pass, including 43 new cases.
-The low-priority [plan](../docs/LOW_COMPATIBILITY_PLAN.md) and
-[how-to](LOW_COMPATIBILITY_WORKFLOWS.md) record source URLs, test bounds, limits
+The remote raster and GeoPackage suite covers 43 offline cases.
+The [technical reference](../docs/technical/REMOTE_RASTERS_AND_GEOPACKAGE.md) and
+[how-to](REMOTE_RASTERS_AND_GEOPACKAGE.md) record source URLs, test bounds, limits
 and three reproducible fixtures. Live Sentinel/Copernicus range subsets and the
 GDAL public GeoPackage were verified; these are not native Rhino screenshots.
 
@@ -221,16 +221,12 @@ Before release:
 - [ ] Use GeoPackage/COG Reference Source on a fresh map, then confirm saved selections retain priority and no geometry is imported.
 - [ ] Test installed-package assembly resolution in Rhino on both platforms. Windows platform-provider sandbox CI is useful but does not replace Rhino host validation.
 
-No installed plugin, public version, release assets or Food4Rhino listing are
-changed by this implementation batch.
+## Reader integrity and placement
 
-## Follow-up correctness research
-
-The three high-priority cases in the [research report](../docs/NEXT_WORK_RESEARCH.md)
-are implemented and covered by automated regressions. The native checks below
-remain pending. The [next reliability plan](../docs/RELIABILITY_PLAN.md) records
-the completed service reliability batch and remaining terrain-window/remote
-BigTIFF work. Automated coverage does not complete the native checks below.
+[Reader validation](../docs/technical/READER_VALIDATION.md) documents the original
+reproductions and regression coverage. The [reliability reference](../docs/technical/SERVICE_RELIABILITY.md)
+describes service loading and planned raster extensions. The native checks below
+remain pending.
 
 - [ ] Incomplete scanline/tile reads fail without repeating old elevations or publishing partial terrain.
 - [ ] Equivalent GeoJSON/GML/Shapefile/GeoPackage polygons retain courtyard boundaries and feature grouping.

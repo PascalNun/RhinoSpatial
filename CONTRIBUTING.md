@@ -30,6 +30,7 @@ Write for architects and designers who need enough technical detail to choose an
 - Keep general workflows applicable to different providers and places. Put exact URLs, coordinates and source quirks in linked examples or the test catalogue.
 - Present the toolkit as a whole. Give each source category useful coverage; avoid making the latest fix, one city or one provider the organizing idea of the documentation.
 - Describe current behavior in guides and references. Keep development history, individual bug reproductions and dated test results in the changelog and maintainer records.
+- Keep documentation about the software and its design decisions. Leave task administration, permission reminders and temporary progress logs out of repository documentation.
 - Keep request parameters, implementation details, budgets and probe commands in the technical reference or maintainer notes.
 - Distinguish features in the public release from additions on `main`, and automated checks from results actually inspected in Rhino.
 - Preserve technical facts, useful examples and license notices when making an introduction shorter.
