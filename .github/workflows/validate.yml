@@ -58,6 +58,9 @@ jobs:
       - name: Check correctness regressions
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- correctness-check
 
+      - name: Check service reliability
+        run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- reliability-check
+
       - name: Check ATOM downloads and cache
         run: dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- lod2-atom-check
 

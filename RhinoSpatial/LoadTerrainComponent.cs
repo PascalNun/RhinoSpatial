@@ -69,16 +69,19 @@ namespace RhinoSpatial
 
                 if (InPreSolve)
                 {
-                    var task = Task.Run(() => ComputeAsync(requestData, CancelToken), CancelToken);
+                    var token = CancelToken;
+                    var task = Task.Run(() => ComputeWithDeadlineAsync(requestData, token), token);
                     TaskList.Add(task);
                     return;
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
                 if (!GetSolveResults(dataAccess, out var results))
                 {
-                    results = ComputeAsync(requestData, CancellationToken.None).GetAwaiter().GetResult();
+                    results = ComputeWithDeadlineAsync(requestData, CancelToken).GetAwaiter().GetResult();
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
                 Message = string.Empty;
                 dataAccess.SetDataList(0, results.TerrainMeshes);
                 dataAccess.SetData(1, results.Status);
@@ -115,6 +118,20 @@ namespace RhinoSpatial
                 spatialContext);
         }
 
+        private async Task<SolveResults> ComputeWithDeadlineAsync(RequestData requestData, CancellationToken caller)
+        {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(caller);
+            deadline.CancelAfter(TimeSpan.FromMinutes(2));
+            try
+            {
+                var result = await ComputeAsync(requestData, deadline.Token).ConfigureAwait(false);
+                deadline.Token.ThrowIfCancellationRequested();
+                return result;
+            }
+            catch (OperationCanceledException ex) when (!caller.IsCancellationRequested)
+            { throw new TimeoutException("Terrain loading exceeded its two-minute operation limit.", ex); }
+        }
+
         private async Task<SolveResults> ComputeAsync(RequestData requestData, CancellationToken cancellationToken)
         {
             var failures = new List<string>();
@@ -126,8 +143,9 @@ namespace RhinoSpatial
                 {
                     return await ComputeForSourceAsync(source, requestData.SpatialContext, cancellationToken);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     failures.Add($"{source.DisplayName}: {ex.Message}");
                 }
             }
@@ -147,15 +165,19 @@ namespace RhinoSpatial
             SpatialContext2D spatialContext,
             CancellationToken cancellationToken)
         {
-            if(CogReader.LooksLike(source.BaseUrl))
+            if (CogReader.LooksLike(source.BaseUrl))
             {
-                var remote=await new CogReader().ReadTerrainAsync(source.BaseUrl,spatialContext,cancellationToken).ConfigureAwait(false);
-                var raster=remote.Raster;var bounds=raster.GeoTransform!.Bounds(raster.Width,raster.Height);
-                var mesh=BuildTerrainMesh(raster,bounds,spatialContext,out var baseline);
-                SpatialTerrainCache.Store(spatialContext,raster.SrsName,bounds,raster,baseline);
-                return new SolveResults { TerrainMeshes=new List<Mesh>{mesh},
-                    Status=$"Loaded remote COG DEM window {raster.Width}×{raster.Height} ({raster.SrsName}), {remote.RangeRequests} range request(s), {remote.TransferredBytes:N0} bytes transferred. "+BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)+BuildMissingElevationNote(raster),
-                    MessageLevel=GH_RuntimeMessageLevel.Remark };
+                var remote = await new CogReader().ReadTerrainAsync(source.BaseUrl, spatialContext, cancellationToken).ConfigureAwait(false);
+                var raster = remote.Raster; var bounds = raster.GeoTransform!.Bounds(raster.Width, raster.Height);
+                var mesh = BuildTerrainMesh(raster, bounds, spatialContext, out var baseline, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                SpatialTerrainCache.Store(spatialContext, raster.SrsName, bounds, raster, baseline);
+                return new SolveResults
+                {
+                    TerrainMeshes = new List<Mesh> { mesh },
+                    Status = $"Loaded remote COG DEM window {raster.Width}×{raster.Height} ({raster.SrsName}), {remote.RangeRequests} range request(s), {remote.TransferredBytes:N0} bytes transferred. " + BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates) + BuildMissingElevationNote(raster, cancellationToken),
+                    MessageLevel = GH_RuntimeMessageLevel.Remark
+                };
             }
 
             if (source.Kind == TerrainSourceKind.GlobalSkadiTiles)
@@ -165,12 +187,12 @@ namespace RhinoSpatial
 
             if (source.Kind == TerrainSourceKind.LocalGeoTiffDem)
             {
-                return ComputeLocalGeoTiffTerrain(source, spatialContext);
+                return ComputeLocalGeoTiffTerrain(source, spatialContext, cancellationToken);
             }
 
             if (source.Kind == TerrainSourceKind.LocalTextGridDem)
             {
-                return ComputeLocalTextGridTerrain(source, spatialContext);
+                return ComputeLocalTextGridTerrain(source, spatialContext, cancellationToken);
             }
 
             if (!System.Text.RegularExpressions.Regex.IsMatch(source.BaseUrl, @"[?&]service=wcs(?:&|$)", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
@@ -189,16 +211,21 @@ namespace RhinoSpatial
                 finally { System.Threading.Volatile.Write(ref progressActive, 0); }
                 if (atom is not null)
                 {
-                    var terrain = BuildTerrainMesh(atom.Raster, atom.Bounds, spatialContext, out var baseline);
+                    var terrain = BuildTerrainMesh(atom.Raster, atom.Bounds, spatialContext, out var baseline, cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
                     SpatialTerrainCache.Store(spatialContext, atom.Raster.SrsName, atom.Bounds, atom.Raster, baseline);
-                    return new SolveResults { TerrainMeshes = new List<Mesh> { terrain },
-                        Status = atom.Status + " " + BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates) + BuildMissingElevationNote(atom.Raster), MessageLevel = GH_RuntimeMessageLevel.Remark };
+                    return new SolveResults
+                    {
+                        TerrainMeshes = new List<Mesh> { terrain },
+                        Status = atom.Status + " " + BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates) + BuildMissingElevationNote(atom.Raster, cancellationToken),
+                        MessageLevel = GH_RuntimeMessageLevel.Remark
+                    };
                 }
             }
 
             try
             {
-                var capabilities = await _wcsClient.LoadCapabilitiesAsync(source.BaseUrl);
+                var capabilities = await _wcsClient.LoadCapabilitiesAsync(source.BaseUrl, cancellationToken);
 
                 var coverageId = source.CoverageId;
                 if (!capabilities.Coverages.Exists(coverage => coverage.CoverageId.Equals(coverageId, StringComparison.OrdinalIgnoreCase)))
@@ -227,7 +254,7 @@ namespace RhinoSpatial
                     options.DescribeCoverageBaseUrl = capabilities.DescribeCoverageUrl;
                 }
 
-                var description = await _wcsClient.LoadCoverageDescriptionAsync(options);
+                var description = await _wcsClient.LoadCoverageDescriptionAsync(options, cancellationToken);
 
                 var requestBoundingBox = ResolveRequestedBoundingBox(spatialContext, description);
 
@@ -236,13 +263,14 @@ namespace RhinoSpatial
                 options.AxisYLabel = description.AxisYLabel;
                 options.BoundingBox = requestBoundingBox;
 
-                var coverage = await _wcsClient.DownloadCoverageAsync(options);
+                var coverage = await _wcsClient.DownloadCoverageAsync(options, cancellationToken);
 
                 var mesh = BuildTerrainMesh(
                     coverage.Raster,
                     requestBoundingBox,
                     spatialContext,
-                    out var elevationBase);
+                    out var elevationBase, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 SpatialTerrainCache.Store(
                     spatialContext,
                     description.NativeSrs,
@@ -250,7 +278,7 @@ namespace RhinoSpatial
                     coverage.Raster,
                     elevationBase);
                 var status = BuildStatusMessage(coverageId, spatialContext.UseAbsoluteCoordinates, coverage.UsedCachedFile)
-                    + BuildMissingElevationNote(coverage.Raster);
+                    + BuildMissingElevationNote(coverage.Raster, cancellationToken);
 
                 return new SolveResults
                 {
@@ -258,15 +286,16 @@ namespace RhinoSpatial
                     Status = $"{source.CreateStatusPrefix()}{status}"
                 };
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 throw new InvalidOperationException(ex.Message, ex);
             }
         }
 
         private SolveResults ComputeLocalGeoTiffTerrain(
             ResolvedTerrainSource source,
-            SpatialContext2D spatialContext)
+            SpatialContext2D spatialContext, CancellationToken cancellationToken)
         {
             if (!File.Exists(source.BaseUrl))
             {
@@ -277,7 +306,7 @@ namespace RhinoSpatial
             var coverageId = string.IsNullOrWhiteSpace(source.CoverageId)
                 ? Path.GetFileNameWithoutExtension(source.BaseUrl)
                 : source.CoverageId;
-            var raster = TerrainRasterReader.ReadRaster(source.BaseUrl, coverageId, rasterInfo.SrsName);
+            var raster = TerrainRasterReader.ReadRaster(source.BaseUrl, coverageId, rasterInfo.SrsName, cancellationToken);
 
             if (RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
                     spatialContext,
@@ -294,26 +323,27 @@ namespace RhinoSpatial
                 };
             }
 
-            var mesh = BuildTerrainMesh(raster, rasterInfo.BoundingBox, spatialContext, out var elevationBase);
+            var mesh = BuildTerrainMesh(raster, rasterInfo.BoundingBox, spatialContext, out var elevationBase, cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             SpatialTerrainCache.Store(
-                spatialContext,
-                rasterInfo.SrsName,
-                rasterInfo.BoundingBox,
-                raster,
-                elevationBase);
+            spatialContext,
+            rasterInfo.SrsName,
+            rasterInfo.BoundingBox,
+            raster,
+            elevationBase);
 
             return new SolveResults
             {
                 TerrainMeshes = new List<Mesh> { mesh },
-                Status = $"{source.CreateStatusPrefix()}Loaded local terrain GeoTIFF '{Path.GetFileName(source.BaseUrl)}' ({rasterInfo.Width}x{rasterInfo.Height}, {rasterInfo.SrsName}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}{BuildMissingElevationNote(raster)}",
+                Status = $"{source.CreateStatusPrefix()}Loaded local terrain GeoTIFF '{Path.GetFileName(source.BaseUrl)}' ({rasterInfo.Width}x{rasterInfo.Height}, {rasterInfo.SrsName}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}{BuildMissingElevationNote(raster, cancellationToken)}",
                 MessageLevel = GH_RuntimeMessageLevel.Remark
             };
         }
 
         private SolveResults ComputeLocalTextGridTerrain(
             ResolvedTerrainSource source,
-            SpatialContext2D spatialContext)
+            SpatialContext2D spatialContext, CancellationToken cancellationToken)
         {
             if (!File.Exists(source.BaseUrl))
             {
@@ -345,19 +375,20 @@ namespace RhinoSpatial
                 };
             }
 
-            var mesh = BuildTerrainMesh(readResult.Raster, readResult.BoundingBox, spatialContext, out var elevationBase);
+            var mesh = BuildTerrainMesh(readResult.Raster, readResult.BoundingBox, spatialContext, out var elevationBase, cancellationToken);
 
+            cancellationToken.ThrowIfCancellationRequested();
             SpatialTerrainCache.Store(
-                spatialContext,
-                readResult.SourceSrs,
-                readResult.BoundingBox,
-                readResult.Raster,
-                elevationBase);
+            spatialContext,
+            readResult.SourceSrs,
+            readResult.BoundingBox,
+            readResult.Raster,
+            elevationBase);
 
             return new SolveResults
             {
                 TerrainMeshes = new List<Mesh> { mesh },
-                Status = $"{source.CreateStatusPrefix()}Loaded local terrain {readResult.FormatLabel} '{Path.GetFileName(source.BaseUrl)}' ({readResult.Raster.Width}x{readResult.Raster.Height}, {readResult.SourceSrs}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}{BuildMissingElevationNote(readResult.Raster)}",
+                Status = $"{source.CreateStatusPrefix()}Loaded local terrain {readResult.FormatLabel} '{Path.GetFileName(source.BaseUrl)}' ({readResult.Raster.Width}x{readResult.Raster.Height}, {readResult.SourceSrs}) {BuildTerrainAlignmentNote(spatialContext.UseAbsoluteCoordinates)}{BuildMissingElevationNote(readResult.Raster, cancellationToken)}",
                 MessageLevel = GH_RuntimeMessageLevel.Remark
             };
         }
@@ -390,7 +421,7 @@ namespace RhinoSpatial
                     ex);
             }
 
-            var validElevationCount = CountValidElevations(raster);
+            var validElevationCount = CountValidElevations(raster, cancellationToken);
             if (validElevationCount < 4)
             {
                 throw new InvalidOperationException(
@@ -402,15 +433,16 @@ namespace RhinoSpatial
                 raster,
                 spatialContext.Wgs84BoundingBox,
                 spatialContext,
-                out var elevationBase);
+                out var elevationBase, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             SpatialTerrainCache.Store(
-                spatialContext,
-                raster.SrsName,
-                spatialContext.Wgs84BoundingBox,
-                raster,
-                elevationBase);
+            spatialContext,
+            raster.SrsName,
+            spatialContext.Wgs84BoundingBox,
+            raster,
+            elevationBase);
             var status = BuildStatusMessage(raster.CoverageId, spatialContext.UseAbsoluteCoordinates, false)
-                + BuildMissingElevationNote(raster)
+                + BuildMissingElevationNote(raster, cancellationToken)
                 + " The built-in fallback is intended for quick context; use explicit terrain for project-grade elevation.";
 
             return new SolveResults
@@ -440,9 +472,9 @@ namespace RhinoSpatial
                 : "aligned to the shared local terrain/building elevation baseline.";
         }
 
-        private static string BuildMissingElevationNote(TerrainRasterData raster)
+        private static string BuildMissingElevationNote(TerrainRasterData raster, CancellationToken cancellationToken)
         {
-            var missing = raster.Elevations.Length - CountValidElevations(raster);
+            var missing = raster.Elevations.Length - CountValidElevations(raster, cancellationToken);
             return missing == 0
                 ? string.Empty
                 : $" The source contains {missing} missing elevation sample(s); affected areas are left open in the terrain surface.";
@@ -479,15 +511,17 @@ namespace RhinoSpatial
             TerrainRasterData raster,
             BoundingBox2D sampleBounds,
             SpatialContext2D spatialContext,
-            out double elevationBase)
+            out double elevationBase, CancellationToken cancellationToken)
         {
-            var candidateBase = spatialContext.UseAbsoluteCoordinates ? 0.0 : ResolveElevationBase(raster);
+            cancellationToken.ThrowIfCancellationRequested();
+            var candidateBase = spatialContext.UseAbsoluteCoordinates ? 0.0 : ResolveElevationBase(raster, cancellationToken);
             var data = TerrainMeshBuilder.Build(
                 raster,
                 sampleBounds,
                 spatialContext,
                 Math.Clamp(InternalGridSize, 64, DefaultMaxGridSizeLimit),
-                candidateBase);
+                candidateBase, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             elevationBase = spatialContext.UseAbsoluteCoordinates
                 ? 0.0
                 : SpatialElevationBaselineCache.ResolveOrStore(spatialContext, candidateBase);
@@ -509,12 +543,14 @@ namespace RhinoSpatial
             return mesh;
         }
 
-        private static double ResolveElevationBase(TerrainRasterData raster)
+        private static double ResolveElevationBase(TerrainRasterData raster, CancellationToken cancellationToken)
         {
             var minZ = double.PositiveInfinity;
 
+            var index = 0;
             foreach (var elevation in raster.Elevations)
             {
+                if ((index++ & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
                 if (TerrainMeshBuilder.IsNoData(raster, elevation))
                 {
                     continue;
@@ -534,11 +570,13 @@ namespace RhinoSpatial
             return minZ;
         }
 
-        private static int CountValidElevations(TerrainRasterData raster)
+        private static int CountValidElevations(TerrainRasterData raster, CancellationToken cancellationToken)
         {
             var validCount = 0;
+            var index = 0;
             foreach (var elevation in raster.Elevations)
             {
+                if ((index++ & 4095) == 0) cancellationToken.ThrowIfCancellationRequested();
                 if (TerrainMeshBuilder.IsNoData(raster, elevation))
                 {
                     continue;

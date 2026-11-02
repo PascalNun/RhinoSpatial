@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,15 +56,20 @@ namespace RhinoSpatial
 
                 if (InPreSolve)
                 {
-                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData), CancelToken);
+                    var token = CancelToken;
+                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData, token), token);
                     TaskList.Add(task);
                     return;
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
+
                 if (!GetSolveResults(dataAccess, out SolveResults result))
                 {
-                    result = ComputeSafe(requestData);
+                    result = ComputeSafe(requestData, CancelToken);
                 }
+
+                if (CancelToken.IsCancellationRequested) return;
 
                 if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
                 {
@@ -114,11 +120,11 @@ namespace RhinoSpatial
             return true;
         }
 
-        private SolveResults Compute(RequestData requestData)
+        private SolveResults Compute(RequestData requestData, CancellationToken token)
         {
-            var wmts=new WmtsClient().TryLoadCapabilitiesAsync(requestData.BaseUrl,CancelToken).GetAwaiter().GetResult();
-            var layers=wmts is null ? _wmsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult()
-                : wmts.Layers.Select(l=>new WmsLayerInfo(l.Id,l.Title,l.Links.Where(link=>wmts.Sets.ContainsKey(link.Set)).Select(link=>wmts.Sets[link.Set].Srs).ToList(),l.Wgs84Bounds)).ToList();
+            var wmts = new WmtsClient().TryLoadCapabilitiesAsync(requestData.BaseUrl, token).GetAwaiter().GetResult();
+            var layers = wmts is null ? _wmsClient.LoadLayersAsync(requestData.BaseUrl, token).GetAwaiter().GetResult()
+                : wmts.Layers.Select(l => new WmsLayerInfo(l.Id, l.Title, l.Links.Where(link => wmts.Sets.ContainsKey(link.Set)).Select(link => wmts.Sets[link.Set].Srs).ToList(), l.Wgs84Bounds)).ToList();
 
             return new SolveResults
             {
@@ -126,11 +132,11 @@ namespace RhinoSpatial
             };
         }
 
-        private SolveResults ComputeSafe(RequestData requestData)
+        private SolveResults ComputeSafe(RequestData requestData, CancellationToken token)
         {
             try
             {
-                return Compute(requestData);
+                return SourceSolveDeadline.Run(token, ct => Compute(requestData, ct));
             }
             catch (Exception ex)
             {

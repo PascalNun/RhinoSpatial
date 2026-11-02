@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -95,15 +96,20 @@ namespace RhinoSpatial
 
             if (InPreSolve)
             {
-                Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData), CancelToken);
+                var token = CancelToken;
+                Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData, token), token);
                 TaskList.Add(task);
                 return;
             }
 
+            if (CancelToken.IsCancellationRequested) { ClearPreviewState(); return; }
+
             if (!GetSolveResults(dataAccess, out SolveResults result))
             {
-                result = ComputeSafe(requestData);
+                result = ComputeSafe(requestData, CancelToken);
             }
+
+            if (CancelToken.IsCancellationRequested) { ClearPreviewState(); return; }
 
             if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
             {
@@ -303,7 +309,7 @@ namespace RhinoSpatial
             return text.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private SolveResults Compute(RequestData requestData)
+        private SolveResults Compute(RequestData requestData, CancellationToken token)
         {
             var failures = new List<string>();
 
@@ -311,10 +317,11 @@ namespace RhinoSpatial
             {
                 try
                 {
-                    return ComputeForSource(source, requestData.SpatialContext, requestData.Format);
+                    return ComputeForSource(source, requestData.SpatialContext, requestData.Format, token);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
                 {
+                    token.ThrowIfCancellationRequested();
                     failures.Add($"{source.DisplayName}: {ex.Message}");
                 }
             }
@@ -328,19 +335,25 @@ namespace RhinoSpatial
             };
         }
 
-        private SolveResults ComputeForSource(ResolvedImagerySource source, SpatialContext2D spatialContext, string format)
+        private SolveResults ComputeForSource(ResolvedImagerySource source, SpatialContext2D spatialContext, string format, CancellationToken token)
         {
-            var wmts=_wmtsClient.TryLoadCapabilitiesAsync(source.BaseUrl,CancelToken).GetAwaiter().GetResult();
-            if(wmts is not null)
+            var wmts = _wmtsClient.TryLoadCapabilitiesAsync(source.BaseUrl, token).GetAwaiter().GetResult();
+            if (wmts is not null)
             {
-                var plan=WmtsClient.Plan(wmts,source.PreferredLayerName,spatialContext,format);
-                var image=_wmtsClient.DownloadAsync(plan,CancelToken).GetAwaiter().GetResult();
-                if(!LoadGeoTiffComponent.TryCreateImageMesh(image.Raster,spatialContext,out var mesh,out _,out _,out _))
+                var plan = WmtsClient.Plan(wmts, source.PreferredLayerName, spatialContext, format);
+                var image = _wmtsClient.DownloadAsync(plan, token).GetAwaiter().GetResult();
+                if (!LoadGeoTiffComponent.TryCreateImageMesh(image.Raster, spatialContext, out var mesh, out _, out _, out _))
                     throw new InvalidOperationException("WMTS imagery does not overlap the selected Spatial Context.");
-                return new SolveResults { ImageFilePath=image.LocalFilePath, ImageMesh=mesh,
-                    GetMapUrl=string.Join(System.Environment.NewLine,plan.Tiles.Select(t=>t.Url)),Status=image.Status,MessageLevel=GH_RuntimeMessageLevel.Remark };
+                return new SolveResults
+                {
+                    ImageFilePath = image.LocalFilePath,
+                    ImageMesh = mesh,
+                    GetMapUrl = string.Join(System.Environment.NewLine, plan.Tiles.Select(t => t.Url)),
+                    Status = image.Status,
+                    MessageLevel = GH_RuntimeMessageLevel.Remark
+                };
             }
-            var capabilities = _wmsClient.LoadCapabilitiesAsync(source.BaseUrl).GetAwaiter().GetResult();
+            var capabilities = _wmsClient.LoadCapabilitiesAsync(source.BaseUrl, token).GetAwaiter().GetResult();
             var resolvedLayer = ResolveLayerName(capabilities, source.PreferredLayerName);
             if (string.IsNullOrWhiteSpace(resolvedLayer.LayerName))
             {
@@ -374,7 +387,7 @@ namespace RhinoSpatial
                 capabilities,
                 format);
 
-            var imageResult = _wmsClient.DownloadImageAsync(requestOptions).GetAwaiter().GetResult();
+            var imageResult = _wmsClient.DownloadImageAsync(requestOptions, token).GetAwaiter().GetResult();
             var imageMesh = RhinoSpatialContextTools.CreateBoundingBoxMesh(
                 requestSpatialContext.PlacementBoundingBox,
                 requestSpatialContext.PlacementOrigin,
@@ -470,11 +483,11 @@ namespace RhinoSpatial
             return false;
         }
 
-        private SolveResults ComputeSafe(RequestData requestData)
+        private SolveResults ComputeSafe(RequestData requestData, CancellationToken token)
         {
             try
             {
-                return Compute(requestData);
+                return SourceSolveDeadline.Run(token, ct => Compute(requestData, ct));
             }
             catch (Exception ex)
             {

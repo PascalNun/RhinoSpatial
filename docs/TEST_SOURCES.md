@@ -13,7 +13,7 @@ The **Current Use** column describes what the source is supposed to validate in 
 
 For a general workflow, start with [Working with project data](WORKING_WITH_PROJECT_DATA.md).
 The dated checks below are maintainer evidence. All compatibility batches are
-merged into `main`, while the public package remains 0.4.0. The ten-suite
+merged into `main`, while the public package remains 0.4.0. The eleven-suite
 CI runs on macOS and Windows; native Rhino and installed-package checks remain
 separate.
 
@@ -300,3 +300,11 @@ NoData, local BigTIFF, allocation guards, polygon interiors and islands,
 coordinate identifiers, axis conventions and retained AdV source heights. All
 ten suites pass locally. Native units/runtime checks, consistent cancellation,
 windowed local raster reads and remote BigTIFF remain follow-up work.
+
+## Service reliability validation (2026-11-02)
+
+The [reliability implementation plan](RELIABILITY_PLAN.md) now includes the completed first batch. [Reproduction guide](../examples/RELIABILITY_WORKFLOWS.md): 52 offline checks, a loopback WMS/WCS/OSM fixture server, exact public-service commands and measured limits. Run `reliability-check`; CI includes it alongside the ten previous suites.
+
+Live Core checks parsed GeoMet's 39,668,951-byte WMS catalogue (7,606 layers), NRW 100×100 terrain (1,907 bytes), and USGS native EPSG:3857 100×100 terrain (65,924-byte TIFF extracted from a 68,591-byte multipart response). A forced geographic USGS subset returned HTTP 404; the native request succeeded. Overpass returned HTTP 502, so new OSM evidence is offline. Native Rhino cancellation, preview, saved-definition and package checks remain pending.
+
+The controlled 16 MiB multipart fixture allocated approximately 301 KB of managed memory, excluding prepared input and native memory. This measures transfer/extraction, not large-terrain or Rhino memory. Local terrain windowing and remote BigTIFF remain unimplemented.

@@ -62,7 +62,7 @@ Try imagery with parcels for a site plan, terrain with buildings for a context m
 
 `List WFS Layers` and `List WMS Layers` help choose a layer from a service. In development, `List WFS Layers` also lists local GeoPackage feature layers. Component names remain familiar as the supported sources grow.
 
-Development also improves courtyard boundaries, terrain read checks and coordinate handling. See the [correctness record](docs/CORRECTNESS_PLAN.md) for the changes and validation limits.
+Development also improves courtyard boundaries, terrain read checks, coordinate handling and service cancellation/download reliability. See the [correctness record](docs/CORRECTNESS_PLAN.md) for the changes and validation limits.
 
 For help choosing a service, download or local file, read [Working with project data](docs/WORKING_WITH_PROJECT_DATA.md). Exact formats, inputs and limits are in the [Component and Source Reference](docs/COMPONENT_REFERENCE.md).
 

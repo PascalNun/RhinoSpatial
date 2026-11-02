@@ -9,8 +9,12 @@ namespace RhinoSpatial.Core
         private const int MaxDecodeBufferBytes = 32 * 1024 * 1024;
         private readonly record struct DecodeLayout(bool Tiled, int Width, int Height, int BufferSize);
 
-        public static TerrainRasterData ReadRaster(string filePath, string coverageId, string srsName)
+        public static TerrainRasterData ReadRaster(string filePath, string coverageId, string srsName) =>
+            ReadRaster(filePath, coverageId, srsName, CancellationToken.None);
+
+        public static TerrainRasterData ReadRaster(string filePath, string coverageId, string srsName, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             TiffWarningSuppression.EnsureInstalled();
             using var tiff = Tiff.Open(filePath, "r");
             if (tiff is null)
@@ -51,17 +55,18 @@ namespace RhinoSpatial.Core
             var buffer = new byte[layout.BufferSize];
             if (layout.Tiled)
             {
-                ReadTiledRaster(tiff, width, height, bitsPerSample, sampleFormat, layout, buffer, elevations);
+                ReadTiledRaster(tiff, width, height, bitsPerSample, sampleFormat, layout, buffer, elevations, token);
             }
             else
             {
-                ReadScanlineRaster(tiff, width, height, bitsPerSample, sampleFormat, buffer, elevations);
+                ReadScanlineRaster(tiff, width, height, bitsPerSample, sampleFormat, buffer, elevations, token);
             }
 
-            var origin = geo?.GeoTransform?.At(0.5,0.5) ?? new Coordinate2D(0, 0);
-            var offsetX = geo?.GeoTransform is { } gx ? new Coordinate2D(gx.A,gx.D) : new Coordinate2D(1,0);
-            var offsetY = geo?.GeoTransform is { } gy ? new Coordinate2D(gy.B,gy.E) : new Coordinate2D(0,-1);
+            var origin = geo?.GeoTransform?.At(0.5, 0.5) ?? new Coordinate2D(0, 0);
+            var offsetX = geo?.GeoTransform is { } gx ? new Coordinate2D(gx.A, gx.D) : new Coordinate2D(1, 0);
+            var offsetY = geo?.GeoTransform is { } gy ? new Coordinate2D(gy.B, gy.E) : new Coordinate2D(0, -1);
 
+            token.ThrowIfCancellationRequested();
             return new TerrainRasterData(
                 coverageId,
                 geo?.SrsName ?? srsName,
@@ -71,7 +76,8 @@ namespace RhinoSpatial.Core
                 offsetX,
                 offsetY,
                 noData,
-                elevations) { GeoTransform=geo?.GeoTransform };
+                elevations)
+            { GeoTransform = geo?.GeoTransform };
         }
 
         private static DecodeLayout ReadDecodeLayout(Tiff tiff, int width, int bytesPerSample)
@@ -97,15 +103,18 @@ namespace RhinoSpatial.Core
             int bitsPerSample,
             SampleFormat sampleFormat,
             byte[] buffer,
-            float[] elevations)
+            float[] elevations,
+            CancellationToken token)
         {
             for (var row = 0; row < height; row++)
             {
+                token.ThrowIfCancellationRequested();
                 if (!tiff.ReadScanline(buffer, row))
                     throw new InvalidDataException($"Incomplete terrain raster: failed to decode row {row + 1}. No terrain was returned.");
 
                 for (var col = 0; col < width; col++)
                 {
+                    if (col % 4096 == 0) token.ThrowIfCancellationRequested();
                     elevations[row * width + col] = ReadSample(buffer, col, bitsPerSample, sampleFormat);
                 }
             }
@@ -119,7 +128,8 @@ namespace RhinoSpatial.Core
             SampleFormat sampleFormat,
             DecodeLayout layout,
             byte[] buffer,
-            float[] elevations)
+            float[] elevations,
+            CancellationToken token)
         {
             var tileWidth = layout.Width;
             var tileHeight = layout.Height;
@@ -129,6 +139,7 @@ namespace RhinoSpatial.Core
             {
                 for (var tileX = 0; tileX < width; tileX += tileWidth)
                 {
+                    token.ThrowIfCancellationRequested();
                     var tile = tiff.ComputeTile(tileX, tileY, 0, 0);
                     var bytesRead = tiff.ReadEncodedTile(tile, buffer, 0, tileSize);
                     if (bytesRead != tileSize)
@@ -140,6 +151,7 @@ namespace RhinoSpatial.Core
                     var readHeight = Math.Min(tileHeight, height - tileY);
                     for (var localY = 0; localY < readHeight; localY++)
                     {
+                        token.ThrowIfCancellationRequested();
                         var rowOffset = localY * tileWidth;
                         var targetRow = (tileY + localY) * width;
                         for (var localX = 0; localX < readWidth; localX++)

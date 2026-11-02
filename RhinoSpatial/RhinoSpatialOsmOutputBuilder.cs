@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -26,13 +27,14 @@ namespace RhinoSpatial
         private const double DefaultBuildingHeight = 4.0;
         private const double DefaultRoadLaneWidth = 3.25;
 
-        public static GH_Structure<GH_Brep> BuildBuildingTree(IReadOnlyList<OsmAreaFeature> buildings, SpatialContext2D spatialContext)
+        public static GH_Structure<GH_Brep> BuildBuildingTree(IReadOnlyList<OsmAreaFeature> buildings, SpatialContext2D spatialContext, CancellationToken token = default)
         {
             var tree = new GH_Structure<GH_Brep>();
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
 
             for (var featureIndex = 0; featureIndex < buildings.Count; featureIndex++)
             {
+                token.ThrowIfCancellationRequested();
                 var building = buildings[featureIndex];
                 var path = new GH_Path(featureIndex);
                 tree.EnsurePath(path);
@@ -43,6 +45,7 @@ namespace RhinoSpatial
 
                 foreach (var ring in building.OuterRings)
                 {
+                    token.ThrowIfCancellationRequested();
                     if (!TryTransformRing(ring.Points, spatialContext, out var polyline, out var baseZ))
                     {
                         continue;
@@ -92,7 +95,7 @@ namespace RhinoSpatial
             return tree;
         }
 
-        public static GH_Structure<IGH_GeometricGoo> BuildRoadTree(IReadOnlyList<OsmLinearFeature> roads, SpatialContext2D spatialContext)
+        public static GH_Structure<IGH_GeometricGoo> BuildRoadTree(IReadOnlyList<OsmLinearFeature> roads, SpatialContext2D spatialContext, CancellationToken token = default)
         {
             var tree = new GH_Structure<IGH_GeometricGoo>();
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
@@ -102,6 +105,7 @@ namespace RhinoSpatial
 
             for (var featureIndex = 0; featureIndex < roads.Count; featureIndex++)
             {
+                token.ThrowIfCancellationRequested();
                 var road = roads[featureIndex];
                 if (!TryTransformLineAtZ(road.CenterLine.Points, spatialContext, planZ, out var centerLine))
                 {
@@ -136,6 +140,7 @@ namespace RhinoSpatial
 
             for (var roadIndex = 0; roadIndex < roadRegions.Count; roadIndex++)
             {
+                token.ThrowIfCancellationRequested();
                 TryAppendRoadGeometry(tree, roadRegions[roadIndex], planZ, tolerance, holeAreaThreshold, roadIndex);
             }
 
@@ -144,7 +149,7 @@ namespace RhinoSpatial
 
         public static GH_Structure<IGH_GeometricGoo> BuildWaterTree(
             IReadOnlyList<OsmAreaFeature> waterAreas,
-            SpatialContext2D spatialContext)
+            SpatialContext2D spatialContext, CancellationToken token = default)
         {
             var tree = new GH_Structure<IGH_GeometricGoo>();
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
@@ -154,6 +159,7 @@ namespace RhinoSpatial
 
             for (var areaIndex = 0; areaIndex < waterAreas.Count; areaIndex++)
             {
+                token.ThrowIfCancellationRequested();
                 var area = waterAreas[areaIndex];
                 foreach (var ring in area.OuterRings)
                 {
@@ -211,17 +217,18 @@ namespace RhinoSpatial
             return tree;
         }
 
-        public static GH_Structure<IGH_GeometricGoo> BuildGreenTree(IReadOnlyList<OsmAreaFeature> greenAreas, SpatialContext2D spatialContext)
+        public static GH_Structure<IGH_GeometricGoo> BuildGreenTree(IReadOnlyList<OsmAreaFeature> greenAreas, SpatialContext2D spatialContext, CancellationToken token = default)
         {
-            return BuildAreaTree(greenAreas, spatialContext);
+            return BuildAreaTree(greenAreas, spatialContext, token);
         }
 
-        public static GH_Structure<IGH_GeometricGoo> BuildRailTree(IReadOnlyList<OsmLinearFeature> rails, SpatialContext2D spatialContext)
+        public static GH_Structure<IGH_GeometricGoo> BuildRailTree(IReadOnlyList<OsmLinearFeature> rails, SpatialContext2D spatialContext, CancellationToken token = default)
         {
             var tree = new GH_Structure<IGH_GeometricGoo>();
 
             for (var featureIndex = 0; featureIndex < rails.Count; featureIndex++)
             {
+                token.ThrowIfCancellationRequested();
                 var rail = rails[featureIndex];
                 var path = new GH_Path(featureIndex);
                 tree.EnsurePath(path);
@@ -237,13 +244,14 @@ namespace RhinoSpatial
             return tree;
         }
 
-        private static GH_Structure<IGH_GeometricGoo> BuildAreaTree(IReadOnlyList<OsmAreaFeature> areas, SpatialContext2D spatialContext)
+        private static GH_Structure<IGH_GeometricGoo> BuildAreaTree(IReadOnlyList<OsmAreaFeature> areas, SpatialContext2D spatialContext, CancellationToken token)
         {
             var tree = new GH_Structure<IGH_GeometricGoo>();
             var tolerance = RhinoDoc.ActiveDoc?.ModelAbsoluteTolerance ?? 0.01;
 
             for (var featureIndex = 0; featureIndex < areas.Count; featureIndex++)
             {
+                token.ThrowIfCancellationRequested();
                 var area = areas[featureIndex];
                 var path = new GH_Path(featureIndex);
                 tree.EnsurePath(path);

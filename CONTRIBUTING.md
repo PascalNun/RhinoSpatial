@@ -46,6 +46,7 @@ dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- tiles-
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- source-reader-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- terrain-mesh-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- correctness-check
+dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- reliability-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- lod2-atom-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- source-compatibility-check
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release --no-build -- medium-compatibility-check

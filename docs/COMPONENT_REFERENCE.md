@@ -481,6 +481,14 @@ follow the existing rule that saved selections take priority. Explicit WGS84 UTM
 north/south EPSG:32601–32660 / 32701–32760 are supported transformations; source
 heights are not vertically reinterpreted.
 
+## Service reliability (development)
+
+WMS, WCS and OSM accept cancellation through requests, body transfers and retry/fallback paths. Components capture the current solve token, check before publication and use a two-minute overall deadline. Deliberate cancellation stops fallback rather than reporting cached/partial success. Ordinary OSM provider failures still report unavailable or cached categories explicitly.
+
+Image and coverage files become reusable only after complete transfer, validation and checksum-receipt publication. Failed temporary files are removed. Existing texture files are preserved; no automatic cleanup of saved/baked image assets is added. Completed service metadata uses a bounded five-minute cache; canceled/faulted tasks are not reused. WFS metadata uses the same path for reference discovery. Map reference work is canceled when superseded or removed, with asynchronous UI reporting.
+
+The [service guide](../examples/RELIABILITY_WORKFLOWS.md#limits-and-cache-behavior) records response/decode/geometry budgets, request deadlines, exact examples and limits of cancellation inside synchronous native calls. These are individual resource limits, not a total Rhino memory guarantee. Host behavior still needs the native checklist.
+
 ## Reader correctness and limits
 
 The development build from `main` fixes the three high-priority cases in the

@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,6 +25,8 @@ namespace RhinoSpatial
         private readonly WmsClient _wmsClient = new();
         private readonly WcsClient _wcsClient = new();
         private bool _lastOpenMapRequest;
+        private CancellationTokenSource? _mapLoadCancellation;
+        private string _mapReferenceIdentity = string.Empty;
         private SpatialContextHelperHost.SpatialContextSelection _persistedSelection = new(
             string.Empty,
             string.Empty,
@@ -71,6 +74,9 @@ namespace RhinoSpatial
 
         public override void RemovedFromDocument(GH_Document document)
         {
+            _mapLoadCancellation?.Cancel();
+            _mapLoadCancellation?.Dispose();
+            _mapLoadCancellation = null;
             SpatialContextHelperHost.SelectionChanged -= HandleSelectionChanged;
             base.RemovedFromDocument(document);
         }
@@ -131,16 +137,19 @@ namespace RhinoSpatial
 
                 if (InPreSolve)
                 {
-                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData), CancelToken);
+                    var token = CancelToken;
+                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData, token), token);
                     TaskList.Add(task);
                     return;
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
                 if (!GetSolveResults(dataAccess, out SolveResults result))
                 {
-                    result = ComputeSafe(requestData);
+                    result = ComputeSafe(requestData, CancelToken);
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
                 if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
                 {
                     AddRuntimeMessage(result.MessageLevel.Value, result.Status);
@@ -195,7 +204,7 @@ namespace RhinoSpatial
             return true;
         }
 
-        private SolveResults Compute(RequestData requestData)
+        private SolveResults Compute(RequestData requestData, CancellationToken token)
         {
             var selection = GetActiveSelection();
 
@@ -208,7 +217,7 @@ namespace RhinoSpatial
                 };
             }
 
-            var srsResolution = ResolveSrsName(requestData);
+            var srsResolution = ResolveSrsName(requestData, token);
             var supportedSrs = NormalizeSupportedMapSrs(srsResolution.ResolvedSrsName);
 
             if (string.IsNullOrWhiteSpace(supportedSrs))
@@ -269,11 +278,11 @@ namespace RhinoSpatial
             };
         }
 
-        private SolveResults ComputeSafe(RequestData requestData)
+        private SolveResults ComputeSafe(RequestData requestData, CancellationToken token)
         {
             try
             {
-                return Compute(requestData);
+                return SourceSolveDeadline.Run(token, ct => Compute(requestData, ct));
             }
             catch (Exception ex)
             {
@@ -313,7 +322,7 @@ namespace RhinoSpatial
             return RhinoSpatialInputParser.TryParseBoundingBox(text, out var boundingBox, out _) ? boundingBox : null;
         }
 
-        private (string ResolvedSrsName, string Status, GH_RuntimeMessageLevel? MessageLevel) ResolveSrsName(RequestData requestData)
+        private (string ResolvedSrsName, string Status, GH_RuntimeMessageLevel? MessageLevel) ResolveSrsName(RequestData requestData, CancellationToken token)
         {
             if (!string.IsNullOrWhiteSpace(requestData.RequestedSrs))
             {
@@ -331,7 +340,7 @@ namespace RhinoSpatial
             try
             {
                 var remote = _remoteReference.TryReadAsync(requestData.BaseUrl,
-                    RhinoSpatialInputParser.ParseLayerName(requestData.LayerSelection)).GetAwaiter().GetResult();
+                    RhinoSpatialInputParser.ParseLayerName(requestData.LayerSelection), token).GetAwaiter().GetResult();
                 if (remote is not null)
                 {
                     var supported = NormalizeSupportedMapSrs(remote.SrsName);
@@ -374,7 +383,7 @@ namespace RhinoSpatial
 
             if (string.IsNullOrWhiteSpace(layerName))
             {
-                var serviceSrs = ResolveReferenceServiceSrs(requestData.BaseUrl);
+                var serviceSrs = ResolveReferenceServiceSrs(requestData.BaseUrl, token);
                 if (!string.IsNullOrWhiteSpace(serviceSrs))
                 {
                     return (serviceSrs, string.Empty, null);
@@ -388,7 +397,7 @@ namespace RhinoSpatial
 
             try
             {
-                var wfsLayers = _wfsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult();
+                var wfsLayers = _wfsClient.LoadLayersAsync(requestData.BaseUrl, token).GetAwaiter().GetResult();
                 var wfsLayerInfo = wfsLayers.FirstOrDefault(layer => string.Equals(layer.Name, layerName, StringComparison.OrdinalIgnoreCase));
 
                 if (wfsLayerInfo is not null)
@@ -406,13 +415,14 @@ namespace RhinoSpatial
                         null);
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
             }
 
             try
             {
-                var wmsCapabilities = _wmsClient.LoadCapabilitiesAsync(requestData.BaseUrl).GetAwaiter().GetResult();
+                var wmsCapabilities = _wmsClient.LoadCapabilitiesAsync(requestData.BaseUrl, token).GetAwaiter().GetResult();
                 var wmsLayerInfo = wmsCapabilities.Layers.FirstOrDefault(layer => string.Equals(layer.Name, layerName, StringComparison.OrdinalIgnoreCase));
 
                 if (wmsLayerInfo is not null)
@@ -425,13 +435,14 @@ namespace RhinoSpatial
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
             }
 
             try
             {
-                var wcsCapabilities = _wcsClient.LoadCapabilitiesAsync(requestData.BaseUrl).GetAwaiter().GetResult();
+                var wcsCapabilities = _wcsClient.LoadCapabilitiesAsync(requestData.BaseUrl, token).GetAwaiter().GetResult();
                 var coverage = wcsCapabilities.Coverages.FirstOrDefault(candidate =>
                     string.Equals(candidate.CoverageId, layerName, StringComparison.OrdinalIgnoreCase));
                 if (coverage is not null)
@@ -442,7 +453,7 @@ namespace RhinoSpatial
                         DescribeCoverageBaseUrl = wcsCapabilities.DescribeCoverageUrl,
                         CoverageId = coverage.CoverageId,
                         Version = wcsCapabilities.ServiceVersion
-                    }).GetAwaiter().GetResult();
+                    }, token).GetAwaiter().GetResult();
                     var supportedWcsSrs = NormalizeSupportedMapSrs(description.NativeSrs);
                     if (!string.IsNullOrWhiteSpace(supportedWcsSrs))
                     {
@@ -450,8 +461,9 @@ namespace RhinoSpatial
                     }
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
             }
 
             return (
@@ -507,11 +519,11 @@ namespace RhinoSpatial
             }
         }
 
-        private string ResolveReferenceServiceSrs(string baseUrl)
+        private string ResolveReferenceServiceSrs(string baseUrl, CancellationToken token)
         {
             try
             {
-                var wfsLayers = _wfsClient.LoadLayersAsync(baseUrl).GetAwaiter().GetResult();
+                var wfsLayers = _wfsClient.LoadLayersAsync(baseUrl, token).GetAwaiter().GetResult();
                 var supportedWfsSrs = ResolveSupportedLayerSrs(wfsLayers);
 
                 if (!string.IsNullOrWhiteSpace(supportedWfsSrs))
@@ -519,13 +531,14 @@ namespace RhinoSpatial
                     return supportedWfsSrs;
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
             }
 
             try
             {
-                var wmsCapabilities = _wmsClient.LoadCapabilitiesAsync(baseUrl).GetAwaiter().GetResult();
+                var wmsCapabilities = _wmsClient.LoadCapabilitiesAsync(baseUrl, token).GetAwaiter().GetResult();
                 var supportedWmsSrs = ResolveSupportedLayerSrs(wmsCapabilities.Layers);
 
                 if (!string.IsNullOrWhiteSpace(supportedWmsSrs))
@@ -533,13 +546,14 @@ namespace RhinoSpatial
                     return supportedWmsSrs;
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
             }
 
             try
             {
-                var capabilities = _wcsClient.LoadCapabilitiesAsync(baseUrl).GetAwaiter().GetResult();
+                var capabilities = _wcsClient.LoadCapabilitiesAsync(baseUrl, token).GetAwaiter().GetResult();
                 var coverage = capabilities.Coverages.FirstOrDefault();
                 if (coverage is not null)
                 {
@@ -549,12 +563,13 @@ namespace RhinoSpatial
                         DescribeCoverageBaseUrl = capabilities.DescribeCoverageUrl,
                         CoverageId = coverage.CoverageId,
                         Version = capabilities.ServiceVersion
-                    }).GetAwaiter().GetResult();
+                    }, token).GetAwaiter().GetResult();
                     return NormalizeSupportedMapSrs(description.NativeSrs);
                 }
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
             }
 
             return string.Empty;
@@ -602,6 +617,14 @@ namespace RhinoSpatial
 
         private void HandleOpenMap(bool openMap, string? baseUrl, string? layerSelection, string? requestedSrs)
         {
+            var identity = string.Join("\n", baseUrl ?? string.Empty, layerSelection ?? string.Empty, requestedSrs ?? string.Empty);
+            if (!string.Equals(identity, _mapReferenceIdentity, StringComparison.Ordinal))
+            {
+                _mapLoadCancellation?.Cancel();
+                _mapLoadCancellation?.Dispose();
+                _mapLoadCancellation = null;
+                _mapReferenceIdentity = identity;
+            }
             if (!openMap)
             {
                 _lastOpenMapRequest = false;
@@ -614,7 +637,11 @@ namespace RhinoSpatial
             }
 
             _lastOpenMapRequest = true;
-            _ = Task.Run(() => OpenMapAsync(baseUrl, layerSelection, requestedSrs));
+            _mapLoadCancellation?.Cancel();
+            _mapLoadCancellation?.Dispose();
+            _mapLoadCancellation = new CancellationTokenSource();
+            var token = _mapLoadCancellation.Token;
+            _ = Task.Run(() => OpenMapAsync(baseUrl, layerSelection, requestedSrs, token));
         }
 
         private void HandleSelectionChanged(object? sender, EventArgs e)
@@ -671,8 +698,11 @@ namespace RhinoSpatial
             return chunk.ItemExists(key) ? chunk.GetString(key) : string.Empty;
         }
 
-        private async Task OpenMapAsync(string? baseUrl, string? layerSelection, string? requestedSrs)
+        private async Task OpenMapAsync(string? baseUrl, string? layerSelection, string? requestedSrs, CancellationToken caller)
         {
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(caller);
+            deadline.CancelAfter(TimeSpan.FromMinutes(2));
+            var token = deadline.Token;
             var persistedSelection = GetActiveSelection();
             var persistedViewBoundingBox = TryGetBoundingBox(persistedSelection.BoundingBox4326);
 
@@ -680,36 +710,54 @@ namespace RhinoSpatial
             {
                 if (persistedSelection.HasSelection && persistedViewBoundingBox is not null)
                 {
+                    token.ThrowIfCancellationRequested();
                     SpatialContextHelperHost.OpenInBrowser(
-                        persistedViewBoundingBox,
-                        NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
-                        persistedSelection);
+                            persistedViewBoundingBox,
+                            NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
+                            persistedSelection);
                     return;
                 }
 
-                var (initialMapView, preferredSrs) = await ResolveInitialMapContextAsync(baseUrl, layerSelection, requestedSrs);
+                var (initialMapView, preferredSrs) = await ResolveInitialMapContextAsync(baseUrl, layerSelection, requestedSrs, token);
 
+                token.ThrowIfCancellationRequested();
+                var latestSelection = GetActiveSelection();
+                var latestBounds = TryGetBoundingBox(latestSelection.BoundingBox4326);
+                if (latestSelection.HasSelection && latestBounds is not null)
+                {
+                    SpatialContextHelperHost.OpenInBrowser(latestBounds, NormalizeSupportedMapSrs(requestedSrs ?? string.Empty), latestSelection);
+                    return;
+                }
                 SpatialContextHelperHost.OpenInBrowser(
                     initialMapView,
                     preferredSrs,
                     null);
             }
-            catch
+            catch (OperationCanceledException)
             {
-                if (persistedSelection.HasSelection)
-                {
-                    SpatialContextHelperHost.OpenInBrowser(
-                        persistedViewBoundingBox,
-                        NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
-                        persistedSelection);
-                    return;
-                }
-
-                SpatialContextHelperHost.OpenInBrowser();
+                if (!caller.IsCancellationRequested) ReportMapLoadError("Map reference loading exceeded its two-minute operation limit.", caller);
+            }
+            catch (ServiceLimitException ex) { ReportMapLoadError(ex.Message, caller); }
+            catch (Exception)
+            {
+                if (token.IsCancellationRequested) return;
+                var latestSelection = GetActiveSelection();
+                var latestBounds = TryGetBoundingBox(latestSelection.BoundingBox4326);
+                SpatialContextHelperHost.OpenInBrowser(latestBounds, NormalizeSupportedMapSrs(requestedSrs ?? string.Empty),
+                    latestSelection.HasSelection ? latestSelection : null);
             }
         }
 
-        private async Task<(BoundingBox2D? InitialViewBoundingBox4326, string PreferredSrs)> ResolveInitialMapContextAsync(string? baseUrl, string? layerSelection, string? requestedSrs)
+        private void ReportMapLoadError(string message, CancellationToken caller)
+        {
+            Eto.Forms.Application.Instance?.AsyncInvoke(() =>
+            {
+                if (!caller.IsCancellationRequested && OnPingDocument() is not null)
+                    AddRuntimeMessage(GH_RuntimeMessageLevel.Error, message);
+            });
+        }
+
+        private async Task<(BoundingBox2D? InitialViewBoundingBox4326, string PreferredSrs)> ResolveInitialMapContextAsync(string? baseUrl, string? layerSelection, string? requestedSrs, CancellationToken token)
         {
             var normalizedRequestedSrs = NormalizeSupportedMapSrs(requestedSrs ?? string.Empty);
 
@@ -720,7 +768,7 @@ namespace RhinoSpatial
 
             try
             {
-                var remote = await _remoteReference.TryReadAsync(baseUrl, RhinoSpatialInputParser.ParseLayerName(layerSelection ?? string.Empty));
+                var remote = await _remoteReference.TryReadAsync(baseUrl, RhinoSpatialInputParser.ParseLayerName(layerSelection ?? string.Empty), token);
                 if (remote is not null)
                     return (remote.Wgs84BoundingBox, string.IsNullOrWhiteSpace(normalizedRequestedSrs)
                         ? NormalizeSupportedMapSrs(remote.SrsName) : normalizedRequestedSrs);
@@ -748,7 +796,7 @@ namespace RhinoSpatial
 
             if (string.IsNullOrWhiteSpace(layerName))
             {
-                var wfsServiceContext = await TryResolveWfsServiceMapContextAsync(baseUrl);
+                var wfsServiceContext = await TryResolveWfsServiceMapContextAsync(baseUrl, token);
                 if (wfsServiceContext is not null)
                 {
                     return (
@@ -758,7 +806,7 @@ namespace RhinoSpatial
                             : normalizedRequestedSrs);
                 }
 
-                var wmsServiceContext = await TryResolveWmsServiceMapContextAsync(baseUrl);
+                var wmsServiceContext = await TryResolveWmsServiceMapContextAsync(baseUrl, token);
                 if (wmsServiceContext is not null)
                 {
                     return (
@@ -768,7 +816,7 @@ namespace RhinoSpatial
                             : normalizedRequestedSrs);
                 }
 
-                var wcsServiceContext = await TryResolveWcsServiceMapContextAsync(baseUrl);
+                var wcsServiceContext = await TryResolveWcsServiceMapContextAsync(baseUrl, token);
                 if (wcsServiceContext is not null)
                 {
                     return (
@@ -783,23 +831,23 @@ namespace RhinoSpatial
 
             if (!string.IsNullOrWhiteSpace(normalizedRequestedSrs))
             {
-                var wfsLayerInfo = await TryResolveWfsLayerInfoAsync(baseUrl, layerName);
+                var wfsLayerInfo = await TryResolveWfsLayerInfoAsync(baseUrl, layerName, token);
                 if (wfsLayerInfo is not null)
                 {
                     return (wfsLayerInfo.Wgs84BoundingBox, normalizedRequestedSrs);
                 }
 
-                var wmsLayerInfo = await TryResolveWmsLayerInfoAsync(baseUrl, layerName);
+                var wmsLayerInfo = await TryResolveWmsLayerInfoAsync(baseUrl, layerName, token);
                 if (wmsLayerInfo is not null)
                 {
                     return (wmsLayerInfo.Wgs84BoundingBox, normalizedRequestedSrs);
                 }
 
-                var wcsCoverageContext = await TryResolveWcsCoverageMapContextAsync(baseUrl, layerName);
+                var wcsCoverageContext = await TryResolveWcsCoverageMapContextAsync(baseUrl, layerName, token);
                 return (wcsCoverageContext?.Wgs84BoundingBox, normalizedRequestedSrs);
             }
 
-            var resolvedWfsLayerInfo = await TryResolveWfsLayerInfoAsync(baseUrl, layerName);
+            var resolvedWfsLayerInfo = await TryResolveWfsLayerInfoAsync(baseUrl, layerName, token);
             if (resolvedWfsLayerInfo is not null)
             {
                 return (
@@ -807,7 +855,7 @@ namespace RhinoSpatial
                     ResolveSupportedLayerSrs(resolvedWfsLayerInfo));
             }
 
-            var resolvedWmsLayerInfo = await TryResolveWmsLayerInfoAsync(baseUrl, layerName);
+            var resolvedWmsLayerInfo = await TryResolveWmsLayerInfoAsync(baseUrl, layerName, token);
             if (resolvedWmsLayerInfo is not null)
             {
                 return (
@@ -815,43 +863,45 @@ namespace RhinoSpatial
                     ResolveSupportedLayerSrs(resolvedWmsLayerInfo));
             }
 
-            var resolvedWcsContext = await TryResolveWcsCoverageMapContextAsync(baseUrl, layerName);
+            var resolvedWcsContext = await TryResolveWcsCoverageMapContextAsync(baseUrl, layerName, token);
             return resolvedWcsContext ?? (null, string.Empty);
         }
 
-        private async Task<WfsLayerInfo?> TryResolveWfsLayerInfoAsync(string baseUrl, string layerName)
+        private async Task<WfsLayerInfo?> TryResolveWfsLayerInfoAsync(string baseUrl, string layerName, CancellationToken token)
         {
             try
             {
-                var layers = await _wfsClient.LoadLayersAsync(baseUrl);
+                var layers = await _wfsClient.LoadLayersAsync(baseUrl, token);
                 return layers.FirstOrDefault(layer => string.Equals(layer.Name, layerName, StringComparison.OrdinalIgnoreCase));
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
                 return null;
             }
         }
 
-        private async Task<WmsLayerInfo?> TryResolveWmsLayerInfoAsync(string baseUrl, string layerName)
+        private async Task<WmsLayerInfo?> TryResolveWmsLayerInfoAsync(string baseUrl, string layerName, CancellationToken token)
         {
             try
             {
-                var capabilities = await _wmsClient.LoadCapabilitiesAsync(baseUrl);
+                var capabilities = await _wmsClient.LoadCapabilitiesAsync(baseUrl, token);
                 return capabilities.Layers.FirstOrDefault(layer => string.Equals(layer.Name, layerName, StringComparison.OrdinalIgnoreCase));
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
                 return null;
             }
         }
 
         private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWcsCoverageMapContextAsync(
             string baseUrl,
-            string coverageId)
+            string coverageId, CancellationToken token)
         {
             try
             {
-                var capabilities = await _wcsClient.LoadCapabilitiesAsync(baseUrl);
+                var capabilities = await _wcsClient.LoadCapabilitiesAsync(baseUrl, token);
                 var coverage = capabilities.Coverages.FirstOrDefault(candidate =>
                     string.Equals(candidate.CoverageId, coverageId, StringComparison.OrdinalIgnoreCase));
                 if (coverage is null)
@@ -859,7 +909,7 @@ namespace RhinoSpatial
                     return null;
                 }
 
-                var description = await TryLoadWcsCoverageDescriptionAsync(baseUrl, capabilities, coverage.CoverageId);
+                var description = await TryLoadWcsCoverageDescriptionAsync(baseUrl, capabilities, coverage.CoverageId, token);
                 var wgs84BoundingBox = coverage.Wgs84BoundingBox;
                 if (wgs84BoundingBox is null &&
                     description is not null &&
@@ -873,17 +923,18 @@ namespace RhinoSpatial
 
                 return (wgs84BoundingBox, NormalizeSupportedMapSrs(description?.NativeSrs ?? string.Empty));
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
                 return null;
             }
         }
 
-        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWfsServiceMapContextAsync(string baseUrl)
+        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWfsServiceMapContextAsync(string baseUrl, CancellationToken token)
         {
             try
             {
-                var layers = await _wfsClient.LoadLayersAsync(baseUrl);
+                var layers = await _wfsClient.LoadLayersAsync(baseUrl, token);
                 if (layers.Count == 0)
                 {
                     return null;
@@ -893,17 +944,18 @@ namespace RhinoSpatial
                     CombineBoundingBoxes(layers.Select(layer => layer.Wgs84BoundingBox)),
                     ResolveSupportedLayerSrs(layers));
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
                 return null;
             }
         }
 
-        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWmsServiceMapContextAsync(string baseUrl)
+        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWmsServiceMapContextAsync(string baseUrl, CancellationToken token)
         {
             try
             {
-                var capabilities = await _wmsClient.LoadCapabilitiesAsync(baseUrl);
+                var capabilities = await _wmsClient.LoadCapabilitiesAsync(baseUrl, token);
                 if (capabilities.Layers.Count == 0)
                 {
                     return null;
@@ -913,17 +965,18 @@ namespace RhinoSpatial
                     CombineBoundingBoxes(capabilities.Layers.Select(layer => layer.Wgs84BoundingBox)),
                     ResolveSupportedLayerSrs(capabilities.Layers));
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
                 return null;
             }
         }
 
-        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWcsServiceMapContextAsync(string baseUrl)
+        private async Task<(BoundingBox2D? Wgs84BoundingBox, string PreferredSrs)?> TryResolveWcsServiceMapContextAsync(string baseUrl, CancellationToken token)
         {
             try
             {
-                var capabilities = await _wcsClient.LoadCapabilitiesAsync(baseUrl);
+                var capabilities = await _wcsClient.LoadCapabilitiesAsync(baseUrl, token);
                 if (capabilities.Coverages.Count == 0)
                 {
                     return null;
@@ -932,7 +985,7 @@ namespace RhinoSpatial
                 var firstCoverage = capabilities.Coverages.FirstOrDefault();
                 var description = firstCoverage is null
                     ? null
-                    : await TryLoadWcsCoverageDescriptionAsync(baseUrl, capabilities, firstCoverage.CoverageId);
+                    : await TryLoadWcsCoverageDescriptionAsync(baseUrl, capabilities, firstCoverage.CoverageId, token);
                 var wgs84BoundingBox = CombineBoundingBoxes(capabilities.Coverages.Select(coverage => coverage.Wgs84BoundingBox));
                 if (wgs84BoundingBox is null &&
                     description is not null &&
@@ -948,8 +1001,9 @@ namespace RhinoSpatial
                     wgs84BoundingBox,
                     NormalizeSupportedMapSrs(description?.NativeSrs ?? string.Empty));
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
                 return null;
             }
         }
@@ -957,7 +1011,7 @@ namespace RhinoSpatial
         private async Task<WcsCoverageDescription?> TryLoadWcsCoverageDescriptionAsync(
             string baseUrl,
             WcsCapabilitiesInfo capabilities,
-            string coverageId)
+            string coverageId, CancellationToken token)
         {
             try
             {
@@ -967,11 +1021,12 @@ namespace RhinoSpatial
                     DescribeCoverageBaseUrl = capabilities.DescribeCoverageUrl,
                     CoverageId = coverageId,
                     Version = capabilities.ServiceVersion
-                });
+                }, token);
                 return description;
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException)
             {
+                token.ThrowIfCancellationRequested();
                 return null;
             }
         }

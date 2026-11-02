@@ -1,6 +1,6 @@
 # Next reliability work
 
-Planning baseline: `main` at `5ad091d`, 2026-11-02. The three [correctness fixes](CORRECTNESS_PLAN.md) are complete, with 52 new regressions and all ten suites passing on macOS and Windows. The work below is planned, not implemented. The public package remains 0.4.0.
+Planning baseline: `main` at `5ad091d`, 2026-11-02. The three [correctness fixes](CORRECTNESS_PLAN.md) are complete, with 52 new regressions and all ten suites passing on macOS and Windows. Batch 1 is now implemented in the development build, with [examples, limits and results](../examples/RELIABILITY_WORKFLOWS.md). Batches 2 and 3 remain planned; native checks remain pending. The public package remains 0.4.0.
 
 The next improvements should make ordinary studies easier to stop, retry and load efficiently. Keep the existing components and one shared spatial context. Prefer small shared helpers and measured improvements over a broad rewrite.
 
@@ -9,8 +9,8 @@ The next improvements should make ordinary studies easier to stop, retry and loa
 | Order | Work | Deliverable |
 | --- | --- | --- |
 | Before placement changes; complete before release | Verify units and complete-study behavior in Rhino | Recorded measurements, actual host/runtime details and a clear units policy if a change is needed |
-| Next code batch | Cancellation, bounded downloads and reliable cache publication | WMS, WCS and OSM stop work consistently and retry without reusing incomplete files |
-| Following code batch | Read local terrain windows | A small selected area avoids allocating the full TIFF elevation grid |
+| Implemented in development | Cancellation, bounded downloads and reliable cache publication | WMS, WCS and OSM stop work consistently and retry without reusing incomplete files |
+| Next code batch | Read local terrain windows | A small selected area avoids allocating the full TIFF elevation grid |
 | Then | Remote BigTIFF | Bounded access to supported large TIFF imagery/elevation products, after proving decoder and offset handling |
 
 Native validation can proceed alongside Core work. It is a release requirement, not a reason to block independent transport fixes. Each code batch should have its own regressions, documentation and passing integration into `main`.
@@ -24,6 +24,8 @@ Record physical measurements as well as coordinate values. The absence of explic
 Record the Rhino build, operating system, active .NET runtime and loaded plugin/dependency versions. Use a separate test setup and copies of saved definitions. Verify packaged SQLite/image dependencies in the Rhino host on macOS and Windows. Windows console CI does not establish Windows Rhino compatibility. Assess Rhino 9 separately; do not retarget or drop Rhino 8 support solely because the Sandbox runs on .NET 10. See [McNeel's runtime guidance](https://developer.rhino3d.com/guides/rhinocommon/moving-to-dotnet-core/).
 
 ## Batch 1: stop and retry reliably
+
+**Implemented:** token-aware overloads, bounded headers/body transfers, validated temporary-file publication and receipts, completed metadata caches, bounded OSM caching and explicit cancellation/failure distinctions. Source/layer/reference callers capture operation tokens, check before publication and use an overall deadline. Map reference work has its own deadline and stops when superseded or removed. WFS metadata shares the helper so it cannot leave an uncancellable discovery step before WMS/WCS. The new `reliability-check` adds 52 offline cases and is included in CI. Native checks remain pending; the original evidence and acceptance below are the implementation record.
 
 ### Evidence and scope
 
@@ -43,7 +45,7 @@ Cover service metadata, layer listing, reference metadata, downloads, retries an
 
 ### Budget selection
 
-Before fixing new public limits, measure encoded bytes, decoded dimensions and record counts for the existing bounded regression sources, including a large WMS catalogue and multipart WCS. Then record named limits for metadata, image pixels, coverage bytes, OSM records/coordinates, attempts and total elapsed work. Test just below and above each limit, including responses without a trustworthy Content-Length. A compressed-byte limit alone is not a decoded-memory bound. Keep error bodies bounded too.
+The measured large WMS catalogue was approximately 40 MB, so the metadata budget is 64 MiB. The [limit table and live results](../examples/RELIABILITY_WORKFLOWS.md#limits-and-cache-behavior) record transfer, decode, geometry and deadline limits. Tests cover known/unknown Content-Length, corruption, cache coordination and resource guards. A compressed-byte limit alone is not a decoded-memory bound; error bodies are bounded too. Live Overpass failed during this batch and is not claimed as validated.
 
 ### Acceptance
 

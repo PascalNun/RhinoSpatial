@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Threading.Tasks;
 using Grasshopper.Kernel;
@@ -101,15 +102,20 @@ namespace RhinoSpatial
 
                 if (InPreSolve)
                 {
-                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData), CancelToken);
+                    var token = CancelToken;
+                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData, token), token);
                     TaskList.Add(task);
                     return;
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
+
                 if (!GetSolveResults(dataAccess, out SolveResults result))
                 {
-                    result = ComputeSafe(requestData);
+                    result = ComputeSafe(requestData, CancelToken);
                 }
+
+                if (CancelToken.IsCancellationRequested) return;
 
                 if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
                 {
@@ -216,7 +222,7 @@ namespace RhinoSpatial
             return true;
         }
 
-        private SolveResults Compute(RequestData requestData)
+        private SolveResults Compute(RequestData requestData, CancellationToken token)
         {
             if (!RhinoSpatialContextTools.TryResolveBoundingBoxForSrs(
                     requestData.SpatialContext,
@@ -240,22 +246,22 @@ namespace RhinoSpatial
                 IncludeWater = requestData.IncludeWater,
                 IncludeGreen = requestData.IncludeGreen,
                 IncludeRail = requestData.IncludeRail
-            }).GetAwaiter().GetResult();
+            }, token).GetAwaiter().GetResult();
 
             var buildingTree = requestData.IncludeBuildings
-                ? RhinoSpatialOsmOutputBuilder.BuildBuildingTree(dataSet.Buildings, requestData.SpatialContext)
+                ? RhinoSpatialOsmOutputBuilder.BuildBuildingTree(dataSet.Buildings, requestData.SpatialContext, token)
                 : new GH_Structure<GH_Brep>();
             var roadTree = requestData.IncludeRoads
-                ? RhinoSpatialOsmOutputBuilder.BuildRoadTree(dataSet.Roads, requestData.SpatialContext)
+                ? RhinoSpatialOsmOutputBuilder.BuildRoadTree(dataSet.Roads, requestData.SpatialContext, token)
                 : new GH_Structure<IGH_GeometricGoo>();
             var waterTree = requestData.IncludeWater
-                ? RhinoSpatialOsmOutputBuilder.BuildWaterTree(dataSet.WaterAreas, requestData.SpatialContext)
+                ? RhinoSpatialOsmOutputBuilder.BuildWaterTree(dataSet.WaterAreas, requestData.SpatialContext, token)
                 : new GH_Structure<IGH_GeometricGoo>();
             var greenTree = requestData.IncludeGreen
-                ? RhinoSpatialOsmOutputBuilder.BuildGreenTree(dataSet.GreenAreas, requestData.SpatialContext)
+                ? RhinoSpatialOsmOutputBuilder.BuildGreenTree(dataSet.GreenAreas, requestData.SpatialContext, token)
                 : new GH_Structure<IGH_GeometricGoo>();
             var railTree = requestData.IncludeRail
-                ? RhinoSpatialOsmOutputBuilder.BuildRailTree(dataSet.Rails, requestData.SpatialContext)
+                ? RhinoSpatialOsmOutputBuilder.BuildRailTree(dataSet.Rails, requestData.SpatialContext, token)
                 : new GH_Structure<IGH_GeometricGoo>();
 
             var totalFeatureCount =
@@ -279,11 +285,11 @@ namespace RhinoSpatial
             };
         }
 
-        private SolveResults ComputeSafe(RequestData requestData)
+        private SolveResults ComputeSafe(RequestData requestData, CancellationToken token)
         {
             try
             {
-                return Compute(requestData);
+                return SourceSolveDeadline.Run(token, ct => Compute(requestData, ct));
             }
             catch (Exception ex)
             {

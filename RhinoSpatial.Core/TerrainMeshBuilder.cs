@@ -14,8 +14,12 @@ namespace RhinoSpatial.Core
             BoundingBox2D sampleBounds,
             SpatialContext2D context,
             int maxGridSize,
-            double elevationBase)
+            double elevationBase) => Build(raster, sampleBounds, context, maxGridSize, elevationBase, CancellationToken.None);
+
+        public static TerrainMeshData Build(TerrainRasterData raster, BoundingBox2D sampleBounds,
+            SpatialContext2D context, int maxGridSize, double elevationBase, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             if (raster.Width < 2 || raster.Height < 2 ||
                 (long)raster.Width * raster.Height != raster.Elevations.Length)
             {
@@ -38,9 +42,12 @@ namespace RhinoSpatial.Core
             var offsetX = context.UseAbsoluteCoordinates ? 0.0 : context.PlacementOrigin.X;
             var offsetY = context.UseAbsoluteCoordinates ? 0.0 : context.PlacementOrigin.Y;
             var offsetZ = context.UseAbsoluteCoordinates ? 0.0 : elevationBase;
+            if (!SpatialReferenceTransform.TryCreateXYTransform(raster.SrsName, context.ResolvedSrs, out var transform))
+                throw new InvalidOperationException($"Cannot transform terrain from '{raster.SrsName}' into Spatial Context '{context.ResolvedSrs}'.");
 
             for (var row = 0; row < ys.Count; row++)
             {
+                token.ThrowIfCancellationRequested();
                 for (var col = 0; col < xs.Count; col++)
                 {
                     var elevation = raster.Elevations[ys[row] * raster.Width + xs[col]];
@@ -49,11 +56,10 @@ namespace RhinoSpatial.Core
                         continue;
                     }
 
-                    var sourcePoint = raster.GeoTransform?.At(xs[col]+0.5,ys[row]+0.5);
+                    var sourcePoint = raster.GeoTransform?.At(xs[col] + 0.5, ys[row] + 0.5);
                     var sourceX = sourcePoint?.X ?? sampleBounds.MinX + xs[col] * stepX;
                     var sourceY = sourcePoint?.Y ?? sampleBounds.MaxY - ys[row] * stepY;
-                    if (!SpatialReferenceTransform.TryTransformXY(
-                            raster.SrsName, context.ResolvedSrs, sourceX, sourceY, out var x, out var y) ||
+                    if (!transform(sourceX, sourceY, out var x, out var y) ||
                         !double.IsFinite(x) || !double.IsFinite(y))
                     {
                         throw new InvalidOperationException($"Cannot transform terrain from '{raster.SrsName}' into Spatial Context '{context.ResolvedSrs}'.");
@@ -66,6 +72,7 @@ namespace RhinoSpatial.Core
 
             for (var row = 0; row < ys.Count - 1; row++)
             {
+                token.ThrowIfCancellationRequested();
                 for (var col = 0; col < xs.Count - 1; col++)
                 {
                     var index = row * xs.Count + col;
@@ -74,7 +81,7 @@ namespace RhinoSpatial.Core
                     var c = vertexIndices[index + xs.Count + 1];
                     var d = vertexIndices[index + xs.Count];
                     if (a >= 0 && b >= 0 && c >= 0 && d >= 0 &&
-                        HasCompleteCoverage(raster, xs[col], ys[row], xs[col + 1], ys[row + 1]))
+                        HasCompleteCoverage(raster, xs[col], ys[row], xs[col + 1], ys[row + 1], token))
                     {
                         faces.Add((a, b, c, d));
                     }
@@ -95,11 +102,12 @@ namespace RhinoSpatial.Core
                    (raster.NoDataValue.HasValue && Math.Abs(elevation - raster.NoDataValue.Value) < 1e-3);
         }
 
-        private static bool HasCompleteCoverage(TerrainRasterData raster, int minX, int minY, int maxX, int maxY)
+        private static bool HasCompleteCoverage(TerrainRasterData raster, int minX, int minY, int maxX, int maxY, CancellationToken token)
         {
             // Downsampling must not bridge a NoData hole hidden between retained vertices.
             for (var y = minY; y <= maxY; y++)
             {
+                token.ThrowIfCancellationRequested();
                 for (var x = minX; x <= maxX; x++)
                 {
                     if (IsNoData(raster, raster.Elevations[y * raster.Width + x]))

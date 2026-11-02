@@ -20,14 +20,60 @@ namespace RhinoSpatial.Core
         };
 
         private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(5);
-        private static readonly ConcurrentDictionary<string, CacheEntry> CacheEntriesByKey = new();
+        private static readonly OsmCache SharedCache = new();
+        private readonly OsmCache _cache;
+        private readonly HttpClient _http;
+        private readonly ServiceRequestPolicy _policy;
+
+        public OsmClient() : this(null) { }
+        public OsmClient(HttpClient? http, ServiceRequestPolicy? policy = null)
+        {
+            _http = http ?? SharedHttpClient;
+            _policy = policy ?? new ServiceRequestPolicy();
+            _policy.Validate();
+            _cache = http is null && policy is null ? SharedCache : new();
+        }
 
         private static readonly HttpClient SharedHttpClient = new()
         {
-            Timeout = TimeSpan.FromSeconds(60)
+            Timeout = Timeout.InfiniteTimeSpan
         };
 
-        private sealed record CacheEntry(OsmDataSet DataSet, DateTimeOffset StoredAtUtc);
+        private sealed record CacheEntry(OsmDataSet DataSet, DateTimeOffset StoredAtUtc, long Coordinates, long EstimatedBytes);
+        private sealed class OsmCache
+        {
+            internal readonly ConcurrentDictionary<string, CacheEntry> Entries = new(StringComparer.Ordinal);
+            private readonly object _sync = new();
+            private long _coordinates;
+            private long _estimatedBytes;
+            internal void Store(string key, OsmDataSet data, CancellationToken token)
+            {
+                var weight = CountCoordinates(data);
+                var tags = data.Buildings.Concat(data.WaterAreas).Concat(data.GreenAreas).Select(a => a.Tags)
+                    .Concat(data.Roads.Concat(data.Rails).Select(l => l.Tags));
+                var estimatedBytes = weight * 40 + tags.Sum(t => 128L + t.Sum(p => 64L + (p.Key.Length + (p.Value?.Length ?? 0)) * 2L));
+                token.ThrowIfCancellationRequested();
+                lock (_sync)
+                {
+                    if (Entries.TryRemove(key, out var old)) { _coordinates -= old.Coordinates; _estimatedBytes -= old.EstimatedBytes; }
+                    while (Entries.Count > 0 && (Entries.Count >= 64 || _coordinates + weight > 4000000 || _estimatedBytes + estimatedBytes > 128L * 1024 * 1024))
+                    {
+                        var oldest = Entries.MinBy(p => p.Value.StoredAtUtc);
+                        if (Entries.TryRemove(oldest.Key, out var removed)) { _coordinates -= removed.Coordinates; _estimatedBytes -= removed.EstimatedBytes; }
+                    }
+                    if (weight <= 4000000 && estimatedBytes <= 128L * 1024 * 1024)
+                    {
+                        Entries[key] = new CacheEntry(data, DateTimeOffset.UtcNow, weight, estimatedBytes);
+                        _coordinates += weight;
+                        _estimatedBytes += estimatedBytes;
+                    }
+                }
+            }
+        }
+        private static long CountCoordinates(OsmDataSet data) =>
+            data.Buildings.Concat(data.WaterAreas).Concat(data.GreenAreas)
+                .Sum(a => a.OuterRings.Concat(a.InnerRings).Sum(r => (long)r.Points.Count)) +
+            data.Roads.Concat(data.Rails).Sum(l => (long)l.CenterLine.Points.Count);
         private sealed record QueryBatch(OsmRequestOptions Options, string CategoryLabel, string Label);
 
         static OsmClient()
@@ -36,8 +82,13 @@ namespace RhinoSpatial.Core
             SharedHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         }
 
-        public async Task<OsmDataSet> LoadDataAsync(OsmRequestOptions options)
+        public Task<OsmDataSet> LoadDataAsync(OsmRequestOptions options) => LoadDataAsync(options, CancellationToken.None);
+        public Task<OsmDataSet> LoadDataAsync(OsmRequestOptions options, CancellationToken token) =>
+            ServiceRequests.RunAsync(_policy, token, ct => LoadDataCoreAsync(options, ct));
+
+        private async Task<OsmDataSet> LoadDataCoreAsync(OsmRequestOptions options, CancellationToken token)
         {
+            token.ThrowIfCancellationRequested();
             if (!options.IncludeBuildings &&
                 !options.IncludeRoads &&
                 !options.IncludeWater &&
@@ -64,34 +115,37 @@ namespace RhinoSpatial.Core
             {
                 foreach (var queryBatch in queryBatches)
                 {
+                    token.ThrowIfCancellationRequested();
                     var batchCacheKey = BuildCacheKey(queryBatch.Options);
 
                     try
                     {
-                        var batchResult = await LoadBatchAsync(queryBatch, failureMessages);
+                        var batchResult = await LoadBatchAsync(queryBatch, failureMessages, token).ConfigureAwait(false);
                         combinedDataSet = MergeDataSets(combinedDataSet, batchResult.DataSet);
-                        CacheEntriesByKey[batchCacheKey] = new CacheEntry(
+                        CheckDataBudget(combinedDataSet);
+                        _cache.Store(batchCacheKey,
                             batchResult.DataSet with
                             {
                                 StatusNote = string.Empty,
                                 UnavailableCategories = new List<string>(),
                                 CachedCategories = new List<string>()
                             },
-                            DateTimeOffset.UtcNow);
+                            token);
 
                         if (string.IsNullOrWhiteSpace(statusNote) && !string.IsNullOrWhiteSpace(batchResult.StatusNote))
                         {
                             statusNote = batchResult.StatusNote;
                         }
                     }
-                    catch (Exception) when (
+                    catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException && !token.IsCancellationRequested && (
                         TryGetCachedDataSet(batchCacheKey, allowStale: true, out var cachedBatchDataSet) ||
-                        TryGetCachedCategoryDataSet(cacheKey, queryBatch.CategoryLabel, out cachedBatchDataSet))
+                        TryGetCachedCategoryDataSet(cacheKey, queryBatch.CategoryLabel, out cachedBatchDataSet)))
                     {
                         combinedDataSet = MergeDataSets(combinedDataSet, cachedBatchDataSet);
+                        CheckDataBudget(combinedDataSet);
                         cachedCategories.Add(queryBatch.CategoryLabel);
                     }
-                    catch (Exception)
+                    catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException && !token.IsCancellationRequested)
                     {
                         unavailableCategories.Add(queryBatch.CategoryLabel);
                     }
@@ -137,7 +191,9 @@ namespace RhinoSpatial.Core
                     UnavailableCategories = new List<string>(),
                     CachedCategories = new List<string>()
                 };
-                CacheEntriesByKey[cacheKey] = new CacheEntry(cleanCachedDataSet, DateTimeOffset.UtcNow);
+                token.ThrowIfCancellationRequested();
+                if (unavailableCategories.Count == 0 && cachedCategories.Count == 0)
+                    _cache.Store(cacheKey, cleanCachedDataSet, token);
 
                 if (!string.IsNullOrWhiteSpace(statusNote))
                 {
@@ -155,7 +211,7 @@ namespace RhinoSpatial.Core
                     CachedCategories = cachedCategories
                 };
             }
-            catch (Exception) when (TryGetCachedDataSet(cacheKey, allowStale: true, out var staleCachedDataSet))
+            catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException && !token.IsCancellationRequested && TryGetCachedDataSet(cacheKey, allowStale: true, out var staleCachedDataSet))
             {
                 return staleCachedDataSet with
                 {
@@ -167,7 +223,7 @@ namespace RhinoSpatial.Core
             throw new InvalidOperationException(BuildFailureMessage(failureMessages));
         }
 
-        private async Task<(OsmDataSet DataSet, string StatusNote)> LoadBatchAsync(QueryBatch queryBatch, List<string> failureMessages)
+        private async Task<(OsmDataSet DataSet, string StatusNote)> LoadBatchAsync(QueryBatch queryBatch, List<string> failureMessages, CancellationToken token)
         {
             var query = BuildOverpassQuery(queryBatch.Options);
             var candidateBaseUrls = ResolveCandidateBaseUrls(queryBatch.Options.BaseUrl);
@@ -180,17 +236,17 @@ namespace RhinoSpatial.Core
                 {
                     try
                     {
-                        var responseText = await PostQueryAsync(candidateBaseUrl, query);
-                        var dataSet = ParseResponse(responseText, queryBatch.Options);
+                        var responseText = await PostQueryAsync(candidateBaseUrl, query, token).ConfigureAwait(false);
+                        var dataSet = ParseResponse(responseText, queryBatch.Options, token);
                         return (dataSet, BuildEndpointStatusNote(candidateBaseUrl, queryBatch.Options.BaseUrl));
                     }
-                    catch (Exception ex)
+                    catch (Exception ex) when (ex is not OperationCanceledException and not ServiceLimitException && !token.IsCancellationRequested)
                     {
                         failureMessages.Add($"{queryBatch.Label}: {ex.Message}");
 
                         if (attempt + 1 < maxAttempts && IsTransientFailure(ex))
                         {
-                            await Task.Delay(TimeSpan.FromMilliseconds(250 * (attempt + 1)));
+                            await Task.Delay(TimeSpan.FromMilliseconds(250 * (attempt + 1)), token).ConfigureAwait(false);
                             continue;
                         }
 
@@ -202,7 +258,7 @@ namespace RhinoSpatial.Core
             throw new InvalidOperationException(BuildFailureMessage(failureMessages));
         }
 
-        private static async Task<string> PostQueryAsync(string baseUrl, string query)
+        private async Task<string> PostQueryAsync(string baseUrl, string query, CancellationToken token)
         {
             var resolvedBaseUrl = string.IsNullOrWhiteSpace(baseUrl)
                 ? DefaultOverpassUrls[0]
@@ -213,16 +269,12 @@ namespace RhinoSpatial.Core
                 ["data"] = query
             });
 
-            using var response = await SharedHttpClient.PostAsync(resolvedBaseUrl, content);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
+            using var request = new HttpRequestMessage(HttpMethod.Post, resolvedBaseUrl) { Content = content };
+            return await ServiceRequests.SendAsync(_http, request, _policy, token, async (response, ct) =>
             {
-                throw new HttpRequestException(
-                    $"The OSM service returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {resolvedBaseUrl}");
-            }
-
-            return responseText;
+                await ServiceRequests.EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+                return await ServiceRequests.TextAsync(response, _policy.MaximumOsmBytes, ct).ConfigureAwait(false);
+            }).ConfigureAwait(false);
         }
 
         private static string BuildOverpassQuery(OsmRequestOptions options)
@@ -299,7 +351,7 @@ namespace RhinoSpatial.Core
                 $"({boundingBox.MinY},{boundingBox.MinX},{boundingBox.MaxY},{boundingBox.MaxX})");
         }
 
-        private static OsmDataSet ParseResponse(string responseText, OsmRequestOptions options)
+        private OsmDataSet ParseResponse(string responseText, OsmRequestOptions options, CancellationToken token)
         {
             var trimmedResponse = responseText.TrimStart();
             if (!trimmedResponse.StartsWith("{", StringComparison.Ordinal))
@@ -308,7 +360,11 @@ namespace RhinoSpatial.Core
                     "The OSM service returned a non-JSON response. Try again in a moment.");
             }
 
+            token.ThrowIfCancellationRequested();
             using var document = JsonDocument.Parse(responseText);
+            token.ThrowIfCancellationRequested();
+            if (document.RootElement.TryGetProperty("remark", out var remark) && !string.IsNullOrWhiteSpace(remark.ToString()))
+                throw new InvalidDataException("The OSM service reported an incomplete query: " + remark.ToString()[..Math.Min(512, remark.ToString().Length)]);
 
             if (!document.RootElement.TryGetProperty("elements", out var elementsElement) ||
                 elementsElement.ValueKind != JsonValueKind.Array)
@@ -316,6 +372,10 @@ namespace RhinoSpatial.Core
                 return CreateEmptyDataSet();
             }
 
+            if (elementsElement.GetArrayLength() > _policy.MaximumOsmElements)
+                throw new ServiceLimitException("The OSM response exceeds its element limit. Reduce the study area.");
+            long coordinates = 0;
+            foreach (var element in elementsElement.EnumerateArray()) CountInputCoordinates(element, ref coordinates, token);
             var buildings = new List<OsmAreaFeature>();
             var roads = new List<OsmLinearFeature>();
             var waterAreas = new List<OsmAreaFeature>();
@@ -324,6 +384,7 @@ namespace RhinoSpatial.Core
 
             foreach (var element in elementsElement.EnumerateArray())
             {
+                token.ThrowIfCancellationRequested();
                 var tags = ReadTags(element);
                 if (tags.Count == 0)
                 {
@@ -339,7 +400,7 @@ namespace RhinoSpatial.Core
 
                 if (options.IncludeBuildings && IsBuilding(tags))
                 {
-                    var rings = ReadAreaRings(element, type);
+                    var rings = ReadAreaRings(element, type, token: token);
                     if (rings.Count > 0)
                     {
                         buildings.Add(new OsmAreaFeature(id, rings, new List<LinearRing>(), tags));
@@ -351,7 +412,7 @@ namespace RhinoSpatial.Core
                 if (options.IncludeRoads &&
                     tags.TryGetValue("highway", out var highwayValue) &&
                     IsRoad(highwayValue) &&
-                    TryReadLineString(element, out var roadCenterLine))
+                    TryReadLineString(element, out var roadCenterLine, token))
                 {
                     roads.Add(new OsmLinearFeature(id, roadCenterLine, tags));
                     continue;
@@ -361,7 +422,7 @@ namespace RhinoSpatial.Core
                 {
                     if (IsWaterArea(tags))
                     {
-                        var areaGeometry = ReadAreaGeometry(element, type);
+                        var areaGeometry = ReadAreaGeometry(element, type, token);
                         if (areaGeometry.OuterRings.Count > 0)
                         {
                             waterAreas.Add(new OsmAreaFeature(id, areaGeometry.OuterRings, areaGeometry.InnerRings, tags));
@@ -373,7 +434,7 @@ namespace RhinoSpatial.Core
 
                 if (options.IncludeGreen && IsGreen(tags))
                 {
-                    var areaGeometry = ReadAreaGeometry(element, type);
+                    var areaGeometry = ReadAreaGeometry(element, type, token);
                     if (areaGeometry.OuterRings.Count > 0)
                     {
                         greenAreas.Add(new OsmAreaFeature(id, areaGeometry.OuterRings, areaGeometry.InnerRings, tags));
@@ -383,7 +444,7 @@ namespace RhinoSpatial.Core
 
                 if (options.IncludeRail &&
                     IsRail(tags) &&
-                    TryReadLineString(element, out var railCenterLine))
+                    TryReadLineString(element, out var railCenterLine, token))
                 {
                     rails.Add(new OsmLinearFeature(id, railCenterLine, tags));
                 }
@@ -393,6 +454,23 @@ namespace RhinoSpatial.Core
             {
                 UnavailableCategories = new List<string>()
             };
+        }
+
+        private void CountInputCoordinates(JsonElement element, ref long count, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            if (element.TryGetProperty("geometry", out var geometry) && geometry.ValueKind == JsonValueKind.Array)
+                count += geometry.GetArrayLength();
+            if (count > _policy.MaximumOsmCoordinates) throw new ServiceLimitException("The OSM response exceeds its coordinate limit. Reduce the study area.");
+            if (element.TryGetProperty("members", out var members) && members.ValueKind == JsonValueKind.Array)
+                foreach (var member in members.EnumerateArray()) CountInputCoordinates(member, ref count, token);
+        }
+
+        private void CheckDataBudget(OsmDataSet data)
+        {
+            if (CountCoordinates(data) > _policy.MaximumOsmCoordinates ||
+                (long)data.Buildings.Count + data.Roads.Count + data.WaterAreas.Count + data.GreenAreas.Count + data.Rails.Count > _policy.MaximumOsmElements)
+                throw new ServiceLimitException("The combined OSM study exceeds its geometry limit. Reduce the study area.");
         }
 
         private static OsmDataSet CreateEmptyDataSet()
@@ -669,11 +747,11 @@ namespace RhinoSpatial.Core
                 : baseUrl!.Trim();
         }
 
-        private static bool TryGetCachedDataSet(string cacheKey, bool allowStale, out OsmDataSet dataSet)
+        private bool TryGetCachedDataSet(string cacheKey, bool allowStale, out OsmDataSet dataSet)
         {
             dataSet = default!;
 
-            if (!CacheEntriesByKey.TryGetValue(cacheKey, out var entry))
+            if (!_cache.Entries.TryGetValue(cacheKey, out var entry))
             {
                 return false;
             }
@@ -687,7 +765,7 @@ namespace RhinoSpatial.Core
             return true;
         }
 
-        private static bool TryGetCachedCategoryDataSet(string cacheKey, string label, out OsmDataSet dataSet)
+        private bool TryGetCachedCategoryDataSet(string cacheKey, string label, out OsmDataSet dataSet)
         {
             dataSet = default!;
 
@@ -846,7 +924,7 @@ namespace RhinoSpatial.Core
             return tags;
         }
 
-        private static bool TryReadLineString(JsonElement element, out LineString lineString)
+        private static bool TryReadLineString(JsonElement element, out LineString lineString, CancellationToken token)
         {
             lineString = new LineString(new List<Coordinate2D>());
 
@@ -855,7 +933,7 @@ namespace RhinoSpatial.Core
                 return false;
             }
 
-            var points = ReadCoordinates(geometryElement, closeRing: false);
+            var points = ReadCoordinates(geometryElement, closeRing: false, token);
             if (points.Count < 2)
             {
                 return false;
@@ -865,14 +943,14 @@ namespace RhinoSpatial.Core
             return true;
         }
 
-        private static (List<LinearRing> OuterRings, List<LinearRing> InnerRings) ReadAreaGeometry(JsonElement element, string type)
+        private static (List<LinearRing> OuterRings, List<LinearRing> InnerRings) ReadAreaGeometry(JsonElement element, string type, CancellationToken token)
         {
-            var outerRings = ReadAreaRings(element, type, includeInnerRings: false);
-            var innerRings = ReadAreaRings(element, type, includeInnerRings: true);
+            var outerRings = ReadAreaRings(element, type, includeInnerRings: false, token);
+            var innerRings = ReadAreaRings(element, type, includeInnerRings: true, token);
             return (outerRings, innerRings);
         }
 
-        private static List<LinearRing> ReadAreaRings(JsonElement element, string type, bool includeInnerRings = false)
+        private static List<LinearRing> ReadAreaRings(JsonElement element, string type, bool includeInnerRings = false, CancellationToken token = default)
         {
             var rings = new List<LinearRing>();
 
@@ -885,7 +963,7 @@ namespace RhinoSpatial.Core
 
                 if (element.TryGetProperty("geometry", out var geometryElement) && geometryElement.ValueKind == JsonValueKind.Array)
                 {
-                    var points = ReadCoordinates(geometryElement, closeRing: true);
+                    var points = ReadCoordinates(geometryElement, closeRing: true, token);
                     if (points.Count >= 4)
                     {
                         rings.Add(new LinearRing(points));
@@ -906,6 +984,7 @@ namespace RhinoSpatial.Core
 
             foreach (var member in membersElement.EnumerateArray())
             {
+                token.ThrowIfCancellationRequested();
                 if (!member.TryGetProperty("type", out var memberTypeElement) ||
                     !string.Equals(memberTypeElement.GetString(), "way", StringComparison.OrdinalIgnoreCase))
                 {
@@ -924,23 +1003,24 @@ namespace RhinoSpatial.Core
                     continue;
                 }
 
-                var points = ReadCoordinates(memberGeometry, closeRing: false);
+                var points = ReadCoordinates(memberGeometry, closeRing: false, token);
                 if (points.Count >= 2)
                 {
                     relationSegments.Add(points);
                 }
             }
 
-            return AssembleRelationRings(relationSegments);
+            return AssembleRelationRings(relationSegments, token);
         }
 
-        private static List<LinearRing> AssembleRelationRings(List<List<Coordinate2D>> segments)
+        private static List<LinearRing> AssembleRelationRings(List<List<Coordinate2D>> segments, CancellationToken token)
         {
             var assembledRings = new List<LinearRing>();
             var remaining = new List<List<Coordinate2D>>(segments);
 
             while (remaining.Count > 0)
             {
+                token.ThrowIfCancellationRequested();
                 var current = new List<Coordinate2D>(remaining[0]);
                 remaining.RemoveAt(0);
 
@@ -1019,12 +1099,13 @@ namespace RhinoSpatial.Core
                    Math.Abs(left.Y - right.Y) <= epsilon;
         }
 
-        private static List<Coordinate2D> ReadCoordinates(JsonElement geometryElement, bool closeRing)
+        private static List<Coordinate2D> ReadCoordinates(JsonElement geometryElement, bool closeRing, CancellationToken token)
         {
             var points = new List<Coordinate2D>();
 
             foreach (var coordinateElement in geometryElement.EnumerateArray())
             {
+                token.ThrowIfCancellationRequested();
                 if (!coordinateElement.TryGetProperty("lon", out var lonElement) ||
                     !coordinateElement.TryGetProperty("lat", out var latElement) ||
                     !lonElement.TryGetDouble(out var lon) ||

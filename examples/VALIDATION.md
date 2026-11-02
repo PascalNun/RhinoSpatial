@@ -2,7 +2,7 @@
 
 This is the maintainer checklist for a release. For ordinary use, start with the
 [visual workflow](../docs/SHOWCASE.md) or [project-data guide](../docs/WORKING_WITH_PROJECT_DATA.md).
-The development work is merged into `main`; all ten automated suites pass locally
+The development work is merged into `main`; all eleven automated suites pass locally
 and run in CI on macOS and Windows. Unchecked native items below remain pending and are not implied
 by a successful console or CI run. The public package remains 0.4.0.
 
@@ -211,11 +211,21 @@ changed by this implementation batch.
 The three high-priority cases in the [research report](../docs/NEXT_WORK_RESEARCH.md)
 are implemented and covered by automated regressions. The native checks below
 remain pending. The [next reliability plan](../docs/RELIABILITY_PLAN.md) records
-cancellation, bounded downloads, terrain windows and remote BigTIFF work that
-has not been implemented yet.
+the completed service reliability batch and remaining terrain-window/remote
+BigTIFF work. Automated coverage does not complete the native checks below.
 
 - [ ] Incomplete scanline/tile reads fail without repeating old elevations or publishing partial terrain.
 - [ ] Equivalent GeoJSON/GML/Shapefile/GeoPackage polygons retain courtyard boundaries and feature grouping.
 - [ ] Unknown CRS identifiers are rejected; supported short/URN/URL forms resolve consistently without an axis-order regression.
 - [ ] A known-length/height study is checked in metre, millimetre and foot documents, including save/reopen and supported bake paths; confirm the intended units policy before changing absolute-coordinate behavior.
 - [ ] Packaged assemblies are loaded under the actual supported Rhino 8 host runtimes on both platforms; assess Rhino 9 separately rather than assuming the .NET 10 sandbox proves host compatibility.
+
+## Service reliability (development)
+
+Use the [loopback fixture guide](RELIABILITY_WORKFLOWS.md). These host checks remain pending:
+
+- [ ] Cancel WMS, WCS and OSM during a slow body transfer, retry a normal source and verify that no interrupted asset becomes a cache hit.
+- [ ] Change the study area while loading; the older solve must not replace current geometry, preview or terrain sampling data.
+- [ ] Check request-size errors, WMS size retry, WCS multipart data and explicitly reported OSM category failures.
+- [ ] Start map-reference work, change its source or remove the component, and verify that the superseded request does not reopen or reset the map.
+- [ ] Repeat with saved definitions and supported installed assemblies on macOS and Windows; keep unit/scale and baking checks separate.

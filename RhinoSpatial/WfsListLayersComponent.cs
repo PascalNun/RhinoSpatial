@@ -1,3 +1,4 @@
+using System.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -55,16 +56,19 @@ namespace RhinoSpatial
 
                 if (InPreSolve)
                 {
-                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData), CancelToken);
+                    var token = CancelToken;
+                    Task<SolveResults> task = Task.Run(() => ComputeSafe(requestData, token), token);
                     TaskList.Add(task);
                     return;
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
                 if (!GetSolveResults(dataAccess, out SolveResults result))
                 {
-                    result = ComputeSafe(requestData);
+                    result = ComputeSafe(requestData, CancelToken);
                 }
 
+                if (CancelToken.IsCancellationRequested) return;
                 if (!string.IsNullOrWhiteSpace(result.Status) && result.MessageLevel.HasValue)
                 {
                     AddRuntimeMessage(result.MessageLevel.Value, result.Status);
@@ -116,16 +120,19 @@ namespace RhinoSpatial
             return true;
         }
 
-        private SolveResults Compute(RequestData requestData)
+        private SolveResults Compute(RequestData requestData, CancellationToken token)
         {
             if (VectorSourceResolver.Resolve(requestData.BaseUrl).Kind == VectorSourceKind.LocalGeoPackage)
             {
-                var localLayers = GeoPackageReader.ReadLayers(requestData.BaseUrl,CancelToken);
-                return new SolveResults { Layers = localLayers.Select(l => new WfsLayerInfo(l.Name,l.Title,l.SourceSrs,new List<string>(),
-                    l.Bounds is not null && ReferenceSourceMetadataReader.TryTransformBoundsToWgs84(l.SourceSrs,l.Bounds,out var wgs)?wgs:null)).ToList() };
+                var localLayers = GeoPackageReader.ReadLayers(requestData.BaseUrl, token);
+                return new SolveResults
+                {
+                    Layers = localLayers.Select(l => new WfsLayerInfo(l.Name, l.Title, l.SourceSrs, new List<string>(),
+                    l.Bounds is not null && ReferenceSourceMetadataReader.TryTransformBoundsToWgs84(l.SourceSrs, l.Bounds, out var wgs) ? wgs : null)).ToList()
+                };
             }
-            var collections = new OgcApiFeaturesClient().TryDiscoverAsync(requestData.BaseUrl).GetAwaiter().GetResult();
-            var layers = collections is null ? _wfsClient.LoadLayersAsync(requestData.BaseUrl).GetAwaiter().GetResult()
+            var collections = new OgcApiFeaturesClient().TryDiscoverAsync(requestData.BaseUrl, token).GetAwaiter().GetResult();
+            var layers = collections is null ? _wfsClient.LoadLayersAsync(requestData.BaseUrl, token).GetAwaiter().GetResult()
                 : System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(collections, c => new WfsLayerInfo(c.Id, c.Title, "EPSG:4326", new List<string>(), c.Wgs84Bounds)));
 
             return new SolveResults
@@ -134,11 +141,11 @@ namespace RhinoSpatial
             };
         }
 
-        private SolveResults ComputeSafe(RequestData requestData)
+        private SolveResults ComputeSafe(RequestData requestData, CancellationToken token)
         {
             try
             {
-                return Compute(requestData);
+                return SourceSolveDeadline.Run(token, ct => Compute(requestData, ct));
             }
             catch (Exception ex)
             {

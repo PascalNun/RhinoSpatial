@@ -9,6 +9,7 @@ namespace RhinoSpatial.Sandbox
     {
         static async Task Main(string[] args)
         {
+            if (args.Length > 0 && args[0] == "reliability-check") { await ReliabilityChecks.RunAsync(); return; }
             if (args.Length > 0 && args[0] == "correctness-check") { CorrectnessChecks.Run(); return; }
             if(args.Length>0&&args[0]=="low-compatibility-check"){await LowCompatibilityChecks.RunAsync();return;}
             if(args.Length>2&&args[0]=="low-probe"&&args[1]=="examples"){LowCompatibilityFixtures.WriteExamples(args[2]);return;}

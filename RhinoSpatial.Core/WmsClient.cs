@@ -14,9 +14,23 @@ namespace RhinoSpatial.Core
     {
         private static readonly HttpClient SharedHttpClient = new()
         {
-            Timeout = TimeSpan.FromSeconds(30)
+            Timeout = Timeout.InfiniteTimeSpan
         };
-        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<WmsCapabilitiesInfo>> CapabilitiesCache = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ServiceMetadataCache<WmsCapabilitiesInfo> SharedCapabilitiesCache = new();
+        private readonly ServiceMetadataCache<WmsCapabilitiesInfo> _capabilities;
+        private readonly HttpClient _http;
+        private readonly ServiceRequestPolicy _policy;
+        private readonly string _cacheDirectory;
+
+        public WmsClient() : this(null) { }
+        public WmsClient(HttpClient? http, string? cacheDirectory = null, ServiceRequestPolicy? policy = null)
+        {
+            _http = http ?? SharedHttpClient;
+            _policy = policy ?? new ServiceRequestPolicy { RequestTimeout = TimeSpan.FromSeconds(30) };
+            _policy.Validate();
+            _capabilities = http is null && policy is null ? SharedCapabilitiesCache : new();
+            _cacheDirectory = cacheDirectory ?? ImageCacheDirectory;
+        }
         private static readonly HashSet<string> ReservedQueryKeys = new(StringComparer.OrdinalIgnoreCase)
         {
             "SERVICE",
@@ -44,26 +58,20 @@ namespace RhinoSpatial.Core
             SharedHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("*/*"));
         }
 
-        public async Task<List<WmsLayerInfo>> LoadLayersAsync(string baseUrl)
-        {
-            return (await LoadCapabilitiesAsync(baseUrl)).Layers;
-        }
+        public Task<List<WmsLayerInfo>> LoadLayersAsync(string baseUrl) => LoadLayersAsync(baseUrl, CancellationToken.None);
+        public async Task<List<WmsLayerInfo>> LoadLayersAsync(string baseUrl, CancellationToken token) =>
+            (await LoadCapabilitiesAsync(baseUrl, token).ConfigureAwait(false)).Layers;
 
-        public async Task<WmsCapabilitiesInfo> LoadCapabilitiesAsync(string baseUrl)
-        {
-            var normalizedBaseUrl = OgcUrlUtilities.NormalizeBaseUrl(baseUrl, ReservedQueryKeys);
-            var loadTask = CapabilitiesCache.GetOrAdd(normalizedBaseUrl, LoadCapabilitiesUncachedAsync);
-
-            try
-            {
-                return await loadTask;
-            }
-            catch
-            {
-                CapabilitiesCache.TryRemove(normalizedBaseUrl, out _);
-                throw;
-            }
-        }
+        public Task<WmsCapabilitiesInfo> LoadCapabilitiesAsync(string baseUrl) => LoadCapabilitiesAsync(baseUrl, CancellationToken.None);
+        public Task<WmsCapabilitiesInfo> LoadCapabilitiesAsync(string baseUrl, CancellationToken token) =>
+            ServiceRequests.RunAsync(_policy, token, ct => _capabilities.GetAsync(
+                BuildGetCapabilitiesRequestUrl(baseUrl), ct, async loadToken =>
+                {
+                    var metadata = await ServiceRequests.MetadataAsync(_http, BuildGetCapabilitiesRequestUrl(baseUrl), _policy, loadToken).ConfigureAwait(false);
+                    var value = WmsCapabilitiesReader.ReadCapabilities(metadata.Text);
+                    loadToken.ThrowIfCancellationRequested();
+                    return (value, metadata.Bytes);
+                }));
 
         public static string BuildGetMapRequestUrl(WmsRequestOptions options)
         {
@@ -150,107 +158,63 @@ namespace RhinoSpatial.Core
             return builder.ToString();
         }
 
-        public async Task<WmsImageResult> DownloadImageAsync(WmsRequestOptions options)
+        public Task<WmsImageResult> DownloadImageAsync(WmsRequestOptions options) => DownloadImageAsync(options, CancellationToken.None);
+        public Task<WmsImageResult> DownloadImageAsync(WmsRequestOptions options, CancellationToken token) =>
+            ServiceRequests.RunAsync(_policy, token, ct => DownloadImageCoreAsync(options, ct));
+
+        private async Task<WmsImageResult> DownloadImageCoreAsync(WmsRequestOptions options, CancellationToken token)
         {
             if (string.IsNullOrWhiteSpace(options.GetMapBaseUrl))
             {
-                var capabilities = await LoadCapabilitiesAsync(options.BaseUrl);
+                var capabilities = await LoadCapabilitiesAsync(options.BaseUrl, token).ConfigureAwait(false);
                 options = CloneOptions(options);
-
-                if (!string.IsNullOrWhiteSpace(capabilities.GetMapUrl))
-                {
-                    options.GetMapBaseUrl = capabilities.GetMapUrl;
-                }
-
-                if (!string.IsNullOrWhiteSpace(capabilities.ServiceVersion))
-                {
-                    options.Version = capabilities.ServiceVersion;
-                }
+                if (!string.IsNullOrWhiteSpace(capabilities.GetMapUrl)) options.GetMapBaseUrl = capabilities.GetMapUrl;
+                if (!string.IsNullOrWhiteSpace(capabilities.ServiceVersion)) options.Version = capabilities.ServiceVersion;
             }
-
-            Directory.CreateDirectory(ImageCacheDirectory);
+            Directory.CreateDirectory(_cacheDirectory);
             var currentOptions = CloneOptions(options);
-            HttpResponseMessage? response = null;
-            string requestUrl = string.Empty;
-            string contentType = options.Format;
-
             while (true)
             {
-                requestUrl = BuildGetMapRequestUrl(currentOptions);
-                var requestHash = ComputeRequestHash(requestUrl);
-                if (TryGetCachedImageFile(requestHash, out var cachedFilePath, out var cachedContentType))
+                token.ThrowIfCancellationRequested();
+                var requestUrl = BuildGetMapRequestUrl(currentOptions);
+                var hash = "v2-" + ComputeRequestHash(requestUrl);
+                using var lease = await ServiceFileCache.LockAsync(Path.Combine(_cacheDirectory, hash), token).ConfigureAwait(false);
+                foreach (var path in Directory.EnumerateFiles(_cacheDirectory, hash + ".*"))
                 {
-                    response?.Dispose();
-                    return new WmsImageResult(requestUrl, cachedFilePath, cachedContentType, UsedCachedFile: true);
+                    if (Path.GetExtension(path) is not (".png" or ".jpg" or ".tif" or ".gif" or ".img")) continue;
+                    var type = await ServiceFileCache.ReadAsync(path, _policy.MaximumImageBytes, token).ConfigureAwait(false);
+                    if (type is null) continue;
+                    ServiceFileCache.ValidateImage(path, _policy.MaximumImagePixels, token, decode: false);
+                    token.ThrowIfCancellationRequested();
+                    return new WmsImageResult(requestUrl, path, type, UsedCachedFile: true);
                 }
-
-                response?.Dispose();
-
                 using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-                response = await SharedHttpClient.SendAsync(request);
-
-                if (!response.IsSuccessStatusCode)
+                var attempt = await ServiceRequests.SendAsync(_http, request, _policy, token, async (response, ct) =>
                 {
-                    throw new HttpRequestException(
-                        $"The WMS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}",
-                        null,
-                        response.StatusCode);
-                }
-
-                contentType = response.Content.Headers.ContentType?.MediaType ?? currentOptions.Format;
-                if (contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
-                {
-                    break;
-                }
-
-                var responseText = await response.Content.ReadAsStringAsync();
-                var exceptionMessage = TryExtractServiceExceptionMessage(responseText);
-
-                if (IsImageTooLargeException(exceptionMessage) &&
-                    TryReduceImageSize(currentOptions, out var reducedOptions))
-                {
-                    currentOptions = reducedOptions;
-                    continue;
-                }
-
-                throw new InvalidOperationException(
-                    !string.IsNullOrWhiteSpace(exceptionMessage)
-                        ? $"The WMS server returned a service exception instead of an image: {exceptionMessage}"
-                        : $"The WMS server returned '{contentType}' instead of an image. Check the selected layer name, SRS, and bounding box.");
+                    await ServiceRequests.EnsureSuccessAsync(response, ct).ConfigureAwait(false);
+                    var type = response.Content.Headers.ContentType?.MediaType ?? currentOptions.Format;
+                    if (!type.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var text = await ServiceRequests.TextAsync(response, ServiceRequests.MaximumErrorBytes, ct).ConfigureAwait(false);
+                        return (Result: (WmsImageResult?)null, Error: TryExtractServiceExceptionMessage(text) ?? $"The WMS server returned '{type}' instead of an image.");
+                    }
+                    var final = Path.Combine(_cacheDirectory, hash + ResolveFileExtension(currentOptions.Format, type));
+                    var temporary = ServiceFileCache.Temporary(final);
+                    try
+                    {
+                        await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, true))
+                            await ServiceRequests.CopyAsync(response.Content, output, _policy.MaximumImageBytes, ct).ConfigureAwait(false);
+                        ServiceFileCache.ValidateImage(temporary, _policy.MaximumImagePixels, ct);
+                        await ServiceFileCache.PublishAsync(temporary, final, type, ct).ConfigureAwait(false);
+                        return (Result: (WmsImageResult?)new WmsImageResult(requestUrl, final, type), Error: (string?)null);
+                    }
+                    finally { File.Delete(temporary); }
+                }).ConfigureAwait(false);
+                if (attempt.Result is not null) return attempt.Result;
+                if (IsImageTooLargeException(attempt.Error) && TryReduceImageSize(currentOptions, out var reduced))
+                { currentOptions = reduced; continue; }
+                throw new InvalidOperationException(attempt.Error);
             }
-
-            var fileExtension = ResolveFileExtension(options.Format, contentType);
-            var fileName = $"{ComputeRequestHash(requestUrl)}{fileExtension}";
-            var localFilePath = Path.Combine(ImageCacheDirectory, fileName);
-
-            if (!File.Exists(localFilePath) || new FileInfo(localFilePath).Length == 0)
-            {
-                await using var responseStream = await response!.Content.ReadAsStreamAsync();
-                await using var fileStream = File.Create(localFilePath);
-                await responseStream.CopyToAsync(fileStream);
-            }
-
-            response?.Dispose();
-
-            return new WmsImageResult(requestUrl, localFilePath, contentType);
-        }
-
-        private async Task<WmsCapabilitiesInfo> LoadCapabilitiesUncachedAsync(string normalizedBaseUrl)
-        {
-            var requestUrl = BuildGetCapabilitiesRequestUrl(normalizedBaseUrl);
-            using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
-            using var response = await SharedHttpClient.SendAsync(request);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new HttpRequestException(
-                    $"The WMS server returned {(int)response.StatusCode} {response.ReasonPhrase}. URL: {requestUrl}",
-                    null,
-                    response.StatusCode);
-            }
-
-            return WmsCapabilitiesReader.ReadCapabilities(responseText);
         }
 
         private static WmsRequestOptions CloneOptions(WmsRequestOptions options)
@@ -335,40 +299,6 @@ namespace RhinoSpatial.Core
         {
             var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(requestUrl));
             return Convert.ToHexString(bytes).ToLowerInvariant();
-        }
-
-        private static bool TryGetCachedImageFile(string requestHash, out string localFilePath, out string contentType)
-        {
-            foreach (var candidateFile in Directory.EnumerateFiles(ImageCacheDirectory, $"{requestHash}.*"))
-            {
-                var fileInfo = new FileInfo(candidateFile);
-                if (!fileInfo.Exists || fileInfo.Length == 0)
-                {
-                    continue;
-                }
-
-                localFilePath = candidateFile;
-                contentType = ResolveContentTypeFromExtension(Path.GetExtension(candidateFile));
-                return true;
-            }
-
-            localFilePath = string.Empty;
-            contentType = string.Empty;
-            return false;
-        }
-
-        private static string ResolveContentTypeFromExtension(string extension)
-        {
-            return extension.ToLowerInvariant() switch
-            {
-                ".png" => "image/png",
-                ".jpg" => "image/jpeg",
-                ".jpeg" => "image/jpeg",
-                ".tif" => "image/tiff",
-                ".tiff" => "image/tiff",
-                ".gif" => "image/gif",
-                _ => "application/octet-stream"
-            };
         }
 
         private static string? TryExtractServiceExceptionMessage(string responseText)

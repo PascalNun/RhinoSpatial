@@ -10,6 +10,10 @@ for feature availability and the general workflow.
 
 ### Sources and workflows
 
+- Carry cancellation through WMS, WCS and OSM service requests, retries and component processing. Bound response bytes, decoded images and OSM records; apply operation deadlines and prevent canceled work from falling back or publishing over a newer solve.
+- Publish validated image/coverage downloads through temporary files and checksum receipts, preserving existing texture assets. Cache completed metadata with bounded lifetime/storage and independent cancellation; use the shared path for WFS reference discovery too.
+- Stream WCS multipart responses through bounded spool files, preserve binary trailing bytes and prepare terrain coordinate transforms once per mesh. Reject incomplete Overpass query results and avoid caching reduced category results as complete studies.
+
 - Discover OGC API collections from a service root, follow supported feature pages and report user limits, duplicate records and incomplete responses clearly. Preserve raw GML for building imports.
 - Load validated direct GeoJSON and Shapefile ZIP downloads, and supported remote CityGML/CityJSON building files. Check companion files, archive paths, expanded sizes and declared coordinates; reuse completed downloads.
 - Load supported ATOM terrain feeds as aligned mosaics, preserving source sample centers, missing elevations and the shared placement baseline. Reject conflicting heights or incompatible grids.
@@ -30,12 +34,12 @@ for feature availability and the general workflow.
 
 ### Documentation, dependencies and validation
 
-- Record the next [reliability plan](docs/RELIABILITY_PLAN.md): consistent cancellation and bounded downloads, local terrain windows, remote BigTIFF and native units/runtime validation. These follow-up batches are planned, not implemented.
+- Record the next [reliability plan](docs/RELIABILITY_PLAN.md): consistent cancellation and bounded downloads, local terrain windows, remote BigTIFF and native units/runtime validation. The first service-reliability batch is implemented; terrain windows, remote BigTIFF and native validation remain follow-ups.
 - Record [follow-up correctness research](docs/NEXT_WORK_RESEARCH.md), diagnostic fixtures and priorities for terrain reads, courtyard rings, coordinate names, host/unit checks and BigTIFF range handling. The three high-priority fixes are implemented with offline regressions; host/unit checks, broader cancellation and BigTIFF range handling remain follow-ups.
 - Refresh the overview, visual workflow, project-data guide, examples, reference and maintainer documentation. General workflows apply across providers; recorded URLs, bounds and technical probe results remain in linked recipes.
 - Save [service/download examples](examples/COMPATIBILITY_WORKFLOWS.md), [building/imagery examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md), and [COG/GeoPackage examples](examples/LOW_COMPATIBILITY_WORKFLOWS.md), with synthetic sample files and actual live-check results.
 - Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.
-- Add 26 service/download, 27 building/imagery and 43 COG/GeoPackage regression cases, plus 52 correctness regressions. The Release build and all ten suites pass locally; CI runs them on macOS and Windows. Native Rhino preview, material/bake and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
+- Add 26 service/download, 27 building/imagery and 43 COG/GeoPackage regression cases, plus 52 correctness and 52 service-reliability regressions. The Release build and all eleven suites pass locally; CI runs them on macOS and Windows. Native Rhino preview, material/bake and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
 
 ## 0.4.0 — 2026-11-01
 

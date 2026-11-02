@@ -102,6 +102,8 @@ The public package is **0.4.0**. The following additions are merged into `main` 
 | Buildings | Direct building downloads, CityJSON detail selection, sequences and geometry templates |
 | Map references | Additional source metadata, GeoPackage catalog extents, remote COG headers and consistent supported coordinate identifiers |
 
+Development also adds consistent service cancellation, bounded downloads and validated cache reuse. See the [service reliability guide](../examples/RELIABILITY_WORKFLOWS.md) for examples and limits.
+
 The development work has automated checks on macOS and Windows. Rhino preview, materials, baking and saved-definition checks remain part of release validation. See the [changelog](../CHANGELOG.md) and [validation checklist](../examples/VALIDATION.md) for detail.
 
 ## Try an example, then use your own data

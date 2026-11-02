@@ -11,7 +11,8 @@ The next phase should improve correctness and everyday reliability before adding
 The [next reliability plan](RELIABILITY_PLAN.md) turns the remaining findings
 into three ordered implementation batches and a native units/runtime validation
 track. It records code-review evidence separately from proposed behavior and
-acceptance checks; those follow-up batches are not implemented yet.
+acceptance checks; the service reliability batch is now implemented, while terrain windows, remote
+BigTIFF and native validation remain follow-ups.
 
 | Priority | Work | Benefit | Evidence |
 | --- | --- | --- | --- |
