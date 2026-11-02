@@ -27,24 +27,7 @@ namespace RhinoSpatial.Core
                 return null;
             }
 
-            if (name.Contains("CRS84", StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:4326";
-            }
-
-            var epsgIndex = name.LastIndexOf("EPSG", StringComparison.OrdinalIgnoreCase);
-            if (epsgIndex >= 0)
-            {
-                var code = name[(epsgIndex + 4)..].Trim()
-                    .Split(new[] { ':', '/', '#' }, StringSplitOptions.RemoveEmptyEntries)
-                    .LastOrDefault();
-                if (!string.IsNullOrEmpty(code) && code.All(char.IsAsciiDigit))
-                {
-                    return $"EPSG:{code}";
-                }
-            }
-
-            return name.Trim();
+            return SpatialReferenceTransform.NormalizeSrs(name);
         }
 
         public static List<WfsFeature> ReadFeatures(string geoJson, string sourceLayerName)
@@ -136,12 +119,12 @@ namespace RhinoSpatial.Core
                 "Polygon" => new WfsGeometry
                 {
                     Type = geometryType,
-                    OuterRings = new List<LinearRing> { ReadRingPoints(coordinatesElement[0]) }
+                    OuterRings = ReadPolygonRings(coordinatesElement)
                 },
                 "MultiPolygon" => new WfsGeometry
                 {
                     Type = geometryType,
-                    OuterRings = ReadMultiPolygonOuterRings(coordinatesElement)
+                    OuterRings = ReadMultiPolygonRings(coordinatesElement)
                 },
                 "LineString" => new WfsGeometry
                 {
@@ -180,7 +163,12 @@ namespace RhinoSpatial.Core
             };
         }
 
-        private static List<LinearRing> ReadMultiPolygonOuterRings(JsonElement coordinatesElement)
+        private static List<LinearRing> ReadPolygonRings(JsonElement polygonElement)
+        {
+            return polygonElement.EnumerateArray().Select(ReadRingPoints).ToList();
+        }
+
+        private static List<LinearRing> ReadMultiPolygonRings(JsonElement coordinatesElement)
         {
             var outerRings = new List<LinearRing>();
 
@@ -191,7 +179,7 @@ namespace RhinoSpatial.Core
                     continue;
                 }
 
-                outerRings.Add(ReadRingPoints(polygonElement[0]));
+                outerRings.AddRange(ReadPolygonRings(polygonElement));
             }
 
             return outerRings;

@@ -102,7 +102,7 @@ public sealed class OgcApiFeaturesClient
             }
             BoundingBox2D? bounds = null;
             if (value.TryGetProperty("extent", out var extent) && extent.TryGetProperty("spatial", out var spatial) &&
-                (!spatial.TryGetProperty("crs", out var crs) || crs.GetString()?.Contains("CRS84", StringComparison.OrdinalIgnoreCase) == true) &&
+                (!spatial.TryGetProperty("crs", out var crs) || SpatialReferenceIdentifier.IsCrs84(crs.GetString())) &&
                 spatial.TryGetProperty("bbox", out var boxes) && boxes.ValueKind == JsonValueKind.Array)
             {
                 foreach (var box in boxes.EnumerateArray())

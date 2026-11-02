@@ -93,27 +93,27 @@ namespace RhinoSpatial.Core
                 "Polygon" => new WfsGeometry
                 {
                     Type = "Polygon",
-                    OuterRings = new List<LinearRing> { ReadPolygonOuterRing(geometryRootElement) }
+                    OuterRings = ReadPolygonRings(geometryRootElement)
                 },
                 "Surface" => new WfsGeometry
                 {
                     Type = "Polygon",
-                    OuterRings = new List<LinearRing> { ReadPolygonOuterRing(geometryRootElement) }
+                    OuterRings = ReadPolygonRings(geometryRootElement)
                 },
                 "PolygonPatch" => new WfsGeometry
                 {
                     Type = "Polygon",
-                    OuterRings = new List<LinearRing> { ReadPolygonOuterRing(geometryRootElement) }
+                    OuterRings = ReadPolygonRings(geometryRootElement)
                 },
                 "MultiPolygon" => new WfsGeometry
                 {
                     Type = "MultiPolygon",
-                    OuterRings = ReadPolygonCollectionOuterRings(geometryRootElement)
+                    OuterRings = ReadPolygonRings(geometryRootElement)
                 },
                 "MultiSurface" => new WfsGeometry
                 {
                     Type = "MultiPolygon",
-                    OuterRings = ReadPolygonCollectionOuterRings(geometryRootElement)
+                    OuterRings = ReadPolygonRings(geometryRootElement)
                 },
                 "LineString" => new WfsGeometry
                 {
@@ -149,36 +149,17 @@ namespace RhinoSpatial.Core
             };
         }
 
-        private static List<LinearRing> ReadPolygonCollectionOuterRings(XElement geometryRootElement)
+        private static List<LinearRing> ReadPolygonRings(XElement geometryRootElement)
         {
-            var outerRings = new List<LinearRing>();
-
-            foreach (var polygonElement in geometryRootElement.Descendants().Where(element => string.Equals(element.Name.LocalName, "Polygon", StringComparison.OrdinalIgnoreCase)))
-            {
-                outerRings.Add(ReadPolygonOuterRing(polygonElement));
-            }
-
-            foreach (var surfaceElement in geometryRootElement.Descendants().Where(element =>
-                string.Equals(element.Name.LocalName, "Surface", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(element.Name.LocalName, "PolygonPatch", StringComparison.OrdinalIgnoreCase)))
-            {
-                outerRings.Add(ReadPolygonOuterRing(surfaceElement));
-            }
-
-            return outerRings;
+            // Walk ring elements once: Surface contains PolygonPatch, so walking both duplicates boundaries.
+            return geometryRootElement.Descendants()
+                .Where(element => string.Equals(element.Name.LocalName, "LinearRing", StringComparison.OrdinalIgnoreCase))
+                .Select(ReadLinearRing)
+                .ToList();
         }
 
-        private static LinearRing ReadPolygonOuterRing(XElement polygonElement)
+        private static LinearRing ReadLinearRing(XElement linearRingElement)
         {
-            var linearRingElement = polygonElement
-                .Descendants()
-                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "LinearRing", StringComparison.OrdinalIgnoreCase));
-
-            if (linearRingElement is null)
-            {
-                return new LinearRing(new List<Coordinate2D>());
-            }
-
             var srsName = FindSrsName(linearRingElement);
             var posListElement = linearRingElement
                 .Elements()
@@ -368,7 +349,7 @@ namespace RhinoSpatial.Core
         private static bool ShouldSwapAxisOrder(double firstValue, double secondValue, string srsName)
         {
             if (!string.IsNullOrWhiteSpace(srsName) &&
-                srsName.Contains("4258", StringComparison.OrdinalIgnoreCase))
+                SpatialReferenceTransform.NormalizeSrs(srsName) == "EPSG:4258")
             {
                 var firstLooksLikeLatitude = Math.Abs(firstValue) <= 90.0;
                 var secondLooksLikeLatitude = Math.Abs(secondValue) <= 90.0;

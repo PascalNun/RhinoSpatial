@@ -54,4 +54,4 @@ For an overview of what is in the release and what is on `main`, see the [versio
 
 For maintainers, validate a complete study as well as an isolated source: imagery, vectors, terrain and buildings should keep their shared placement. Record whether a result was checked in Rhino, through a core probe or only from metadata. Those checks answer different questions.
 
-Maintainers can find deliberately failing diagnostic cases in the [reader research fixtures](fixtures/research/README.md), with findings in the [next-work report](../docs/NEXT_WORK_RESEARCH.md). These are separate from the working examples above.
+Maintainers can find small correctness regression inputs, including deliberately invalid terrain, in the [reader research fixtures](fixtures/research/README.md), with findings in the [next-work report](../docs/NEXT_WORK_RESEARCH.md). These are separate from the working examples above.

@@ -16,18 +16,18 @@ The compatibility work below is merged into `main` for the next release:
 | Building and image formats | CityJSON detail selection, sequences and templates; affine/world-file imagery; WMTS map services |
 | Remote rasters and local vectors | COG image/elevation windows and read-only GeoPackage feature layers |
 
-The Release build and all nine automated suites have passed on macOS and Windows. Preview, materials, baking, installed-package behavior and saved definitions still need the relevant Rhino checks before publication. Merging code into `main` does not change the installed plugin or published packages.
+The Release build and all ten automated suites pass locally; CI runs them on macOS and Windows. Preview, materials, baking, installed-package behavior and saved definitions still need the relevant Rhino checks before publication. Merging code into `main` does not change the installed plugin or published packages.
 
 Implementation records remain available for [services and downloads](COMPATIBILITY_IMPLEMENTATION_PLAN.md), [building and imagery formats](MEDIUM_COMPATIBILITY_PLAN.md), and [COG/GeoPackage](LOW_COMPATIBILITY_PLAN.md). Their original priority labels describe the research order, not the user-facing structure of the toolkit.
 
 ## Immediate correctness work
 
-The [next-work research](NEXT_WORK_RESEARCH.md) reproduces three issues that the
-current green suites do not cover: incomplete terrain reads can repeat a row,
-GeoJSON/GML can lose courtyard boundaries, and the shared coordinate helper can
-misread an invalid identifier. Fix these and add regressions before another
-round of format expansion. The research includes tiny inputs, evidence levels
-and proposed acceptance checks; the fixes are not implemented yet.
+The three high-priority findings from the [next-work research](NEXT_WORK_RESEARCH.md)
+are fixed in the development build: incomplete terrain reads fail explicitly,
+vector readers keep courtyard boundaries, and coordinate names are parsed
+consistently. The [implementation record](CORRECTNESS_PLAN.md) covers efficiency,
+shared code and the 52 new offline regression cases. The public package remains
+0.4.0 until a separately validated release.
 
 Then check complete studies in Rhino, including model units, actual host runtimes,
 materials and saved definitions. Consistent cancellation and bounded reads in

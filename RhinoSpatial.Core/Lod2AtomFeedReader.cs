@@ -174,9 +174,8 @@ public static class Lod2AtomFeedReader
         var hi = Numbers(upper.Value);
         if (lo.Length < 2 || hi.Length < 2)
             throw new InvalidOperationException("Invalid ATOM GML envelope corners.");
-        var code = Regex.Match(srs, @"EPSG(?::|/)(?:[^:/]*[:/])?(\d+)$", RegexOptions.IgnoreCase);
-        var normalized = code.Success ? "EPSG:" + code.Groups[1].Value : srs.Contains("CRS84", StringComparison.OrdinalIgnoreCase) ? "EPSG:4326" : srs;
-        var swap = code.Success && (normalized is "EPSG:4326" or "EPSG:4258");
+        var normalized = SpatialReferenceTransform.NormalizeSrs(srs);
+        var swap = !SpatialReferenceIdentifier.IsCrs84(srs) && (normalized is "EPSG:4326" or "EPSG:4258");
         var bounds = swap ? new BoundingBox2D(lo[1], lo[0], hi[1], hi[0]) : new BoundingBox2D(lo[0], lo[1], hi[0], hi[1]);
         ValidateBounds(bounds);
         return new AtomSpatialExtent(normalized, bounds);

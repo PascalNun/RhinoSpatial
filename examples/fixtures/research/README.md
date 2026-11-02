@@ -15,7 +15,11 @@ The GeoJSON case can be inspected with the existing probe:
 dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- geojson examples/fixtures/research/courtyard.geojson
 ```
 
-It currently reports one geometry item; a fix should retain both boundaries.
+The development build now reports both boundary curves. The deliberately truncated TIFF must fail rather than return repeated elevations. Run all related regressions from the repository root:
+
+```sh
+dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- correctness-check
+```
 For the other cases, the research used the Core APIs directly:
 
 ```csharp
@@ -24,4 +28,4 @@ TerrainRasterReader.ReadRaster(truncatedPath, "probe", "EPSG:25833");
 // For BigTIFF decoding: Tiff.Open(bigTiffPath, "r") and ReadScanline(buffer, 1).
 ```
 
-The explicit CRS in the truncated-raster call is a test argument, not a claim that the unreferenced file is project data. The BigTIFF case proves basic decoder capability only; it does not prove remote range handling, tiled COGs, overviews or offsets above 4 GiB. No failing regression tests or production fixes are added by this research record.
+The explicit CRS in the truncated-raster call is a test argument, not a claim that the unreferenced file is project data. The BigTIFF case proves basic decoder capability only; it does not prove remote range handling, tiled COGs, overviews or offsets above 4 GiB. The follow-up [correctness implementation](../../../docs/CORRECTNESS_PLAN.md) adds production fixes and 52 offline checks, including generated Shapefiles and compressed/edge-tile rasters. The original table records the pre-fix observations.

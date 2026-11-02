@@ -481,14 +481,32 @@ follow the existing rule that saved selections take priority. Explicit WGS84 UTM
 north/south EPSG:32601–32660 / 32701–32760 are supported transformations; source
 heights are not vertically reinterpreted.
 
-## Reader issues under review
+## Reader correctness and limits
 
-The [2026-11-02 research](NEXT_WORK_RESEARCH.md) records three reproduced cases
-that are not fixed yet: GeoJSON/GML polygon interiors can be omitted, a failed
-local terrain scanline can repeat the preceding row, and some malformed or
-alternative CRS identifiers are mishandled by the shared helper. Do not treat a
-terrain result accompanied by a read error as valid. Use the source's verified
-coordinate identifier and check that expected interior boundaries are present.
+The development build from `main` fixes the three high-priority cases in the
+[2026-11-02 research](NEXT_WORK_RESEARCH.md). GeoJSON, GML and Shapefiles retain
+exterior and interior boundary curves, as GeoPackage already does. Curves stay
+with their source feature and attributes; they are not filled polygon surfaces.
+
+Local terrain TIFFs reject failed rows and incomplete tiles rather than returning
+partial elevations. The full-raster reader limits its elevation array to 256 MiB
+(67,108,864 samples) and each row/tile decode buffer to 32 MiB. Dimensions and
+supported sample types are checked before allocation. These are individual
+allocation limits, not a guarantee about total decoder or Rhino memory use.
+Crop a larger local raster first, or use a supported WCS/remote COG window.
+
+Coordinate identifiers use the same parser for placement, transforms and context
+identity. Supported CRS codes can be written as `EPSG:25833`,
+`urn:ogc:def:crs:EPSG::25833`, a versioned OGC URN, or an official OGC definition
+URL such as `https://www.opengis.net/def/crs/EPSG/0/25833`. CRS84 remains
+longitude-first. The known AdV UTM32/33 names, including
+`urn:adv:crs:ETRS89_UTM33*DE_DHHN2016_NH`, retain the horizontal CRS and original
+source heights. Recognizing identifier syntax does not add support for an
+otherwise unsupported CRS. An invalid or unsupported vector transformation
+returns an error instead of silently removing points.
+
+These changes require the development build; the public package remains 0.4.0.
+See the [implementation and validation record](CORRECTNESS_PLAN.md).
 
 Remote BigTIFF remains unsupported by the COG reader. A basic probe confirmed
 that the shipped decoder can read BigTIFF; bounded 64-bit remote header/directory

@@ -96,11 +96,11 @@ The public package is **0.4.0**. The following additions are merged into `main` 
 
 | Area | Added on `main` |
 | --- | --- |
-| Vectors | API-root discovery, bounded feature paging, direct vector downloads and local GeoPackage feature layers |
+| Vectors | API-root discovery, bounded feature paging, direct vector downloads, local GeoPackage layers and retained courtyard boundary curves across vector files |
 | Imagery | WMTS services, world-file TIFF/PNG/JPEG placement and remote COG image windows |
-| Terrain | Supported ATOM tile feeds, remote COG elevation windows and shared affine raster placement |
+| Terrain | Supported ATOM tile feeds, remote COG elevation windows, shared affine placement and explicit errors for incomplete TIFF reads |
 | Buildings | Direct building downloads, CityJSON detail selection, sequences and geometry templates |
-| Map references | Additional API/feed/tile-service metadata, GeoPackage catalog extents and remote COG headers |
+| Map references | Additional source metadata, GeoPackage catalog extents, remote COG headers and consistent supported coordinate identifiers |
 
 The development work has automated checks on macOS and Windows. Rhino preview, materials, baking and saved-definition checks remain part of release validation. See the [changelog](../CHANGELOG.md) and [validation checklist](../examples/VALIDATION.md) for detail.
 

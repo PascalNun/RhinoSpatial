@@ -207,8 +207,7 @@ namespace RhinoSpatial.Core
             // EPSG:4326 WFS implementations remain split between legacy XY and authority
             // axis order. Keep the established XY behavior there; EPSG:4258 providers
             // tested by RhinoSpatial use the standards-defined latitude/longitude order.
-            return !string.IsNullOrWhiteSpace(options.SrsName) &&
-                   options.SrsName.Contains("4258", StringComparison.OrdinalIgnoreCase);
+            return SpatialReferenceTransform.NormalizeSrs(options.SrsName) == "EPSG:4258";
         }
 
         public static string BuildGetCapabilitiesRequestUrl(

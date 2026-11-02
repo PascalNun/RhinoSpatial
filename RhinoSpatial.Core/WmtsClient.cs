@@ -56,7 +56,7 @@ public sealed class WmtsClient
         foreach (var set in contents.Elements(w + "TileMatrixSet"))
         {
             var id = Text(set, o + "Identifier"); var declared = Text(set, o + "SupportedCRS");
-            var srs = declared.Contains("CRS84", StringComparison.OrdinalIgnoreCase) || declared.Contains("CRS:84", StringComparison.OrdinalIgnoreCase) ? "EPSG:4326" : SpatialReferenceTransform.NormalizeSrs(declared);
+            var srs = SpatialReferenceTransform.NormalizeSrs(declared);
             if (!SpatialReferenceTransform.TryTransformXY(srs, "EPSG:4326", 0, 0, out _, out _)) continue;
             var swap = OgcUrlUtilities.UsesLatitudeLongitudeAxisOrder(declared);
             var degrees = srs is "EPSG:4326" or "EPSG:4258" or "EPSG:4283" or "EPSG:7844" or "EPSG:7423";

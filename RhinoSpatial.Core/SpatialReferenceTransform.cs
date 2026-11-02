@@ -48,44 +48,68 @@ namespace RhinoSpatial.Core
               AUTHORITY["EPSG","28992"]]
             """);
 
+        public delegate bool XYTransform(double x, double y, out double transformedX, out double transformedY);
+
+        /// <summary>Prepare one transformation for a batch. Each operation owns its instance.</summary>
+        public static bool TryCreateXYTransform(string sourceSrs, string targetSrs,
+            [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out XYTransform? transform)
+        {
+            transform = null;
+            if (!TryCreateMathTransform(sourceSrs, targetSrs, out var math)) return false;
+            transform = (double x, double y, out double tx, out double ty) => Transform(math, x, y, out tx, out ty);
+            return true;
+        }
+
         public static bool TryTransformXY(string sourceSrs, string targetSrs, double x, double y, out double transformedX, out double transformedY)
         {
             transformedX = x;
             transformedY = y;
+            return double.IsFinite(x) && double.IsFinite(y) &&
+                TryCreateMathTransform(sourceSrs, targetSrs, out var math) &&
+                Transform(math, x, y, out transformedX, out transformedY);
+        }
 
+        public static bool IsSupportedSrs(string? srs) => CreateCoordinateSystem(NormalizeSrs(srs)) is not null;
+
+        private static bool TryCreateMathTransform(string sourceSrs, string targetSrs, out MathTransform? math)
+        {
+            math = null;
             var normalizedSource = NormalizeSrs(sourceSrs);
             var normalizedTarget = NormalizeSrs(targetSrs);
-
-            if (string.IsNullOrWhiteSpace(normalizedSource) || string.IsNullOrWhiteSpace(normalizedTarget))
-            {
-                return false;
-            }
-
-            if (normalizedSource == normalizedTarget)
-            {
-                return true;
-            }
-
             var source = CreateCoordinateSystem(normalizedSource);
             var target = CreateCoordinateSystem(normalizedTarget);
-
-            if (source is null || target is null)
-            {
-                return false;
-            }
-
-            var transformed = TransformationFactory.CreateFromCoordinateSystems(source, target).MathTransform.Transform(x, y);
-            transformedX = transformed.x;
-            transformedY = transformed.y;
+            // Even an identity operation must have a supported, declared CRS.
+            if (source is null || target is null) return false;
+            if (normalizedSource != normalizedTarget)
+                math = TransformationFactory.CreateFromCoordinateSystems(source, target).MathTransform;
             return true;
         }
 
+        private static bool Transform(MathTransform? math, double x, double y, out double tx, out double ty)
+        {
+            tx = x;
+            ty = y;
+            if (!double.IsFinite(x) || !double.IsFinite(y)) return false;
+            if (math is not null)
+            {
+                try { (tx, ty) = math.Transform(x, y); }
+                catch (Exception ex) when (ex is ArgumentException or ArithmeticException) { return false; }
+            }
+            return double.IsFinite(tx) && double.IsFinite(ty);
+        }
+
+        // Only the supported UTM zones enter this bounded cache. Mutable transforms stay per operation.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, CoordinateSystem> UtmSystems = new();
+        private static CoordinateSystem Utm(int zone, bool north) => UtmSystems.GetOrAdd(
+            zone + (north ? 0 : 60), key => ProjectedCoordinateSystem.WGS84_UTM(key > 60 ? key - 60 : key, key <= 60));
+
         private static CoordinateSystem? CreateCoordinateSystem(string normalizedSrs)
         {
-            if(normalizedSrs.StartsWith("EPSG:",StringComparison.Ordinal)&&int.TryParse(normalizedSrs.AsSpan(5),out var epsg))
+            if (normalizedSrs.StartsWith("EPSG:", StringComparison.Ordinal) &&
+                int.TryParse(normalizedSrs.AsSpan(5), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var epsg))
             {
-                if(epsg is >=32601 and <=32660)return ProjectedCoordinateSystem.WGS84_UTM(epsg-32600,true);
-                if(epsg is >=32701 and <=32760)return ProjectedCoordinateSystem.WGS84_UTM(epsg-32700,false);
+                if (epsg is >= 32601 and <= 32660) return Utm(epsg - 32600, true);
+                if (epsg is >= 32701 and <= 32760) return Utm(epsg - 32700, false);
             }
             return normalizedSrs switch
             {
@@ -96,87 +120,14 @@ namespace RhinoSpatial.Core
                 "EPSG:4283" => GeographicCoordinateSystem.WGS84,
                 "EPSG:7844" => GeographicCoordinateSystem.WGS84,
                 "EPSG:3857" => ProjectedCoordinateSystem.WebMercator,
-                "EPSG:25832" => ProjectedCoordinateSystem.WGS84_UTM(32, true),
-                "EPSG:25833" => ProjectedCoordinateSystem.WGS84_UTM(33, true),
+                "EPSG:25832" => Utm(32, true),
+                "EPSG:25833" => Utm(33, true),
                 "EPSG:28992" => AmersfoortRdNew,
                 "EPSG:27700" => BritishNationalGrid,
                 _ => null
             };
         }
 
-        public static string NormalizeSrs(string? srs)
-        {
-            if (string.IsNullOrWhiteSpace(srs))
-            {
-                return string.Empty;
-            }
-
-            var trimmed = srs.Trim();
-
-            // AdV CityGML names combine a horizontal CRS with a height reference.
-            // Only normalize XY; source heights remain in their published datum.
-            var horizontalName = trimmed.Split('*')[0];
-            if (horizontalName.Equals("urn:adv:crs:ETRS89_UTM32", System.StringComparison.OrdinalIgnoreCase))
-                return "EPSG:25832";
-            if (horizontalName.Equals("urn:adv:crs:ETRS89_UTM33", System.StringComparison.OrdinalIgnoreCase))
-                return "EPSG:25833";
-
-            if (trimmed.Contains("4326", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:4326";
-            }
-
-            if (trimmed.Contains("4258", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:4258";
-            }
-
-            if (trimmed.Contains("7423", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:7423";
-            }
-
-            if (trimmed.Contains("7415", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:7415";
-            }
-
-            if (trimmed.Contains("25832", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:25832";
-            }
-
-            if (trimmed.Contains("25833", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:25833";
-            }
-
-            if (trimmed.Contains("28992", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:28992";
-            }
-
-            if (trimmed.Contains("3857", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:3857";
-            }
-
-            if (trimmed.Contains("27700", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:27700";
-            }
-
-            if (trimmed.Contains("4283", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:4283";
-            }
-
-            if (trimmed.Contains("7844", System.StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:7844";
-            }
-
-            return trimmed.ToUpperInvariant();
-        }
+        public static string NormalizeSrs(string? srs) => SpatialReferenceIdentifier.Normalize(srs);
     }
 }

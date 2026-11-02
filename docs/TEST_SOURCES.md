@@ -13,8 +13,8 @@ The **Current Use** column describes what the source is supposed to validate in 
 
 For a general workflow, start with [Working with project data](WORKING_WITH_PROJECT_DATA.md).
 The dated checks below are maintainer evidence. All compatibility batches are
-merged into `main`, while the public package remains 0.4.0. The combined nine-suite
-CI passes on macOS and Windows; native Rhino and installed-package checks remain
+merged into `main`, while the public package remains 0.4.0. The ten-suite
+CI runs on macOS and Windows; native Rhino and installed-package checks remain
 separate.
 
 Use these together with:
@@ -270,7 +270,7 @@ COG metadata/windows/overviews/masks/NoData/alpha/placement, decoder allocation
 limits, explicit WGS84 UTM transformations, and GeoPackage catalogs/quoted names/
 RTree/fallback/CRS/holes/attributes/endian/envelopes/collections/malformed geometry/
 limits/cancellation/source immutability. All eight prior suites also pass locally.
-CI now runs the build and all nine suites on macOS and Windows.
+The compatibility batch passed the build and all nine suites on macOS and Windows; the subsequent correctness suite brings the current total to ten.
 
 Live probes: Sentinel TCI 11×12 pixels / 2,686,976 range bytes; Copernicus DSM
 4×4 samples / 3,080,192 bytes; GDAL public GeoPackage 10 features / 10 rings with
@@ -285,7 +285,18 @@ lost GeoJSON/GML interior rings, a truncated DEM repeating its last readable row
 and inconsistent CRS identifier handling. A tiny BigTIFF also proved basic
 support in the pinned decoder. Inputs are saved separately under
 [research fixtures](../examples/fixtures/research/README.md), including one
-intentionally truncated file. They are diagnostic cases, not working site-data
-recommendations or implemented regression fixes. The native units/runtime and
-resource-limit findings remain investigation items at the evidence levels stated
-in that report.
+intentionally truncated file. They are diagnostic cases, separate from working
+site-data recommendations. The three high-priority findings are now fixed on
+`main`; see the [correctness implementation](CORRECTNESS_PLAN.md).
+
+Run the 52 offline regressions from the repository root:
+
+```sh
+dotnet run --project RhinoSpatial.Sandbox.csproj -c Release -- correctness-check
+```
+
+The checks cover missing row/tile data, valid compressed and edge-tile reads,
+NoData, local BigTIFF, allocation guards, polygon interiors and islands,
+coordinate identifiers, axis conventions and retained AdV source heights. All
+ten suites pass locally. Native units/runtime checks, consistent cancellation,
+windowed local raster reads and remote BigTIFF remain follow-up work.

@@ -2,9 +2,11 @@
 
 Research recorded on **2026-11-02**, against `main` at `3e71e25`.
 
+**Implementation update:** the three high-priority items are now fixed in the development build from `main`, following the [correctness plan](CORRECTNESS_PLAN.md). The 52 new offline checks cover the original failures, a real Shapefile courtyard/island, valid compressed terrain, missing tile bytes, allocation guards, coordinate aliases, CRS84 axes and AdV source heights. The original observations below describe the audit baseline. Native Rhino validation and the other follow-ups remain pending; the public package is still 0.4.0.
+
 The next phase should improve correctness and everyday reliability before adding another broad set of formats. The previous compatibility work is merged and its automated checks pass, but small targeted probes exposed gaps that those tests do not cover.
 
-## Recommended order
+## Research priorities and follow-up
 
 | Priority | Work | Benefit | Evidence |
 | --- | --- | --- | --- |
@@ -16,9 +18,9 @@ The next phase should improve correctness and everyday reliability before adding
 | Medium | Extend remote raster handling to BigTIFF | Accept more large imagery/elevation products with the existing library | Basic decoding proved with shipped LibTiff; remote path still rejects it |
 | Later | Improve cache management and reuse | Make disk use and repeated loads easier to understand | Separate caches and recompute behavior found; no urgent disk-space problem demonstrated |
 
-The first implementation batch should address the three confirmed correctness issues and add regression cases. Follow it with a combined Rhino study before deciding on publication. Preserve component names/connections and use the same shared context throughout.
+The first implementation batch has addressed the three confirmed correctness issues and added regressions. Follow it with a combined Rhino study before deciding on publication. Preserve component names/connections and use the same shared context throughout.
 
-## Confirmed findings
+## Original findings at the audit baseline
 
 ### 1. An unreadable terrain row can repeat old elevations
 
@@ -101,4 +103,4 @@ URN EPSG::32632: rejected while EPSG:32632 is accepted
 Pinned LibTiff BigTIFF: marker 43, successful row [30,40]
 ```
 
-These are research findings and proposed acceptance checks, **not implemented fixes**. Existing green CI does not cover every newly demonstrated failure. Native Rhino scale/material/assembly behavior remains unverified by these probes. No version, installed plugin, dependency or published package was changed.
+The observations above are the original research results. The follow-up implementation now retains both courtyard rings, rejects the truncated terrain file, leaves `EPSG:9994326` unsupported, and accepts the supported UTM URN. A valid local BigTIFF still reads correctly. All ten suites pass locally, including the 52 correctness checks; CI runs the same checks on macOS and Windows. Native Rhino scale/material/assembly behavior remains unverified by these probes. No version, installed plugin, dependency or published package was changed.

@@ -57,6 +57,8 @@ namespace RhinoSpatial.Core
                 sourceSrs = spatialContext.ResolvedSrs;
             }
 
+            var transformFilter = new CoordinateSequenceTransformFilter(sourceSrs, spatialContext.ResolvedSrs);
+            var identityTransform = NormalizeSrs(sourceSrs) == NormalizeSrs(spatialContext.ResolvedSrs);
             var sourceBoundingBox = TryReadBoundingBox(shapefilePath);
             var contextBoundsInSourceSrs = RhinoSpatialContextToolsAdapter.TryResolveBoundingBoxForSrs(
                 spatialContext,
@@ -93,7 +95,7 @@ namespace RhinoSpatial.Core
                         continue;
                     }
 
-                    var transformedGeometry = TransformGeometry(geometry, sourceSrs, spatialContext.ResolvedSrs);
+                    var transformedGeometry = TransformGeometry(geometry, transformFilter, identityTransform);
                     var wfsGeometry = ConvertGeometry(transformedGeometry);
                     if (wfsGeometry.OuterRings.Count == 0 &&
                         wfsGeometry.LineStrings.Count == 0 &&
@@ -190,17 +192,15 @@ namespace RhinoSpatial.Core
             }
         }
 
-        private static NtsGeometry TransformGeometry(NtsGeometry geometry, string sourceSrs, string targetSrs)
+        private static NtsGeometry TransformGeometry(NtsGeometry geometry, CoordinateSequenceTransformFilter transform, bool identity)
         {
-            var normalizedSource = NormalizeSrs(sourceSrs);
-            var normalizedTarget = NormalizeSrs(targetSrs);
-            if (normalizedSource == normalizedTarget)
+            if (identity)
             {
                 return geometry;
             }
 
             var clone = geometry.Copy();
-            clone.Apply(new CoordinateSequenceTransformFilter(sourceSrs, targetSrs));
+            clone.Apply(transform);
             clone.GeometryChanged();
             return clone;
         }
@@ -221,6 +221,8 @@ namespace RhinoSpatial.Core
             {
                 case Polygon polygon:
                     output.OuterRings.Add(ReadRing(polygon.ExteriorRing));
+                    for (var index = 0; index < polygon.NumInteriorRings; index++)
+                        output.OuterRings.Add(ReadRing(polygon.GetInteriorRingN(index)));
                     break;
                 case MultiPolygon multiPolygon:
                     for (var index = 0; index < multiPolygon.NumGeometries; index++)
@@ -295,45 +297,21 @@ namespace RhinoSpatial.Core
                    envelope.MaxY >= bounds.MinY;
         }
 
-        private static string NormalizeSrs(string? srs)
-        {
-            if (string.IsNullOrWhiteSpace(srs))
-            {
-                return string.Empty;
-            }
-
-            if (srs.Contains("25832", StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:25832";
-            }
-
-            if (srs.Contains("25833", StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:25833";
-            }
-
-            if (srs.Contains("3857", StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:3857";
-            }
-
-            if (srs.Contains("4326", StringComparison.OrdinalIgnoreCase))
-            {
-                return "EPSG:4326";
-            }
-
-            return srs.Trim().ToUpperInvariant();
-        }
+        private static string NormalizeSrs(string? srs) => SpatialReferenceTransform.NormalizeSrs(srs);
 
         private sealed class CoordinateSequenceTransformFilter : ICoordinateSequenceFilter
         {
             private readonly string _sourceSrs;
             private readonly string _targetSrs;
+            private readonly SpatialReferenceTransform.XYTransform _transform;
 
             public CoordinateSequenceTransformFilter(string sourceSrs, string targetSrs)
             {
                 _sourceSrs = sourceSrs;
                 _targetSrs = targetSrs;
+                if (!SpatialReferenceTransform.TryCreateXYTransform(sourceSrs, targetSrs, out var transform))
+                    throw new InvalidOperationException($"Could not transform Shapefile coordinates from '{sourceSrs}' to '{targetSrs}'.");
+                _transform = transform;
             }
 
             public bool Done => false;
@@ -342,9 +320,7 @@ namespace RhinoSpatial.Core
 
             public void Filter(CoordinateSequence seq, int i)
             {
-                if (!SpatialReferenceTransform.TryTransformXY(
-                        _sourceSrs,
-                        _targetSrs,
+                if (!_transform(
                         seq.GetX(i),
                         seq.GetY(i),
                         out var x,

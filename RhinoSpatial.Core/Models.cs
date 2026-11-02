@@ -26,6 +26,7 @@ namespace RhinoSpatial.Core
     {
         public string Type { get; init; } = string.Empty;
 
+        // Legacy name: all polygon boundary curves, exterior and interior, in this feature.
         public List<LinearRing> OuterRings { get; init; } = new();
 
         public List<LineString> LineStrings { get; init; } = new();

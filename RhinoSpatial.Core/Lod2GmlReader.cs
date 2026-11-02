@@ -573,11 +573,8 @@ namespace RhinoSpatial.Core
         private static bool ShouldSwapAxisOrder(double firstValue, double secondValue, string srsName)
         {
             if (!string.IsNullOrWhiteSpace(srsName) &&
-                (srsName.Contains("4326", StringComparison.OrdinalIgnoreCase) ||
-                 srsName.Contains("4258", StringComparison.OrdinalIgnoreCase) ||
-                 srsName.Contains("7423", StringComparison.OrdinalIgnoreCase) ||
-                 srsName.Contains("4283", StringComparison.OrdinalIgnoreCase) ||
-                 srsName.Contains("7844", StringComparison.OrdinalIgnoreCase)))
+                !SpatialReferenceIdentifier.IsCrs84(srsName) &&
+                (SpatialReferenceTransform.NormalizeSrs(srsName) is "EPSG:4326" or "EPSG:4258" or "EPSG:7423" or "EPSG:4283" or "EPSG:7844"))
             {
                 var firstLooksLikeLatitude = Math.Abs(firstValue) <= 90;
                 var secondLooksLikeLatitude = Math.Abs(secondValue) <= 90;

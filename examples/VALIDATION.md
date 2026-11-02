@@ -2,8 +2,8 @@
 
 This is the maintainer checklist for a release. For ordinary use, start with the
 [visual workflow](../docs/SHOWCASE.md) or [project-data guide](../docs/WORKING_WITH_PROJECT_DATA.md).
-The compatibility work is merged into `main`; all nine automated suites pass on
-macOS and Windows. Unchecked native items below remain pending and are not implied
+The development work is merged into `main`; all ten automated suites pass locally
+and run in CI on macOS and Windows. Unchecked native items below remain pending and are not implied
 by a successful console or CI run. The public package remains 0.4.0.
 
 
@@ -19,7 +19,10 @@ It is intentionally small and practical. The point is to confirm that the core d
 - sandbox probes from `docs/TEST_SOURCES.md` still run for at least one bounded WFS GetFeature, WMS GetMap, WCS GetCoverage, one CityGML file, one CityJSON file, one Shapefile, and one GeoTIFF file; capabilities-only checks do not count as full source validation
 - the sandbox `tiles-selection-check` passes before manual Google 3D Tiles validation
 - the sandbox `ogc-request-check` and `reference-source-check` pass before service and local-reference validation
-- the sandbox `source-reader-check` and `terrain-mesh-check` pass before local vector and terrain validation
+- the sandbox `source-reader-check`, `terrain-mesh-check` and `correctness-check` pass before local vector and terrain validation
+- compare a courtyard polygon and a multipolygon in GeoJSON, GML, Shapefile and GeoPackage; all boundary curves should remain with their feature and attributes
+- confirm an incomplete terrain file shows an error and publishes no partial mesh; check a valid compressed raster and NoData gaps alongside it
+- verify supported coordinate aliases give the same placement, CRS84 stays longitude-first, and AdV source heights are unchanged
 - component grouping still reads as `Context / Layers / Sources / Viewers`
 - icons load correctly for all components
 - `Spatial Context` still acts as the shared starting point

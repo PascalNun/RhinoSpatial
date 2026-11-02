@@ -20,17 +20,21 @@ for feature availability and the general workflow.
 
 ### Placement and correctness
 
+- Reject incomplete terrain rows and tiles before returning a raster. Validate dimensions, sample formats and allocation budgets first; reuse the open TIFF for metadata and one decode buffer.
+- Keep exterior and courtyard boundary curves in GeoJSON, GML and Shapefiles, matching GeoPackage. Preserve feature grouping and read nested GML surface patches without duplicate rings.
+- Parse complete coordinate identifiers through one shared helper, including supported EPSG short names, OGC URNs/URLs, CRS84 and AdV aliases. Reject unsupported or invalid vector transformations explicitly; preserve axis conventions and source heights. Prepare vector transformations once per batch or Shapefile read.
+
 - Support affine GeoTIFF and world-file TIFF/PNG/JPEG placement, including rotated footprints, correct pixel centers, UV clipping and terrain sampling. Sidecar edits invalidate caches; declared projected coordinates take priority over geographic keys.
 - Select one suitable CityJSON detail level per object and support sequences and geometry templates through existing local, archive and download workflows. Reject ambiguous detail or malformed geometry instead of returning partial rings.
 - Correct projected Shapefile WKT authority detection, GDAL ASCII NoData values returned after a field count, and add explicit WGS84 UTM north/south transformations needed by common remote rasters. Unsupported declared coordinates fail explicitly.
 
 ### Documentation, dependencies and validation
 
-- Record [follow-up correctness research](docs/NEXT_WORK_RESEARCH.md), diagnostic fixtures and priorities for terrain reads, courtyard rings, coordinate names, host/unit checks and BigTIFF range handling. These findings are not implemented fixes.
+- Record [follow-up correctness research](docs/NEXT_WORK_RESEARCH.md), diagnostic fixtures and priorities for terrain reads, courtyard rings, coordinate names, host/unit checks and BigTIFF range handling. The three high-priority fixes are implemented with offline regressions; host/unit checks, broader cancellation and BigTIFF range handling remain follow-ups.
 - Refresh the overview, visual workflow, project-data guide, examples, reference and maintainer documentation. General workflows apply across providers; recorded URLs, bounds and technical probe results remain in linked recipes.
 - Save [service/download examples](examples/COMPATIBILITY_WORKFLOWS.md), [building/imagery examples](examples/MEDIUM_COMPATIBILITY_WORKFLOWS.md), and [COG/GeoPackage examples](examples/LOW_COMPATIBILITY_WORKFLOWS.md), with synthetic sample files and actual live-check results.
 - Add managed StbImageNext 1.0.0, Microsoft.Data.Sqlite.Core 8.0.32 and SQLitePCLRaw platform providers. Update dependency notices, license texts and package inspection; no new native SQLite binary is bundled.
-- Add 26 service/download, 27 building/imagery and 43 COG/GeoPackage regression cases. All nine suites pass on macOS and Windows. Native Rhino preview, material/bake and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
+- Add 26 service/download, 27 building/imagery and 43 COG/GeoPackage regression cases, plus 52 correctness regressions. The Release build and all ten suites pass locally; CI runs them on macOS and Windows. Native Rhino preview, material/bake and installed-package checks remain on the release checklist. Component names, GUIDs and input/output layouts are retained.
 
 ## 0.4.0 — 2026-11-01
 
